@@ -57,10 +57,12 @@ namespace OrclFileExplorer
         }
 
         // "DualPane.exe --install": install or update without asking (errors are still shown).
-        public static void InstallQuietly()
+        public static bool Quiet;   // --quiet: never show a window (unattended install / uninstall)
+
+        public static bool InstallQuietly()
         {
-            if (IsRunningInstalledCopy()) return; // already the installed copy; nothing to copy
-            Install();
+            if (IsRunningInstalledCopy()) return true; // already the installed copy; nothing to copy
+            return Install();
         }
 
         // Brings the already-running DualPane window to the front (used when it is launched a second time).
@@ -85,12 +87,13 @@ namespace OrclFileExplorer
             }
             catch (IOException)
             {
-                MessageBox.Show("The installed Orcl File Explorer is running. Close it and try again.", Program.AppName, MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                if (!Quiet) MessageBox.Show("The installed Orcl File Explorer is running. Close it and try again.", Program.AppName, MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return false;
             }
             catch (Exception ex)
             {
-                MessageBox.Show("Install failed: " + ex.Message, Program.AppName, MessageBoxButtons.OK, MessageBoxIcon.Error);
+                Program.LogError(ex);
+                if (!Quiet) MessageBox.Show("Install failed: " + ex.Message, Program.AppName, MessageBoxButtons.OK, MessageBoxIcon.Error);
                 return false;
             }
             Register();
@@ -113,6 +116,7 @@ namespace OrclFileExplorer
                 k.SetValue("DisplayIcon", InstalledExe + ",0");
                 k.SetValue("InstallLocation", InstallDir);
                 k.SetValue("UninstallString", "\"" + InstalledExe + "\" --uninstall");
+                k.SetValue("QuietUninstallString", "\"" + InstalledExe + "\" --uninstall --quiet");
                 k.SetValue("NoModify", 1, RegistryValueKind.DWord);
                 k.SetValue("NoRepair", 1, RegistryValueKind.DWord);
                 k.SetValue("EstimatedSize", (int)(new FileInfo(InstalledExe).Length / 1024), RegistryValueKind.DWord);
@@ -169,8 +173,9 @@ namespace OrclFileExplorer
 
         public static void Uninstall()
         {
-            if (MessageBox.Show("Uninstall Orcl File Explorer from this computer?", Program.AppName, MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes) return;
-            bool wipeSettings = MessageBox.Show("Also delete your saved tabs and settings?", Program.AppName, MessageBoxButtons.YesNo, MessageBoxIcon.Question) == DialogResult.Yes;
+            // Quiet (winget): no questions, and the settings are kept.
+            if (!Quiet && MessageBox.Show("Uninstall Orcl File Explorer from this computer?", Program.AppName, MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes) return;
+            bool wipeSettings = !Quiet && MessageBox.Show("Also delete your saved tabs and settings?", Program.AppName, MessageBoxButtons.YesNo, MessageBoxIcon.Question) == DialogResult.Yes;
             try { File.Delete(StartMenuLink); } catch { }
             try { File.Delete(OldStartMenuLink); } catch { }
             try { Registry.CurrentUser.DeleteSubKeyTree(UninstallKey, false); } catch { }
@@ -185,8 +190,9 @@ namespace OrclFileExplorer
                 if (string.Equals(dir, defaultDir, StringComparison.OrdinalIgnoreCase))
                     try { Directory.Delete(dir, false); } catch { }
             }
-            MessageBox.Show("Orcl File Explorer was uninstalled. Its program file is removed a few seconds after this message closes.",
-                Program.AppName, MessageBoxButtons.OK, MessageBoxIcon.Information);
+            if (!Quiet)
+                MessageBox.Show("Orcl File Explorer was uninstalled. Its program file is removed a few seconds after this message closes.",
+                    Program.AppName, MessageBoxButtons.OK, MessageBoxIcon.Information);
             // The running exe can't delete itself: delete just orclfx.exe a moment after we exit (retrying while it
             // is still in use), then the folder only if nothing else is left in it.
             ProcessStartInfo psi = new ProcessStartInfo("cmd.exe",

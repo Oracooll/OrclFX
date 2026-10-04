@@ -3,6 +3,10 @@
 Versions are `major.minor.build` with a three-digit build number. Every release bumps the build;
 the minor number changes only for larger milestones.
 
+## 1.1.012
+- `--install --quiet` and `--uninstall --quiet` work without any windows (exit code 1 on failure), and the
+  Settings › Apps entry has a quiet uninstall command. Needed for installing through winget.
+
 ## 1.1.011
 - No more "The publisher could not be verified" warning on every start. A copy installed from a browser
   download kept the browser's "downloaded from the internet" mark; installing, updating and starting

@@ -67,7 +67,9 @@ SHA-256 checksum and version), saves your tabs, replaces the program and restart
 app also checks by itself and shows a note in the status bar when a new version is out (it never
 installs without asking; turn this off with **Check for updates automatically** in the menu).
 Running a newer `orclfx.exe` by hand (or `orclfx.exe --install`) updates the installed copy too.
-`orclfx.exe --portable` runs it without installing.
+`orclfx.exe --portable` runs it without installing. `orclfx.exe --install --quiet` and
+`orclfx.exe --uninstall --quiet` install or remove it without any windows (the exit code says whether it
+worked); a quiet uninstall keeps your settings.
 
 Windows SmartScreen may warn about a downloaded unsigned program: choose **More info › Run anyway**.
 That's only needed once: installing (and updating) removes the browser's "downloaded from the internet"
@@ -122,7 +124,7 @@ the tests on every push.
   Windows applies some light/dark choices only when an app starts.
 - Only one window runs at a time; launching the app again brings the open window to the front.
 - See [CHANGELOG.md](CHANGELOG.md) for the version history. Versions are `major.minor.build` with a
-  three-digit build (1.1.011).
+  three-digit build (1.1.012).
 
 ## License
 

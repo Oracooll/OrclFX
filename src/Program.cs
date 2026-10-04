@@ -56,11 +56,14 @@ namespace OrclFileExplorer
             // --update <process id> <exe to replace> [--portable]: this is a downloaded update (see Updater).
             if (args.Length >= 3 && args[0] == "--update") { FinishUpdate(args); return; }
             bool portable = false, restarted = false;
+            // --quiet with --install / --uninstall: no windows at all; the exit code says whether it worked
+            // (used by winget and other unattended installs).
+            Installer.Quiet = Array.IndexOf(args, "--quiet") >= 0;
             foreach (string a in args)
             {
                 if (a == "--restart") restarted = true;
                 if (a == "--uninstall") { Installer.Uninstall(); return; }
-                if (a == "--install") { Installer.InstallQuietly(); return; }
+                if (a == "--install") { if (!Installer.InstallQuietly()) Environment.ExitCode = 1; return; }
                 if (a == "--portable") portable = true;
             }
             Portable = portable;
