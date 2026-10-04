@@ -198,7 +198,9 @@ namespace OrclFileExplorer
             uint n;
             IShellItem item;
             if (sel.GetCount(out n) != 0 || n == 0 || sel.GetItemAt(0, out item) != 0) return 0;
-            string path = PathOf(item);
+            string path;
+            try { path = PathOf(item); }
+            finally { if (item != null) try { Marshal.ReleaseComObject(item); } catch { } }
             if (path == null) return 0;
             synced = path;
             main.BeginInvoke((MethodInvoker)delegate { main.OpenFolder(path, 0, false); });

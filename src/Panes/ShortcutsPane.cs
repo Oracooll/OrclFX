@@ -35,7 +35,7 @@ namespace OrclFileExplorer
         readonly Timer reloadTimer = new Timer();
         bool loadedOk;                 // the shared list has been read (or didn't exist yet)
         DateTime knownStamp;           // last-write time of the file as we last read or wrote it
-        readonly HashSet<string> removedHere = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        bool dirty;                    // changes made here that aren't in the shared file yet
         List<KeyValuePair<string, string>> pendingLegacy;
         // The list as last read from / written to the shared file (label, path), arranged order: the common
         // ancestor for merging changes made here with changes made on another computer meanwhile.
@@ -52,10 +52,20 @@ namespace OrclFileExplorer
         // drive mustn't freeze the window). Finished icons wait in iconsReady until the list can show them.
         readonly Queue<string> iconQueue = new Queue<string>();
         readonly List<KeyValuePair<string, Icon>> iconsReady = new List<KeyValuePair<string, Icon>>();
-        bool iconWorkerRunning;
+        bool iconWorkerRunning, iconsClosed;
+
         // The list lives in OneDrive (when present) so every computer signed in to it shares the same shortcuts.
         // Old per-computer shortcuts still waiting to be moved into the shared file (kept in state.txt until then).
         public List<KeyValuePair<string, string>> PendingLegacy { get { return pendingLegacy; } }
+
+        // For closing: saves changes still waiting for a retry. False if they couldn't be saved.
+        public bool FlushPending()
+        {
+            if (!dirty) return true;
+            bool ok = SaveList();
+            ShowAvailability();
+            return ok;
+        }
 
         public static readonly string ListFile = Environment.GetEnvironmentVariable("DUALPANE_SHORTCUTS") ?? Path.Combine(
             Environment.GetEnvironmentVariable("OneDrive") ?? Environment.GetEnvironmentVariable("OneDriveConsumer") ??
@@ -178,7 +188,12 @@ namespace OrclFileExplorer
                 IntPtr pidl = Native.ParsePath(path);
                 if (pidl != IntPtr.Zero)
                     try { ic = Native.SmallIcon(pidl); } catch { } finally { Marshal.FreeCoTaskMem(pidl); }
-                lock (iconsReady) iconsReady.Add(new KeyValuePair<string, Icon>(path, ic));
+                lock (iconsReady)
+                {
+                    // The pane was closed meanwhile: nobody will use the icon.
+                    if (iconsClosed) { if (ic != null) ic.Dispose(); continue; }
+                    iconsReady.Add(new KeyValuePair<string, Icon>(path, ic));
+                }
                 // Before the window exists, OnHandleCreated picks the icons up instead.
                 if (IsHandleCreated) try { BeginInvoke((MethodInvoker)ApplyIcons); } catch { }
             }
@@ -212,6 +227,13 @@ namespace OrclFileExplorer
                 if (watcher != null) { watcher.EnableRaisingEvents = false; watcher.Dispose(); watcher = null; }
                 reloadTimer.Dispose();
                 saveRetry.Dispose();
+                lock (iconQueue) iconQueue.Clear();
+                lock (iconsReady)
+                {
+                    iconsClosed = true;
+                    foreach (KeyValuePair<string, Icon> r in iconsReady) if (r.Value != null) r.Value.Dispose();
+                    iconsReady.Clear();
+                }
                 icons.Dispose();
             }
             base.Dispose(disposing);
@@ -467,8 +489,19 @@ namespace OrclFileExplorer
             }
             loadedOk = true;
             knownStamp = stamp;
-            removedHere.Clear();
-            baseEntries = ShortcutList.Parse(lines);
+            List<KeyValuePair<string, string>> remote = ShortcutList.Parse(lines);
+            if (dirty)
+            {
+                // Changes made here haven't been saved yet (a save failed, or the file wasn't readable when
+                // they were made): keep them by merging with the new contents, and save the result.
+                List<KeyValuePair<string, string>> merged = ShortcutList.Merge(baseEntries, CurrentEntries(), remote);
+                baseEntries = remote;
+                SetEntries(merged);
+                if (!SaveList()) saveRetry.Start();
+                ShowAvailability();
+                return;
+            }
+            baseEntries = remote;
             SetEntries(baseEntries);
         }
 
@@ -496,16 +529,13 @@ namespace OrclFileExplorer
             if (!loadedOk) return false; // never overwrite a list we couldn't read
             try
             {
-                List<KeyValuePair<string, string>> entries = CurrentEntries();
-                // Another computer changed the file since we read it: merge both sets of changes.
-                if (File.Exists(ListFile) && File.GetLastWriteTimeUtc(ListFile) != knownStamp)
-                {
-                    entries = ShortcutList.Merge(baseEntries, entries, ShortcutList.Parse(File.ReadAllLines(ListFile, Encoding.UTF8)));
-                    SetEntries(entries);
-                }
-                Util.WriteAllTextAtomic(ListFile, ShortcutList.Serialize(entries));
+                List<KeyValuePair<string, string>> local = CurrentEntries();
+                // Merges whatever another window or computer saved meanwhile, all under the file's lock.
+                List<KeyValuePair<string, string>> entries = ShortcutList.SaveMerged(ListFile, baseEntries, local);
+                if (!SameEntries(entries, local)) SetEntries(entries);
                 knownStamp = File.GetLastWriteTimeUtc(ListFile);
                 baseEntries = entries;
+                dirty = false;
                 pendingLegacy = null;
                 saveError = null;
                 return true;
@@ -516,6 +546,13 @@ namespace OrclFileExplorer
                 Program.LogError(ex);
                 return false;
             }
+        }
+
+        static bool SameEntries(List<KeyValuePair<string, string>> a, List<KeyValuePair<string, string>> b)
+        {
+            if (a.Count != b.Count) return false;
+            for (int i = 0; i < a.Count; i++) if (a[i].Key != b[i].Key || a[i].Value != b[i].Value) return false;
+            return true;
         }
 
         bool Contains(string path)
@@ -595,6 +632,7 @@ namespace OrclFileExplorer
         void ListChanged()
         {
             if (sortMode != 0) list.Sort();
+            dirty = true;
             // A failed save is kept (the list on screen is the truth) and retried until it succeeds.
             if (!SaveList()) saveRetry.Start();
             ShowAvailability();
@@ -672,7 +710,6 @@ namespace OrclFileExplorer
             if (string.IsNullOrEmpty(label)) label = Path.GetFileName(path.TrimEnd('\\'));
             if (string.IsNullOrEmpty(label)) label = path;
             label = label.Replace('|', '-');
-            removedHere.Remove(path);
             if (!icons.Images.ContainsKey(path) && iconsPending.Add(path)) QueueIcon(path);
             ListViewItem it = new ListViewItem(label, path);
             it.Name = (nextSeq++).ToString("D9");
@@ -686,7 +723,8 @@ namespace OrclFileExplorer
         void Remove(ListViewItem it)
         {
             list.Items.Remove(it);
-            removedHere.Add((string)it.Tag);
+            // Drop its cached icon (the image list keeps one per folder).
+            if (icons.Images.ContainsKey((string)it.Tag)) icons.Images.RemoveByKey((string)it.Tag);
             unavailable.Remove((string)it.Tag);
             ApplyWidth();
             ShowAvailability();

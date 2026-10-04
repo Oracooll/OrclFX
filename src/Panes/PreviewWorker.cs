@@ -1,0 +1,214 @@
+// Orcl File Explorer: runs preview handlers and thumbnail extraction on their own STA thread.
+using System;
+using System.Drawing;
+using System.IO;
+using System.Runtime.InteropServices;
+using System.Threading;
+
+namespace OrclFileExplorer
+{
+    // Everything that can block while previewing (file and network checks, preview handlers, thumbnails)
+    // runs here, so a slow or hung handler, file or drive never freezes the window. One thread, and only
+    // the newest request matters: a request still waiting when a newer one arrives is dropped. If the
+    // thread gets stuck, PreviewPane abandons it and starts a fresh one; an abandoned worker cleans up
+    // and exits whenever its stuck call returns.
+    class PreviewWorker
+    {
+        public class Request
+        {
+            public int Ticket;
+            public string Path = "";
+            public IntPtr Host;        // window the handler draws into
+            public RECT Rect;
+            public SIZE ThumbSize;
+            public uint Back, Text;    // theme colours for handlers that support them
+        }
+
+        public class Result
+        {
+            public PreviewWorker From;
+            public int Ticket;
+            public bool Handler;       // a preview handler is showing the file
+            public Bitmap Thumbnail;   // otherwise the thumbnail, or null
+        }
+
+        readonly object gate = new object();
+        readonly AutoResetEvent wake = new AutoResetEvent(false);
+        readonly Action<Result> done;
+        readonly Thread thread;
+        Request pending;
+        bool rectPending, quit;
+        RECT newRect;
+        long busySince = long.MaxValue;   // UTC ticks while working on a request
+        volatile bool abandoned;
+        IPreviewHandler handler;          // used only on the worker thread
+
+        public PreviewWorker(Action<Result> done)
+        {
+            this.done = done;
+            thread = new Thread(Run);
+            thread.IsBackground = true;
+            thread.SetApartmentState(ApartmentState.STA);
+            thread.Start();
+        }
+
+        public bool IsAlive { get { return thread.IsAlive; } }
+        public bool HasWaitingRequest { get { lock (gate) return pending != null; } }
+
+        // How long the current request has been running, or zero when idle.
+        public TimeSpan Busy
+        {
+            get
+            {
+                long since = Interlocked.Read(ref busySince);
+                return since == long.MaxValue ? TimeSpan.Zero : TimeSpan.FromTicks(DateTime.UtcNow.Ticks - since);
+            }
+        }
+
+        public void Submit(Request r) { lock (gate) pending = r; wake.Set(); }
+
+        public void SetRect(RECT r)
+        {
+            lock (gate) { newRect = r; rectPending = true; }
+            wake.Set();
+        }
+
+        // Stops after the current call: the handler is unloaded and the thread exits.
+        public void Quit() { lock (gate) { quit = true; pending = null; } wake.Set(); }
+        public void Abandon() { abandoned = true; Quit(); }
+        public bool WaitForExit(int ms) { return thread.Join(ms); }
+
+        void Run()
+        {
+            while (true)
+            {
+                wake.WaitOne();
+                while (true)
+                {
+                    Request r;
+                    bool doRect, stop;
+                    RECT rect;
+                    lock (gate)
+                    {
+                        r = pending; pending = null;
+                        doRect = rectPending; rectPending = false; rect = newRect;
+                        stop = quit;
+                    }
+                    if (stop) { UnloadHandler(); return; }
+                    if (r != null)
+                    {
+                        Interlocked.Exchange(ref busySince, DateTime.UtcNow.Ticks);
+                        try { Process(r); } catch { }
+                        Interlocked.Exchange(ref busySince, long.MaxValue);
+                        continue;
+                    }
+                    if (doRect && handler != null) try { handler.SetRect(ref rect); } catch { }
+                    break;
+                }
+            }
+        }
+
+        bool Superseded() { lock (gate) return pending != null || quit; }
+
+        void Process(Request r)
+        {
+            UnloadHandler();
+            if (r.Path.Length == 0 || Superseded()) return;
+            Result res = new Result();
+            res.From = this;
+            res.Ticket = r.Ticket;
+            if (!Directory.Exists(r.Path) && TryHandler(r)) res.Handler = true;
+            else if (Superseded()) return;
+            else res.Thumbnail = Thumbnail(r.Path, r.ThumbSize);
+            if (abandoned) { if (res.Thumbnail != null) res.Thumbnail.Dispose(); return; }
+            done(res);
+        }
+
+        bool TryHandler(Request r)
+        {
+            string clsid = Native.PreviewHandlerFor(Path.GetExtension(r.Path));
+            if (clsid == null || Superseded()) return false;
+            object o = null;
+            try
+            {
+                // Out of process only, like File Explorer (prevhost.exe): a misbehaving handler can't crash or
+                // run inside the app. Handlers that only work in process get the thumbnail instead.
+                o = Native.CreateComObject(new Guid(clsid), 0x4 /* CLSCTX_LOCAL_SERVER */);
+                if (o == null) return false;
+                bool ok = false;
+                IInitializeWithStream ws = o as IInitializeWithStream;
+                System.Runtime.InteropServices.ComTypes.IStream stream;
+                // STGM_READ | STGM_SHARE_DENY_NONE
+                if (ws != null && Native.SHCreateStreamOnFileEx(r.Path, 0x40, 0, false, IntPtr.Zero, out stream) == 0)
+                {
+                    try { ok = ws.Initialize(stream, 0) == 0; }
+                    finally { Marshal.ReleaseComObject(stream); } // the handler keeps its own reference if it needs one
+                }
+                if (!ok)
+                {
+                    IInitializeWithFile f = o as IInitializeWithFile;
+                    if (f != null) ok = f.Initialize(r.Path, 0) == 0;
+                }
+                if (!ok)
+                {
+                    IInitializeWithItem wi = o as IInitializeWithItem;
+                    IShellItem item = wi != null ? Native.ItemFromPath(r.Path) : null;
+                    if (item != null)
+                    {
+                        try { ok = wi.Initialize(item, 0) == 0; }
+                        finally { Marshal.ReleaseComObject(item); }
+                    }
+                }
+                if (!ok || Superseded()) return false;
+                handler = (IPreviewHandler)o;
+                o = null;
+                IPreviewHandlerVisuals v = handler as IPreviewHandlerVisuals;
+                if (v != null)
+                {
+                    v.SetBackgroundColor(r.Back);
+                    v.SetTextColor(r.Text);
+                }
+                RECT rect = r.Rect;
+                lock (gate) if (rectPending) { rect = newRect; rectPending = false; }
+                if (handler.SetWindow(r.Host, ref rect) != 0 || handler.DoPreview() != 0) { UnloadHandler(); return false; }
+                return true;
+            }
+            catch
+            {
+                UnloadHandler();
+                return false;
+            }
+            finally
+            {
+                if (o != null) try { Marshal.FinalReleaseComObject(o); } catch { }
+            }
+        }
+
+        void UnloadHandler()
+        {
+            if (handler == null) return;
+            try { handler.Unload(); } catch { }
+            try { Marshal.FinalReleaseComObject(handler); } catch { }
+            handler = null;
+        }
+
+        static Bitmap Thumbnail(string path, SIZE size)
+        {
+            IShellItem item = null;
+            try
+            {
+                item = Native.ItemFromPath(path);
+                IShellItemImageFactory fac = item as IShellItemImageFactory;
+                IntPtr hbmp;
+                if (fac != null && fac.GetImage(size, 0, out hbmp) == 0 && hbmp != IntPtr.Zero)
+                {
+                    try { return PreviewPane.BitmapWithAlpha(hbmp); }
+                    finally { Native.DeleteObject(hbmp); }
+                }
+            }
+            catch { }
+            finally { if (item != null) try { Marshal.ReleaseComObject(item); } catch { } }
+            return null;
+        }
+    }
+}

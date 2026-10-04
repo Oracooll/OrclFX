@@ -6,7 +6,7 @@ namespace OrclFileExplorer
 {
     static class SettingsFile
     {
-        // The settings lines, or those of the .bak copy when the file is missing, unreadable or has no tabs.
+        // The settings lines, or those of the .bak copy when the file is missing, unreadable or has no usable tab.
         public static string[] ReadLines(string file)
         {
             foreach (string f in new string[] { file, file + ".bak" })
@@ -15,11 +15,20 @@ namespace OrclFileExplorer
                 {
                     if (!File.Exists(f)) continue;
                     string[] lines = File.ReadAllLines(f);
-                    foreach (string l in lines) if (l.StartsWith("pane") && l.Contains(".tab=")) return lines;
+                    foreach (string l in lines) if (IsUsableTabLine(l)) return lines;
                 }
                 catch { }
             }
             return null;
+        }
+
+        // A "pane<i>.tab=L|folder" line that would actually open a tab.
+        public static bool IsUsableTabLine(string line)
+        {
+            int eq = line == null ? -1 : line.IndexOf('=');
+            int pane; bool isTab, locked; string folder;
+            return eq > 0 && TryParsePaneKey(line.Substring(0, eq), out pane, out isTab) && isTab &&
+                TryParseTab(line.Substring(eq + 1), out locked, out folder) && folder.Trim().Length > 0;
         }
 
         // "pane<i>.tab" and "pane<i>.active" for panes 0-3.

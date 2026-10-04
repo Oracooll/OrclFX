@@ -3,6 +3,22 @@
 Versions are `major.minor.build` with a three-digit build number. Every release bumps the build;
 the minor number changes only for larger milestones.
 
+## 1.1.008
+Fixes from a second code audit:
+- Shortcuts: changes that couldn't be saved yet are no longer lost when the shared list is reloaded;
+  they are merged with the new contents. Saving reads, merges and writes in one locked step, so two
+  windows sharing the list can't overwrite each other's changes.
+- Previews (preview handlers, thumbnails and the file checks behind them) run on one background
+  worker that only handles the newest selection, so a slow or hung preview can't freeze the window
+  or closing. A stuck preview is abandoned and a fresh worker takes over.
+- A damaged settings file no longer wins over a good backup, and a pane whose saved tabs are all
+  unusable opens with a default tab instead of none.
+- Closing (and the restart after a theme change) checks that settings and shortcut changes were
+  saved; if not, it asks before anything is lost.
+- Folder sizes: a local link that leads to a network share is detected and not scanned.
+- Free disk space: never shows the previous drive's numbers; a stuck query no longer blocks others.
+- Resource cleanup in the tree, preview and shortcut icons; 11 new tests (49 in all).
+
 ## 1.1.007
 - Shortcuts pane: folder icons show again. Since 1.1.005 they were loaded on a background thread
   that couldn't use the shell properly, and icons ready before the window opened were thrown away.

@@ -46,8 +46,8 @@ namespace OrclFileExplorer
         float legacySplit = -1f;
         int startPane;
         string freeRoot;
-        int freeTick;
-        bool freeBusy;
+        int freeTick, freeGen;
+        readonly HashSet<string> freeBusy = new HashSet<string>(StringComparer.OrdinalIgnoreCase); // drives with a query running
         string noticeText, stateSaveError;
         int noticeTick;
 
@@ -205,15 +205,32 @@ namespace OrclFileExplorer
 
         protected override void OnFormClosing(FormClosingEventArgs e)
         {
-            base.OnFormClosing(e);
             saveTimer.Stop();
+            // Save the settings and any shortcut changes still waiting for a retry. If that fails, say so
+            // instead of exiting and losing them (but never hold up Windows shutting down).
+            bool userClose = e.CloseReason != CloseReason.WindowsShutDown && e.CloseReason != CloseReason.TaskManagerClosing;
+            while (true)
+            {
+                string problem = SaveAll();
+                if (problem == null || !userClose) break;
+                DialogResult r = MessageBox.Show(this, problem + "\n\nYes: try again\nNo: close anyway (changes since the last save are lost)\nCancel: keep the window open",
+                    Program.AppName, MessageBoxButtons.YesNoCancel, MessageBoxIcon.Warning);
+                if (r == DialogResult.Yes) continue;
+                if (r == DialogResult.No) break;
+                e.Cancel = true;
+                restarting = false;
+                saveTimer.Interval = 10000;
+                saveTimer.Start();
+                return;
+            }
+            base.OnFormClosing(e);
+            if (e.Cancel) return;
             statusTimer.Stop();
-            SaveState();
             Application.RemoveMessageFilter(this);
             if (hook != IntPtr.Zero) Native.UnhookWindowsHookEx(hook);
             hook = IntPtr.Zero;
             foreach (Pane p in Panes) foreach (BrowserTab t in p.Tabs) t.Destroy();
-            preview.Unload();
+            preview.Shutdown();
             tree.Destroy();
             if (sizeJob != null) sizeJob.Cancel = true;
         }
@@ -495,9 +512,16 @@ namespace OrclFileExplorer
         void RestartForTheme()
         {
             if (!Ready || restarting) return;
-            restarting = true;
             saveTimer.Stop();
-            SaveState();
+            // The new window reads the saved settings: don't restart if they couldn't be saved.
+            string problem = SaveAll();
+            if (problem != null)
+            {
+                Notice(problem + " The theme will fully apply after the next restart.");
+                RecreateViews();
+                return;
+            }
+            restarting = true;
             try
             {
                 Program.Trace("restarting for theme");
@@ -668,7 +692,9 @@ namespace OrclFileExplorer
             if (sel > 0) s += "     " + sel + " selected";
             if (FolderSizes)
             {
-                if (sizeJob != null)
+                if (sizeJob != null && sizeJob.Skipped != null)
+                    s += "     Folder size: " + sizeJob.Skipped;
+                else if (sizeJob != null)
                     s += "     Folder size: " + (sizeJob.Errors > 0 ? "at least " : "") + Util.FormatBytes(sizeJob.TotalBytes) + (sizeJob.Finished ? "" : " (calculating…)");
                 else if (sizeSkip != null)
                     s += "     Folder size: " + sizeSkip;
@@ -679,16 +705,22 @@ namespace OrclFileExplorer
 
             string root = null;
             try { if (t.Address.Length > 2 && (t.Address[1] == ':' || t.Address.StartsWith(@"\\"))) root = Path.GetPathRoot(t.Address); } catch { }
-            if ((root != freeRoot || unchecked(Environment.TickCount - freeTick) > 5000) && !freeBusy)
+            // A slow or disconnected network drive must not freeze the window: ask in the background. Each
+            // question has a number and only the newest answer is shown; a query still stuck on one drive
+            // doesn't stop questions about another.
+            bool moved = root != freeRoot;
+            if (moved)
             {
-                // A slow or disconnected network drive must not freeze the window: ask in the background.
                 freeRoot = root;
+                statusRight.Text = ""; // never show the previous drive's numbers for this one
+            }
+            if ((moved || unchecked(Environment.TickCount - freeTick) > 5000) && root != null && !freeBusy.Contains(root))
+            {
                 freeTick = Environment.TickCount;
-                if (root == null) statusRight.Text = "";
-                else
                 {
-                    freeBusy = true;
+                    freeBusy.Add(root);
                     string askRoot = root;
+                    int gen = ++freeGen;
                     System.Threading.ThreadPool.QueueUserWorkItem(delegate
                     {
                         ulong free, total, totalFree;
@@ -699,7 +731,7 @@ namespace OrclFileExplorer
                                 f = Util.FormatDiskSize(free) + " free of " + Util.FormatDiskSize(total) + " (" + (100 * free / total) + "%)";
                         }
                         catch { }
-                        try { BeginInvoke((MethodInvoker)delegate { freeBusy = false; if (askRoot == freeRoot) statusRight.Text = f; }); } catch { }
+                        try { BeginInvoke((MethodInvoker)delegate { freeBusy.Remove(askRoot); if (gen == freeGen && askRoot == freeRoot) statusRight.Text = f; }); } catch { }
                     });
                 }
             }
@@ -983,17 +1015,27 @@ namespace OrclFileExplorer
                 Directory.Exists(desktop) ? desktop : Native.ThisPC, Directory.Exists(documents) ? documents : Native.ThisPC };
             for (int i = 0; i < Panes.Length; i++)
             {
-                if (tabs[i].Count == 0) tabs[i].Add(SettingsFile.FormatTab(false, defaults[i]));
                 foreach (string s in tabs[i])
                 {
                     bool locked; string folder;
-                    if (SettingsFile.TryParseTab(s, out locked, out folder)) Panes[i].AddTab(folder, locked, false, true);
+                    if (SettingsFile.TryParseTab(s, out locked, out folder) && folder.Trim().Length > 0) Panes[i].AddTab(folder, locked, false, true);
                 }
+                // A pane whose saved tabs were all unusable (or that had none) still gets one.
+                if (Panes[i].Tabs.Count == 0) Panes[i].AddTab(defaults[i], false, false, true);
                 Panes[i].Select(Math.Max(0, Math.Min(sel[i], Panes[i].Tabs.Count - 1)));
             }
         }
 
-        void SaveState()
+        // Saves the settings and pending shortcut changes. Null when both are saved, otherwise what failed.
+        string SaveAll()
+        {
+            bool state = SaveState(), shortcuts = Shortcuts.FlushPending();
+            if (state && shortcuts) return null;
+            return !state ? "Your settings couldn't be saved (" + stateSaveError + ")." + (shortcuts ? "" : " Your shortcut changes couldn't be saved either.")
+                : "Your shortcut changes couldn't be saved.";
+        }
+
+        bool SaveState()
         {
             try
             {
@@ -1041,9 +1083,10 @@ namespace OrclFileExplorer
                 saveTimer.Interval = 10000; // retry
                 saveTimer.Start();
                 UpdateStatus();
-                return;
+                return false;
             }
             saveTimer.Interval = 1500;
+            return true;
         }
     }
 }

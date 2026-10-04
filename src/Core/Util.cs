@@ -22,18 +22,28 @@ namespace OrclFileExplorer
             return a != null && b != null && string.Equals(a.TrimEnd('\\'), b.TrimEnd('\\'), StringComparison.OrdinalIgnoreCase);
         }
 
-        // Writes to a temporary file first and then swaps it in, so a crash never leaves a half-written file.
-        public static void WriteAllTextAtomic(string path, string text)
+        // Runs body while holding the file's cross-process lock, one holder at a time across all windows.
+        // The lock is re-entrant, so body may call WriteAllTextAtomic on the same file.
+        public static T WithFileLock<T>(string path, Func<T> body)
         {
-            string dir = Path.GetDirectoryName(path);
-            Directory.CreateDirectory(dir);
-            // A unique temp name, and one writer at a time per file across all processes.
-            string tmp = path + "." + Guid.NewGuid().ToString("N") + ".tmp";
             using (System.Threading.Mutex m = new System.Threading.Mutex(false, "OrclFx.Write." + PathKey(path)))
             {
                 bool owned = false;
                 try { owned = m.WaitOne(5000); } catch (System.Threading.AbandonedMutexException) { owned = true; }
                 if (!owned) throw new IOException("another program is writing " + Path.GetFileName(path));
+                try { return body(); }
+                finally { m.ReleaseMutex(); }
+            }
+        }
+
+        // Writes to a temporary file first and then swaps it in, so a crash never leaves a half-written file.
+        public static void WriteAllTextAtomic(string path, string text)
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(path));
+            WithFileLock(path, delegate
+            {
+                // A unique temp name, so writers never share a temporary file.
+                string tmp = path + "." + Guid.NewGuid().ToString("N") + ".tmp";
                 try
                 {
                     File.WriteAllText(tmp, text, new UTF8Encoding(false));
@@ -43,9 +53,9 @@ namespace OrclFileExplorer
                 finally
                 {
                     try { if (File.Exists(tmp)) File.Delete(tmp); } catch { }
-                    m.ReleaseMutex();
                 }
-            }
+                return true;
+            });
         }
 
         // A short, stable key for a file path, usable in a mutex name.

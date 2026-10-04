@@ -140,5 +140,71 @@ namespace OrclFileExplorer.Tests
             List<KeyValuePair<string, string>> r = ShortcutList.Merge(L(), L(S("Here", @"C:\Data")), L(S("There", @"c:\data\")));
             Assert.Equal(1, r.Count, "number of shortcuts");
         }
+
+        [Test]
+        static void Reload_KeepsUnsavedChanges()
+        {
+            // A save failed here (shortcut B added), then another computer's version (with C) arrives:
+            // the reload merges instead of replacing, so B survives. (1.1.007 dropped B here.)
+            Assert.Sequence(Show(L(A, C, B)), Show(ShortcutList.Merge(L(A), L(A, B), L(A, C))), "after the reload");
+        }
+
+        [Test]
+        static void SaveMerged_WritesTheListWhenThereIsNoFile()
+        {
+            using (TempDir d = new TempDir())
+            {
+                string f = System.IO.Path.Combine(d.Path, "shortcuts.txt");
+                List<KeyValuePair<string, string>> saved = ShortcutList.SaveMerged(f, L(), L(A, B));
+                Assert.Sequence(Show(L(A, B)), Show(saved), "returned");
+                Assert.Sequence(Show(L(A, B)), Show(ShortcutList.Parse(System.IO.File.ReadAllLines(f))), "in the file");
+            }
+        }
+
+        [Test]
+        static void SaveMerged_KeepsWhatOthersSavedMeanwhile()
+        {
+            using (TempDir d = new TempDir())
+            {
+                string f = System.IO.Path.Combine(d.Path, "shortcuts.txt");
+                ShortcutList.SaveMerged(f, L(), L(A, B));
+                // Another window, starting from [A, B], removed B and added C.
+                ShortcutList.SaveMerged(f, L(A, B), L(A, C));
+                // This window also started from [A, B] and renamed A.
+                List<KeyValuePair<string, string>> saved = ShortcutList.SaveMerged(f, L(A, B), L(S("Alpha 2", @"C:\A"), B));
+                Assert.Sequence(Show(L(S("Alpha 2", @"C:\A"), C)), Show(saved), "merged");
+            }
+        }
+
+        [Test]
+        static void SaveMerged_ManyWindowsAtOnceLoseNothing()
+        {
+            // Eight windows start from the same list and each adds its own shortcut at the same moment.
+            // The read-merge-write is one locked step, so every addition ends up in the file.
+            using (TempDir d = new TempDir())
+            {
+                string f = System.IO.Path.Combine(d.Path, "shortcuts.txt");
+                ShortcutList.SaveMerged(f, L(), L(A));
+                List<Exception> errors = new List<Exception>();
+                List<System.Threading.Thread> threads = new List<System.Threading.Thread>();
+                System.Threading.ManualResetEvent go = new System.Threading.ManualResetEvent(false);
+                for (int i = 0; i < 8; i++)
+                {
+                    int id = i;
+                    System.Threading.Thread th = new System.Threading.Thread(delegate()
+                    {
+                        go.WaitOne();
+                        try { ShortcutList.SaveMerged(f, L(A), L(A, S("New " + id, @"C:\New" + id))); }
+                        catch (Exception e) { lock (errors) errors.Add(e); }
+                    });
+                    threads.Add(th);
+                    th.Start();
+                }
+                go.Set();
+                foreach (System.Threading.Thread th in threads) th.Join();
+                Assert.Equal(0, errors.Count, "failed saves");
+                Assert.Equal(9, ShortcutList.Parse(System.IO.File.ReadAllLines(f)).Count, "shortcuts in the file");
+            }
+        }
     }
 }

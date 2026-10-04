@@ -76,6 +76,24 @@ namespace OrclFileExplorer.Tests
         }
 
         [Test]
+        static void NetworkCheck()
+        {
+            using (TempDir d = new TempDir())
+            {
+                Assert.True(!SizeJob.IsOnNetwork(d.Path), "a local folder");
+                Assert.True(!SizeJob.IsOnNetwork(d.Path + "\\"), "with a trailing backslash");
+                Assert.True(SizeJob.IsOnNetwork(@"\\server\share\folder"), "a network path");
+                Assert.True(!SizeJob.IsOnNetwork(Path.Combine(d.Path, "missing")), "a missing folder is left to the scan");
+                string target = Path.Combine(d.Path, "target");
+                Directory.CreateDirectory(target);
+                string link = Path.Combine(d.Path, "link");
+                if (MakeJunction(link, target))
+                    try { Assert.True(!SizeJob.IsOnNetwork(link), "a junction to a local folder"); }
+                    finally { Directory.Delete(link); }
+            }
+        }
+
+        [Test]
         static void StopsAtTheItemLimit()
         {
             using (TempDir d = new TempDir())

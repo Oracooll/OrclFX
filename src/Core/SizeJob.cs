@@ -34,6 +34,7 @@ namespace OrclFileExplorer
         public string Failure;   // set when the scan stopped for a "critical" reason
         public int Errors;       // folders that couldn't be read: the totals are then a lower bound
         public DateTime FinishedAt;
+        public string Skipped;   // set instead of scanning, e.g. when the folder really lives on a network share
         // Called from the scan thread as the totals change (at most four times a second, plus at the start
         // and the end); the receiver moves to its own thread if it needs to.
         readonly Action<SizeJob> updated;
@@ -76,6 +77,16 @@ namespace OrclFileExplorer
             clock = Stopwatch.StartNew();
             try
             {
+                // A local link (symbolic link, junction, or a folder inside one) can lead to a network share.
+                // The check runs here, off the UI thread, because resolving it can wait on the network.
+                if (IsOnNetwork(Root))
+                {
+                    Skipped = "not calculated on network locations";
+                    Finished = true;
+                    FinishedAt = DateTime.Now;
+                    Notify(true);
+                    return;
+                }
                 SizeEntry here = new SizeEntry();
                 here.Name = "(files in this folder)";
                 here.Path = Root;
@@ -106,6 +117,26 @@ namespace OrclFileExplorer
             Finished = true;
             FinishedAt = DateTime.Now;
             Notify(true);
+        }
+
+        // Whether the folder is on a network share once every link on the way is followed.
+        internal static bool IsOnNetwork(string path)
+        {
+            if (path.StartsWith(@"\\")) return true;
+            // FILE_FLAG_BACKUP_SEMANTICS opens a folder; no access rights are needed to read its final path.
+            IntPtr h = Native.CreateFile(@"\\?\" + path.TrimEnd('\\') + @"\", 0, 7 /* share all */, IntPtr.Zero, 3 /* OPEN_EXISTING */, 0x02000000, IntPtr.Zero);
+            if (h == (IntPtr)(-1)) return false; // can't be opened: the scan reports it as unreadable
+            try
+            {
+                StringBuilder sb = new StringBuilder(1024);
+                uint n = Native.GetFinalPathNameByHandle(h, sb, (uint)sb.Capacity, 0);
+                if (n == 0 || n >= sb.Capacity) return false;
+                string final = sb.ToString();
+                if (final.StartsWith(@"\\?\UNC\", StringComparison.OrdinalIgnoreCase)) return true;
+                if (final.StartsWith(@"\\?\")) final = final.Substring(4);
+                return final.Length >= 2 && final[1] == ':' && Native.GetDriveType(final.Substring(0, 2) + @"\") == 4 /* DRIVE_REMOTE */;
+            }
+            finally { Native.CloseHandle(h); }
         }
 
         static long Size(Native.WIN32_FIND_DATA d) { return ((long)d.nFileSizeHigh << 32) | d.nFileSizeLow; }

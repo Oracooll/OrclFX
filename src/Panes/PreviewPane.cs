@@ -21,8 +21,13 @@ namespace OrclFileExplorer
         readonly Panel host = new Panel();
         readonly PictureBox picture = new PictureBox();
         readonly ListView sizes = new ListView();
-        IPreviewHandler handler;
         string current = "";
+        // The preview work runs on a PreviewWorker thread. A worker stuck on one file is abandoned (it exits
+        // once its call returns) and a fresh one takes over; abandoned ones still running are counted.
+        PreviewWorker worker;
+        readonly System.Collections.Generic.List<PreviewWorker> abandoned = new System.Collections.Generic.List<PreviewWorker>();
+        readonly Timer watchdog = new Timer();
+        bool showingHandler;
         SizeJob shownJob;
         public SizeJob ShownJob { get { return shownJob; } }
 
@@ -60,6 +65,8 @@ namespace OrclFileExplorer
             host.Controls.Add(message);
             Controls.Add(host);
             Controls.Add(header);
+            watchdog.Interval = 1000;
+            watchdog.Tick += delegate { CheckWorker(); };
         }
 
         public void ApplyTheme()
@@ -92,9 +99,8 @@ namespace OrclFileExplorer
 
         void Layout2()
         {
-            if (handler == null) return;
-            RECT r = HostRect();
-            try { handler.SetRect(ref r); } catch { }
+            if (!showingHandler || worker == null) return;
+            worker.SetRect(HostRect());
         }
 
         public void Show(string path)
@@ -104,59 +110,88 @@ namespace OrclFileExplorer
             current = path;
             shownJob = null;
             sizes.Visible = false;
-            Unload();
             header.Text = path.Length == 0 ? "Preview" : Path.GetFileName(path.TrimEnd('\\'));
-            if (path.Length == 0) { ShowMessage("Select a file to preview"); return; }
-            if (!Directory.Exists(path) && TryHandler(path)) return;
-            StartThumbnail(path);
+            if (path.Length == 0) { Unload(); ShowMessage("Select a file to preview"); return; }
+            Submit(path);
+            ShowMessage("Loading preview…");
         }
 
         int thumbTicket;
+        string stuckFor;
 
-        // Thumbnail extraction can be slow (video, large images, cloud files), so it runs off the UI thread;
-        // a result that arrives after the selection changed is discarded.
-        void StartThumbnail(string path)
+        // Hands the newest selection to the worker; anything still running for an older one is no longer wanted.
+        void Submit(string path)
         {
-            int ticket = ++thumbTicket;
-            SIZE s = new SIZE();
-            s.cx = Math.Max(64, Math.Min(1024, host.ClientSize.Width));
-            s.cy = Math.Max(64, Math.Min(1024, host.ClientSize.Height));
-            ShowMessage("Loading preview…");
-            System.Threading.Thread th = new System.Threading.Thread(delegate()
+            ClearShown();
+            PreviewWorker.Request r = new PreviewWorker.Request();
+            r.Ticket = ++thumbTicket;
+            r.Path = path;
+            if (path.Length > 0)
             {
-                Bitmap bmp = null;
-                IShellItem item = null;
-                try
+                r.Host = host.Handle;
+                r.Rect = HostRect();
+                r.ThumbSize.cx = Math.Max(64, Math.Min(1024, host.ClientSize.Width));
+                r.ThumbSize.cy = Math.Max(64, Math.Min(1024, host.ClientSize.Height));
+                r.Back = Native.ColorRef(Theme.Window);
+                r.Text = Native.ColorRef(Theme.Text);
+            }
+            if (worker == null)
+            {
+                if (path.Length == 0) return;
+                abandoned.RemoveAll(delegate(PreviewWorker w) { return !w.IsAlive; });
+                // Several stuck previews at once: stop starting new ones until one of them recovers.
+                if (abandoned.Count >= 3) { ShowMessage("Previews have stopped responding"); return; }
+                worker = new PreviewWorker(delegate(PreviewWorker.Result res)
                 {
-                    item = Native.ItemFromPath(path);
-                    IShellItemImageFactory fac = item as IShellItemImageFactory;
-                    IntPtr hbmp;
-                    if (fac != null && fac.GetImage(s, 0, out hbmp) == 0 && hbmp != IntPtr.Zero)
-                    {
-                        try { bmp = BitmapWithAlpha(hbmp); }
-                        finally { Native.DeleteObject(hbmp); }
-                    }
-                }
-                catch { }
-                finally { if (item != null) try { Marshal.ReleaseComObject(item); } catch { } }
-                try
-                {
-                    BeginInvoke((MethodInvoker)delegate
-                    {
-                        if (ticket != thumbTicket || current != path) { if (bmp != null) bmp.Dispose(); return; }
-                        if (bmp == null) { ShowMessage("No preview available"); return; }
-                        Image old = picture.Image;
-                        picture.Image = bmp;
-                        if (old != null) old.Dispose();
-                        message.Visible = false;
-                        picture.Visible = true;
-                    });
-                }
-                catch { if (bmp != null) bmp.Dispose(); }
-            });
-            th.SetApartmentState(System.Threading.ApartmentState.STA);
-            th.IsBackground = true;
-            th.Start();
+                    try { BeginInvoke((MethodInvoker)delegate { Delivered(res); }); }
+                    catch { if (res.Thumbnail != null) res.Thumbnail.Dispose(); }
+                });
+            }
+            worker.Submit(r);
+            stuckFor = null;
+            watchdog.Start();
+        }
+
+        void Delivered(PreviewWorker.Result res)
+        {
+            if (res.From != worker || res.Ticket != thumbTicket) { if (res.Thumbnail != null) res.Thumbnail.Dispose(); return; }
+            if (res.Handler)
+            {
+                showingHandler = true;
+                message.Visible = picture.Visible = false;
+                Layout2();
+                return;
+            }
+            if (res.Thumbnail == null) { ShowMessage("No preview available"); return; }
+            Image old = picture.Image;
+            picture.Image = res.Thumbnail;
+            if (old != null) old.Dispose();
+            message.Visible = false;
+            picture.Visible = true;
+        }
+
+        // Once a second while previews are in use: replace a worker that's stuck.
+        void CheckWorker()
+        {
+            if (worker == null) { watchdog.Stop(); return; }
+            TimeSpan busy = worker.Busy;
+            // The user has moved on but the worker is still busy with an older file: let a fresh one take over.
+            if (busy.TotalSeconds > 8 && worker.HasWaitingRequest)
+            {
+                PreviewWorker stuck = worker;
+                stuck.Abandon();
+                abandoned.Add(stuck);
+                worker = null;
+                string again = current;
+                current = "";
+                Show(again);
+                return;
+            }
+            if (busy.TotalSeconds > 30 && stuckFor != current && message.Visible)
+            {
+                stuckFor = current;
+                ShowMessage("The preview isn't responding");
+            }
         }
 
         void ShowMessage(string text)
@@ -166,60 +201,21 @@ namespace OrclFileExplorer
             message.Visible = true;
         }
 
-        bool TryHandler(string path)
+        // Hides what's shown for the previous selection: the picture, and any preview handler window
+        // (the handler itself is unloaded by the worker, which may take a moment).
+        void ClearShown()
         {
-            string clsid = Native.PreviewHandlerFor(Path.GetExtension(path));
-            if (clsid == null) return false;
-            object o = null;
-            try
-            {
-                // Out of process only, like File Explorer (prevhost.exe): a misbehaving handler can't crash or
-                // run inside the app. Handlers that only work in process get the thumbnail instead.
-                o = Native.CreateComObject(new Guid(clsid), 0x4 /* CLSCTX_LOCAL_SERVER */);
-                if (o == null) return false;
-                bool ok = false;
-                IInitializeWithStream ws = o as IInitializeWithStream;
-                System.Runtime.InteropServices.ComTypes.IStream stream;
-                // STGM_READ | STGM_SHARE_DENY_NONE
-                if (ws != null && Native.SHCreateStreamOnFileEx(path, 0x40, 0, false, IntPtr.Zero, out stream) == 0)
-                {
-                    ok = ws.Initialize(stream, 0) == 0;
-                    Marshal.ReleaseComObject(stream); // the handler keeps its own reference if it needs one
-                }
-                if (!ok)
-                {
-                    IInitializeWithFile f = o as IInitializeWithFile;
-                    if (f != null) ok = f.Initialize(path, 0) == 0;
-                }
-                if (!ok)
-                {
-                    IInitializeWithItem wi = o as IInitializeWithItem;
-                    IShellItem item = wi != null ? Native.ItemFromPath(path) : null;
-                    if (item != null) { ok = wi.Initialize(item, 0) == 0; Marshal.ReleaseComObject(item); }
-                }
-                if (!ok) { Marshal.ReleaseComObject(o); return false; }
-                handler = (IPreviewHandler)o;
-                IPreviewHandlerVisuals v = o as IPreviewHandlerVisuals;
-                if (v != null)
-                {
-                    v.SetBackgroundColor(Native.ColorRef(Theme.Window));
-                    v.SetTextColor(Native.ColorRef(Theme.Text));
-                }
-                message.Visible = picture.Visible = false;
-                RECT r = HostRect();
-                if (handler.SetWindow(host.Handle, ref r) != 0 || handler.DoPreview() != 0) { Unload(); return false; }
-                return true;
-            }
-            catch
-            {
-                if (handler == null && o != null) try { Marshal.ReleaseComObject(o); } catch { }
-                Unload();
-                return false;
-            }
+            showingHandler = false;
+            Image old = picture.Image;
+            picture.Image = null;
+            if (old != null) old.Dispose();
+            if (!host.IsHandleCreated) return;
+            for (IntPtr h = Native.GetWindow(host.Handle, 5 /* GW_CHILD */); h != IntPtr.Zero; h = Native.GetWindow(h, 2 /* GW_HWNDNEXT */))
+                if (h != picture.Handle && h != message.Handle && h != sizes.Handle) Native.ShowWindow(h, 0);
         }
 
         // Image.FromHbitmap drops the alpha channel; keep it when the shell returns a transparent image.
-        static Bitmap BitmapWithAlpha(IntPtr hbmp)
+        internal static Bitmap BitmapWithAlpha(IntPtr hbmp)
         {
             Bitmap rgb = Image.FromHbitmap(hbmp);
             if (Image.GetPixelFormatSize(rgb.PixelFormat) != 32) return rgb;
@@ -240,18 +236,22 @@ namespace OrclFileExplorer
             rgb.Dispose();
             return argb;
         }
+        // Stops the current preview (handler or thumbnail).
         public void Unload()
         {
-            thumbTicket++; // any thumbnail still being made is no longer wanted
-            if (handler != null)
-            {
-                try { handler.Unload(); } catch { }
-                try { Marshal.FinalReleaseComObject(handler); } catch { }
-                handler = null;
-            }
-            Image old = picture.Image;
-            picture.Image = null;
-            if (old != null) old.Dispose();
+            if (worker != null) Submit("");
+            else { ++thumbTicket; ClearShown(); }
+        }
+
+        // For closing: unload the handler, waiting at most two seconds for a stuck one.
+        public void Shutdown()
+        {
+            watchdog.Stop();
+            ++thumbTicket;
+            if (worker == null) return;
+            worker.Quit();
+            worker.WaitForExit(2000);
+            worker = null;
         }
 
         public void Clear()
@@ -272,7 +272,8 @@ namespace OrclFileExplorer
             }
             long total = job.TotalBytes;
             string state = job.Failure != null ? "stopped" : job.Finished ? Util.FormatBytes(total) + " in " + job.TotalFiles.ToString("N0") + " files" : "calculating… " + Util.FormatBytes(total);
-            if (job.Errors > 0) state += "  (at least: " + job.Errors + (job.Errors == 1 ? " folder" : " folders") + " couldn't be read)";
+            if (job.Skipped != null) state = job.Skipped;
+            else if (job.Errors > 0) state += "  (at least: " + job.Errors + (job.Errors == 1 ? " folder" : " folders") + " couldn't be read)";
             header.Text = Path.GetFileName(job.Root.TrimEnd('\\')) + "  ·  " + state;
             if (header.Text.StartsWith("  ")) header.Text = job.Root + "  ·  " + state;
             sizes.BeginUpdate();

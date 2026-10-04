@@ -1,6 +1,7 @@
 // Orcl File Explorer: the shared shortcuts file (format, portable paths, three-way merge). No UI; covered by tests\.
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Text;
 
 namespace OrclFileExplorer
@@ -44,6 +45,22 @@ namespace OrclFileExplorer
             sb.AppendLine(Header);
             foreach (KeyValuePair<string, string> e in entries) sb.AppendLine(e.Key + "|" + ToPortable(e.Value));
             return sb.ToString();
+        }
+
+        // Saves the local list as one locked read-merge-write, so two windows sharing the file can't both
+        // merge the same old contents and then overwrite each other. Whatever is in the file now (another
+        // window's or another computer's save) is merged with the local changes against baseList, the
+        // version both started from. Returns the list that was written, which becomes the new base.
+        public static List<KeyValuePair<string, string>> SaveMerged(string file, List<KeyValuePair<string, string>> baseList,
+            List<KeyValuePair<string, string>> local)
+        {
+            return Util.WithFileLock(file, delegate
+            {
+                List<KeyValuePair<string, string>> merged = local;
+                if (File.Exists(file)) merged = Merge(baseList, local, Parse(File.ReadAllLines(file, Encoding.UTF8)));
+                Util.WriteAllTextAtomic(file, Serialize(merged));
+                return merged;
+            });
         }
 
         // Three-way merge of the shortcuts (label, path) against their common ancestor: additions on either

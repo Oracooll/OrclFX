@@ -64,6 +64,27 @@ namespace OrclFileExplorer.Tests
         }
 
         [Test]
+        static void ReadLines_DamagedFileDoesNotBeatAGoodBackup()
+        {
+            // The audit's case: a tab line with an unusable value used to win over a valid backup.
+            using (TempDir d = new TempDir())
+            {
+                string f = d.File("state.txt", "panes=2\npane0.tab=garbage\npane1.tab=L|\n");
+                d.File("state.txt.bak", "pane0.tab=U|C:\\Good\n");
+                Assert.True(Array.IndexOf(SettingsFile.ReadLines(f) ?? new string[0], "pane0.tab=U|C:\\Good") >= 0, "the backup is used");
+            }
+        }
+
+        [Test]
+        static void UsableTabLines()
+        {
+            Assert.True(SettingsFile.IsUsableTabLine(@"pane0.tab=U|C:\A"), "normal");
+            Assert.True(SettingsFile.IsUsableTabLine(@"pane3.tab=L|::{20D04FE0-3AEA-1069-A2D8-08002B30309D}"), "locked This PC");
+            foreach (string bad in new string[] { "pane0.tab=garbage", "pane0.tab=U|", "pane0.tab=U|   ", "pane0.active=1", "pane9.tab=U|C:\\A", "pane0.tab", "", null })
+                Assert.True(!SettingsFile.IsUsableTabLine(bad), "'" + bad + "'");
+        }
+
+        [Test]
         static void ReadLines_NothingUsable()
         {
             using (TempDir d = new TempDir())

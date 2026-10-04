@@ -169,6 +169,12 @@ namespace OrclFileExplorer
         [DllImport("kernel32.dll")] public static extern bool FindClose(IntPtr h);
         [DllImport("kernel32.dll")] public static extern IntPtr GetCurrentThread();
         [DllImport("kernel32.dll")] public static extern bool SetThreadPriority(IntPtr h, int priority);
+        [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+        public static extern IntPtr CreateFile(string name, uint access, uint share, IntPtr security, uint disposition, uint flags, IntPtr template);
+        [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+        public static extern uint GetFinalPathNameByHandle(IntPtr file, StringBuilder path, uint size, uint flags);
+        [DllImport("kernel32.dll")] public static extern bool CloseHandle(IntPtr h);
+        [DllImport("kernel32.dll", CharSet = CharSet.Unicode)] public static extern uint GetDriveType(string root);
 
         [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
         struct SHFILEOPSTRUCT
