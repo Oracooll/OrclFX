@@ -14,9 +14,11 @@ if ((Test-Path $png) -and (-not (Test-Path $ico) -or (Get-Item $png).LastWriteTi
 
 if (-not $Out) { $Out = Join-Path $root 'dist\orclfx.exe' }
 New-Item -ItemType Directory -Force (Split-Path $Out) | Out-Null
+# Every .cs file under src\ (Core, Interop, Panes, UI and the top-level files).
+$sources = Get-ChildItem (Join-Path $root 'src') -Recurse -Filter *.cs | ForEach-Object { $_.FullName }
 & $csc /nologo /target:winexe /platform:anycpu /optimize+ `
     "/out:$Out" "/win32manifest:$root\src\app.manifest" "/win32icon:$ico" "/resource:$ico,app.ico" `
-    /r:System.Windows.Forms.dll /r:System.Drawing.dll "$root\src\OrclFileExplorer.cs"
+    /r:System.Windows.Forms.dll /r:System.Drawing.dll $sources
 if ($LASTEXITCODE -ne 0) { throw "Build failed" }
 Write-Host "Built $Out"
 

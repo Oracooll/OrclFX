@@ -3,6 +3,14 @@
 Versions are `major.minor.build` with a three-digit build number. Every release bumps the build;
 the minor number changes only for larger milestones.
 
+## 1.1.006
+- The code is split into smaller files by area (`src/Core`, `src/Panes`, `src/UI`, `src/Interop`)
+  instead of one 4,700-line file. The logic with no UI (shortcut-list merging, pane widths, the
+  settings file, folder sizes, path and file helpers) is separated from the windows that use it.
+- Automated tests (`test.ps1`, 38 tests plus an optional smoke test that starts the app), run by
+  GitHub on every push.
+- No change in how the app looks or behaves.
+
 ## 1.1.005
 Fixes from a code audit:
 - Shortcuts shared through OneDrive now merge properly: a shortcut deleted or renamed on another

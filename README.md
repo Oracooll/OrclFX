@@ -77,8 +77,27 @@ powershell -ExecutionPolicy Bypass -File build.ps1
 ```
 
 This produces `dist\orclfx.exe`. The icon is generated from `Icon.png` by `src\make-icon.ps1`.
-All code is in [`src/OrclFileExplorer.cs`](src/OrclFileExplorer.cs) (C# 5, Windows Forms and
-Shell COM interfaces).
+
+The code is C# 5 with Windows Forms and the Shell COM interfaces, in [`src/`](src):
+
+| Folder | What's in it |
+| --- | --- |
+| `src/` | `Program.cs` (startup), `MainForm.cs` (main window), `Installer.cs`, `AssemblyInfo.cs` (version) |
+| `src/Core/` | Logic with no UI: shortcut-list merging, pane widths, the settings file, folder sizes, path and file helpers |
+| `src/Panes/` | Explorer tabs, file panes, tree, preview and shortcuts panes |
+| `src/UI/` | Title bar, tab strip, theme colours, splitters and other controls |
+| `src/Interop/` | Windows API and Shell COM declarations |
+
+### Tests
+
+```
+powershell -ExecutionPolicy Bypass -File test.ps1
+```
+
+Builds the app and the tests in `tests/` into `dist\tests\` and runs them. The tests cover the
+`src/Core` logic. They need no extra packages and open no windows. Add `-Smoke` to also start the app
+with throw-away settings and check that it opens, saves its settings and closes cleanly. GitHub runs
+the tests on every push.
 
 ## Where things are stored
 
@@ -96,7 +115,7 @@ Shell COM interfaces).
   Windows applies some light/dark choices only when an app starts.
 - Only one window runs at a time; launching the app again brings the open window to the front.
 - See [CHANGELOG.md](CHANGELOG.md) for the version history. Versions are `major.minor.build` with a
-  three-digit build (1.1.005).
+  three-digit build (1.1.006).
 
 ## License
 
