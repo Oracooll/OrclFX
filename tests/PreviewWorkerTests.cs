@@ -82,6 +82,16 @@ namespace OrclFileExplorer.Tests
                 w.Submit(q);
                 Stopwatch sw = Stopwatch.StartNew();
                 while (sw.Elapsed.TotalSeconds < 20) { lock (got) if (got.Count > 0) break; Thread.Sleep(20); }
+                if (got.Count == 0)
+                {
+                    // Machines without a desktop session (like GitHub's test servers) can leave the handler
+                    // hanging. That's the case the worker exists for: it must say it's busy (so the preview
+                    // pane abandons it) while nothing else waits on it.
+                    Assert.True(w.Busy.TotalSeconds > 10, "no result, and the worker doesn't report being stuck");
+                    Console.WriteLine("        (the preview handler didn't answer here; the worker reported it as stuck)");
+                    w.Abandon();
+                    return;
+                }
                 Assert.Equal(1, got.Count, "results");
                 if (got[0].Handler) Console.WriteLine("        (shown by the .txt preview handler)");
                 else Console.WriteLine("        (no out-of-process .txt handler here; got " + (got[0].Thumbnail != null ? "a thumbnail" : "nothing") + ")");
