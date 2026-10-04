@@ -1,0 +1,11 @@
+# Source and scripts are Windows-native: keep CRLF in the working copy, normalise in the repo
+* text=auto
+*.cs        text eol=crlf
+*.ps1       text eol=crlf
+*.manifest  text eol=crlf
+*.md        text eol=crlf
+
+# Binaries
+*.png binary
+*.ico binary
+*.exe binary

@@ -1,60 +1,106 @@
 # Orcl File Explorer
 
-A light multi-pane file manager for Windows, in the spirit of xplorer2. Each pane hosts the real
-Windows Explorer view, so thumbnails, right-click menus, drag-and-drop, rename and columns all
-behave exactly like File Explorer.
+A light multi-pane file manager for Windows, in the spirit of xplorer2, made for wide and ultrawide
+screens. Every pane hosts the **real Windows Explorer view**, so thumbnails, right-click menus,
+drag and drop, renaming, columns and shell extensions behave exactly as in File Explorer.
+
+![Orcl File Explorer with three panes](docs/screenshot.png)
+
+**[Download the latest release](https://github.com/Oracooll/orcl-file-explorer/releases/latest)**:
+a single `orclfx.exe`, no installer package and no admin rights needed.
 
 ## Features
 
-- One to four panes side by side (Alt+1 … Alt+4, title bar, or ☰ › Panes side by side), for wide and
-  ultrawide screens. Each pane has its own tabs, remembered between sessions; hidden panes keep theirs.
-  Dragging a divider moves only that divider: the pane to its left changes by exactly the drag distance,
-  panes further left stay put, and the panes to its right share the difference equally; double-click a
-  divider to make all panes equal
-- The active pane (the last one you used) has an accent frame
-- Locked tabs (right-click a tab › Lock): they never leave their folder, opening a folder from one opens a new tab
-- Double-click empty space in a file list to go up one level
-- View modes in the title bar (Details, List, Tiles, Content, Medium and Large icons) and all eight in
-  ☰ › View mode (also Explorer's Ctrl+Shift+1 … 8)
-- Tree pane on the left that follows the active pane (Alt+T)
-- Preview pane on the right for the active pane's selected file, using Windows preview handlers (Alt+P)
-- Shortcuts pane along the bottom (Alt+S): drop folders onto it, double-click to open (Ctrl+double-click / middle-click for a new tab).
-  The list is stored in `OneDrive\DualPane\shortcuts.txt`, so every computer signed in to the same OneDrive shares it;
-  paths under OneDrive or the user profile are stored as `%OneDrive%` / `%USERPROFILE%`. Shortcuts whose folder
-  doesn't exist on the current computer are dimmed and listed in a warning line. Dropping only adds shortcuts;
-  nothing on disk is ever moved from this pane. F2 (or right-click › Rename folder) renames the real folder, and
-  shortcuts and open tabs inside it follow; right-click › Rename shortcut label only changes just the label.
-  Right-click › Column width sets a maximum width in characters or pixels
-  Sort icons at the right end of its header: as arranged, name A to Z, name Z to A, folder path A to Z.
-  Sorting only changes the display; the shared file keeps the arranged order
-- Title-bar buttons for the panes and view modes, and the theme switch (match Windows, light, dark)
-- All separators resize live while dragging
-- ☰ › View options: show hidden files (Ctrl+H), auto-fit Name column, natural number sorting, folder sizes
-- Folder sizes (asks twice before turning on): the Preview pane lists the selected or current folder's subfolders
-  by size and the status bar shows the total. Scans run in the background at low priority, skip network and
-  optical drives, never download OneDrive files, and switch the feature off if a scan passes 90 seconds or
-  2 million items
+**Panes and tabs**
+- One to four panes side by side (Alt+1 … Alt+4). Each pane has its own tabs, remembered between
+  sessions; panes you hide keep their tabs for when you show them again.
+- Locked tabs (right-click a tab › Lock) never leave their folder: opening a folder from one opens
+  it in a new tab.
+- The active pane, the one you used last, is framed in your accent colour. The first click on an
+  inactive pane only activates it.
+- Double-click empty space in a file list to go up one level.
+- Drag a divider to resize: only that divider moves, and the panes to its right share the change
+  equally. Double-click a divider to make all panes the same width.
 
-Versions are `major.minor.build` with a three-digit build (1.1.001, 1.1.002, …).
+**Side panes** (title bar or Alt+T / Alt+P / Alt+S)
+- **Tree**: one folder tree that follows the active pane.
+- **Preview**: previews the active pane's selected file with the Windows preview handlers
+  (PDF, Office, images, text …). Handlers run outside the app, as in File Explorer.
+- **Shortcuts**: a strip of favourite folders. Drop folders onto it, double-click to open
+  (Ctrl+double-click or middle-click for a new tab), F2 renames the real folder, sort icons on its
+  header. The list is stored in your OneDrive, so all your computers share it; shortcuts to folders
+  that don't exist on the current computer are dimmed and listed in a warning line.
 
-## Build
+**View**
+- View modes in the title bar (Details, List, Tiles, Content, Medium and Large icons), all eight
+  in ☰ › View mode.
+- Light, dark or match-Windows theme from the title bar.
+- ☰ › View options: show hidden files (Ctrl+H), auto-fit the Name column, natural number sorting,
+  and folder sizes. Folder sizes are calculated in the background at low priority, skip network
+  drives, never download OneDrive files, and turn themselves off if a scan gets out of hand.
+
+## Keyboard shortcuts
+
+| Keys | Action |
+|---|---|
+| Double-click empty space, Backspace, Alt+Up | Up one level |
+| Alt+Left / Alt+Right | Back / Forward |
+| Tab | Next pane |
+| Ctrl+T / Ctrl+W | New tab / close tab (middle-click a tab also closes it) |
+| Ctrl+Tab / Ctrl+Shift+Tab | Next / previous tab |
+| Ctrl+L, Alt+D, F4 | Edit the address |
+| Alt+1 … Alt+4 | One to four panes |
+| Alt+T / Alt+P / Alt+S | Tree / Preview / Shortcuts pane |
+| Ctrl+H | Show or hide hidden files |
+
+## Install
+
+1. Download `orclfx.exe` from the [releases page](https://github.com/Oracooll/orcl-file-explorer/releases/latest).
+2. Run it and choose **Yes** to install for your Windows account. It goes to
+   `%LOCALAPPDATA%\Programs\Orcl File Explorer`, appears in the Start menu, and can be removed from
+   Settings › Apps.
+3. Optional: right-click its taskbar icon › Pin to taskbar.
+
+Running a newer `orclfx.exe` the same way (or `orclfx.exe --install`) updates the installed copy.
+`orclfx.exe --portable` runs it without installing.
+
+Windows SmartScreen may warn about a downloaded unsigned program: choose **More info › Run anyway**.
+
+**Requirements:** Windows 10 or 11 with .NET Framework 4.8, which Windows includes.
+
+## Build from source
+
+No SDK or IDE needed: the build uses the C# compiler that ships with Windows (.NET Framework 4.x).
 
 ```
 powershell -ExecutionPolicy Bypass -File build.ps1
 ```
 
-Produces `dist\orclfx.exe` using the C# compiler built into Windows (.NET Framework 4.8); nothing to install.
+This produces `dist\orclfx.exe`. The icon is generated from `Icon.png` by `src\make-icon.ps1`.
+All code is in [`src/OrclFileExplorer.cs`](src/OrclFileExplorer.cs) (C# 5, Windows Forms and
+Shell COM interfaces).
 
-## Install on a computer
+## Where things are stored
 
-Copy `orclfx.exe` to the computer (OneDrive works) and run it. Choose **Yes** to install for your
-Windows account: it goes to `%LOCALAPPDATA%\Programs\Orcl File Explorer`, appears in the Start menu, and can be
-uninstalled from Settings › Apps. Running a newer exe the same way (or `orclfx.exe --install`) updates the
-installed copy. Run with `--portable` to skip the install prompt. Installing replaces a pre-1.1 "DualPane"
-install and re-points a taskbar pin made for it.
+| What | Where |
+|---|---|
+| Tabs, layout and settings | `%APPDATA%\DualPane\state.txt` (with a `.bak` copy) |
+| Shared shortcuts list | `%OneDrive%\DualPane\shortcuts.txt` |
+| Error log | `%APPDATA%\DualPane\errors.log` |
 
-Settings and tabs are stored in `%APPDATA%\DualPane\state.txt` (written safely, with a `.bak` copy).
-Unexpected errors are shown in a message and logged to `%APPDATA%\DualPane\errors.log`.
-Switching between light and dark restarts the window (tabs and layout are kept), because Windows only
-applies some light/dark choices when an app starts. Only one window runs at a time; launching the app
-again brings the open window to the front.
+(The folders keep the project's original name, DualPane, so earlier installs carry over.)
+
+## Notes
+
+- Switching between light and dark restarts the window, keeping your tabs and layout, because
+  Windows applies some light/dark choices only when an app starts.
+- Only one window runs at a time; launching the app again brings the open window to the front.
+- See [CHANGELOG.md](CHANGELOG.md) for the version history. Versions are `major.minor.build` with a
+  three-digit build (1.1.004).
+
+## License
+
+[PolyForm Noncommercial 1.0.0](LICENSE.md): free to use, modify and share for any noncommercial
+purpose (personal use, study, hobby projects, charities, schools, public bodies). Selling it or
+using it to make money is not permitted. Because it restricts commercial use, this is
+source-available software rather than "open source" in the OSI sense.
