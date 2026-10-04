@@ -48,7 +48,11 @@ namespace OrclFileExplorer
         bool renamingFolder, editRequested;
         string labelBeforeEdit;
         readonly HashSet<string> iconsPending = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-
+        // Folder icons are looked up on a background STA thread (the shell needs COM, and a slow or offline
+        // drive mustn't freeze the window). Finished icons wait in iconsReady until the list can show them.
+        readonly Queue<string> iconQueue = new Queue<string>();
+        readonly List<KeyValuePair<string, Icon>> iconsReady = new List<KeyValuePair<string, Icon>>();
+        bool iconWorkerRunning;
         // The list lives in OneDrive (when present) so every computer signed in to it shares the same shortcuts.
         // Old per-computer shortcuts still waiting to be moved into the shared file (kept in state.txt until then).
         public List<KeyValuePair<string, string>> PendingLegacy { get { return pendingLegacy; } }
@@ -144,6 +148,61 @@ namespace OrclFileExplorer
             Controls.Add(notice);
             Controls.Add(headerBar);
             list.ListViewItemSorter = new ShortcutSorter(0);
+        }
+
+        void QueueIcon(string path)
+        {
+            lock (iconQueue)
+            {
+                iconQueue.Enqueue(path);
+                if (iconWorkerRunning) return;
+                iconWorkerRunning = true;
+            }
+            System.Threading.Thread th = new System.Threading.Thread(IconWorker);
+            th.IsBackground = true;
+            th.SetApartmentState(System.Threading.ApartmentState.STA);
+            th.Start();
+        }
+
+        void IconWorker()
+        {
+            while (true)
+            {
+                string path;
+                lock (iconQueue)
+                {
+                    if (iconQueue.Count == 0) { iconWorkerRunning = false; break; }
+                    path = iconQueue.Dequeue();
+                }
+                Icon ic = null;
+                IntPtr pidl = Native.ParsePath(path);
+                if (pidl != IntPtr.Zero)
+                    try { ic = Native.SmallIcon(pidl); } catch { } finally { Marshal.FreeCoTaskMem(pidl); }
+                lock (iconsReady) iconsReady.Add(new KeyValuePair<string, Icon>(path, ic));
+                // Before the window exists, OnHandleCreated picks the icons up instead.
+                if (IsHandleCreated) try { BeginInvoke((MethodInvoker)ApplyIcons); } catch { }
+            }
+        }
+
+        void ApplyIcons()
+        {
+            List<KeyValuePair<string, Icon>> ready;
+            lock (iconsReady) { ready = new List<KeyValuePair<string, Icon>>(iconsReady); iconsReady.Clear(); }
+            if (ready.Count == 0 || IsDisposed) return;
+            foreach (KeyValuePair<string, Icon> r in ready)
+            {
+                iconsPending.Remove(r.Key);
+                // the ImageList keeps using the icon until its handle exists: don't dispose it here
+                if (r.Value != null && !icons.Images.ContainsKey(r.Key)) icons.Images.Add(r.Key, r.Value);
+            }
+            Program.Trace("shortcut icons: " + icons.Images.Count + " of " + list.Items.Count);
+            list.Invalidate();
+        }
+
+        protected override void OnHandleCreated(EventArgs e)
+        {
+            base.OnHandleCreated(e);
+            ApplyIcons();
         }
 
         protected override void Dispose(bool disposing)
@@ -614,27 +673,7 @@ namespace OrclFileExplorer
             if (string.IsNullOrEmpty(label)) label = path;
             label = label.Replace('|', '-');
             removedHere.Remove(path);
-            if (!icons.Images.ContainsKey(path) && iconsPending.Add(path))
-            {
-                string iconPath = path;
-                System.Threading.ThreadPool.QueueUserWorkItem(delegate
-                {
-                    Icon ic = null;
-                    IntPtr pidl = Native.ParsePath(iconPath);
-                    if (pidl != IntPtr.Zero)
-                        try { ic = Native.SmallIcon(pidl); } catch { } finally { Marshal.FreeCoTaskMem(pidl); }
-                    try
-                    {
-                        BeginInvoke((MethodInvoker)delegate
-                        {
-                            iconsPending.Remove(iconPath);
-                            // the ImageList keeps using ic until its handle exists: don't dispose it here
-                            if (ic != null && !icons.Images.ContainsKey(iconPath)) { icons.Images.Add(iconPath, ic); list.Invalidate(); }
-                        });
-                    }
-                    catch { if (ic != null) ic.Dispose(); }
-                });
-            }
+            if (!icons.Images.ContainsKey(path) && iconsPending.Add(path)) QueueIcon(path);
             ListViewItem it = new ListViewItem(label, path);
             it.Name = (nextSeq++).ToString("D9");
             it.Tag = path;

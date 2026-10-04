@@ -3,6 +3,10 @@
 Versions are `major.minor.build` with a three-digit build number. Every release bumps the build;
 the minor number changes only for larger milestones.
 
+## 1.1.007
+- Shortcuts pane: folder icons show again. Since 1.1.005 they were loaded on a background thread
+  that couldn't use the shell properly, and icons ready before the window opened were thrown away.
+
 ## 1.1.006
 - The code is split into smaller files by area (`src/Core`, `src/Panes`, `src/UI`, `src/Interop`)
   instead of one 4,700-line file. The logic with no UI (shortcut-list merging, pane widths, the
