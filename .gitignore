@@ -1,0 +1,7 @@
+# Build output: published as GitHub Release assets instead
+dist/
+
+# Editor / OS leftovers
+*.tmp
+*.bak
+Thumbs.db
