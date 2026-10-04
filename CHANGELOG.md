@@ -18,6 +18,7 @@ Fixes from a code audit:
 - Navigation and preview failures are detected and reported; shortcut icons load in the background.
 - Uninstall removes only `orclfx.exe` and an empty install folder; tabs show the new name right
   after a folder is renamed; smaller resource-cleanup fixes.
+
 ## 1.1.004
 - Shortcuts pane: a single click only selects; double-click or Enter opens (Ctrl: in a new tab).
 - Shortcuts pane: sort icons at the right end of its header (as arranged, name A to Z, name Z to A,
