@@ -61,6 +61,9 @@ a single `orclfx.exe`, no installer package and no admin rights needed.
    Settings › Apps.
 3. Optional: right-click its taskbar icon › Pin to taskbar.
 
+Once the [winget listing](https://github.com/microsoft/winget-pkgs/pull/446536) is approved, it can also be
+installed with `winget install Oracooll.OrclFileExplorer` (and updated with `winget upgrade`).
+
 **Updates:** the main menu (click the app icon at the top left, or the menu button in a pane) has
 **Check for updates…**. It finds the newest release here on GitHub, checks the download (size,
 SHA-256 checksum and version), saves your tabs, replaces the program and restarts it. Once a day the
