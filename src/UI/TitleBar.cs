@@ -25,6 +25,7 @@ namespace OrclFileExplorer
         public readonly GlyphButton[] ViewButtons = new GlyphButton[6];
         public static readonly string[] ViewNames = { "Details", "List", "Tiles", "Content", "Medium icons", "Large icons" };
         readonly GlyphButton min, max, close;
+        public readonly GlyphButton FindButton;
         Icon icon;
 
         public TitleBar(Form f)
@@ -66,7 +67,15 @@ namespace OrclFileExplorer
             max.Click += delegate { form.WindowState = form.WindowState == FormWindowState.Maximized ? FormWindowState.Normal : FormWindowState.Maximized; };
             close.Click += delegate { form.Close(); };
             // The last control added docks first, so this reads right-to-left: close, max, min, gap, dark, light, system.
-            // Left to right: panes 1-4 | view modes | Tree, Preview, Shortcuts | themes | window buttons.
+            // Left to right: Find | panes 1-4 | view modes | Tree, Preview, Shortcuts | themes | window buttons.
+            // Left to right, before the panes: Find (magnifier) | ...
+            FindButton = new GlyphButton("", "Find in this folder and its subfolders (Ctrl+F)", DockStyle.Right);
+            FindButton.Width = Native.Px(36);
+            Controls.Add(FindButton);
+            Divider fgap = new Divider();
+            fgap.Dock = DockStyle.Right;
+            fgap.Width = Native.Px(17);
+            Controls.Add(fgap);
             for (int i = 1; i <= 4; i++) Controls.Add(LayoutButtons[i]);
             Divider vgap1 = new Divider();
             vgap1.Dock = DockStyle.Right;

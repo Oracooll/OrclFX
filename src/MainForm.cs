@@ -54,6 +54,7 @@ namespace OrclFileExplorer
         // A short message in the status bar for a few seconds.
         public void Notice(string text)
         {
+            Program.Trace("notice: " + text);
             noticeText = text;
             noticeTick = Environment.TickCount;
             UpdateStatus();
@@ -66,6 +67,7 @@ namespace OrclFileExplorer
             Icon = AppIcon();
             titleBar = new TitleBar(this);
             titleBar.SetIcon(Icon);
+            titleBar.FindButton.Click += delegate { ShowFind(); };
             titleBar.IconClick += delegate
             {
                 Rectangle r = titleBar.IconRect;
@@ -194,6 +196,41 @@ namespace OrclFileExplorer
                 tt.Interval = 3000;
                 tt.Tick += delegate { tt.Stop(); Program.Trace("test theme -> " + testTheme); SetThemeMode(testTheme); };
                 tt.Start();
+            }
+            // Test hook: DUALPANE_TEST_FIND=<text> (or +<text> for names and contents) runs Find 3 seconds after
+            // start, logs the results 10 seconds later, then presses Up and logs where the tab went.
+            string testFind = Environment.GetEnvironmentVariable("DUALPANE_TEST_FIND");
+            if (testFind != null)
+            {
+                Timer ft = new Timer();
+                ft.Interval = 3000;
+                int step = 0;
+                ft.Tick += delegate
+                {
+                    if (step++ == 0) { ft.Interval = 10000; RunFind(testFind.TrimStart('+'), testFind.StartsWith("+")); return; }
+                    BrowserTab a = ActivePane.ActiveTab;
+                    if (step == 2)
+                    {
+                        ft.Interval = 1000;
+                        UpdateStatus();
+                        Program.Trace("find: tab “" + a.Title + "”, view items " + a.Count(Native.SVGIO_ALLVIEW) + ", status: " + statusLeft.Text + " | " + string.Join(" ; ", a.ItemPaths(10).ToArray()));
+                        return;
+                    }
+                    string open = Environment.GetEnvironmentVariable("DUALPANE_TEST_FIND_OPEN");
+                    if (step == 3 && open != null) { ft.Interval = 3000; Program.Trace("find: open " + open + ": " + a.TestOpenItem(open)); return; }
+                    if (step == 3) { ft.Interval = 3000; a.GoUp(); return; }
+                    ft.Stop();
+                    Program.Trace("find: after " + (Environment.GetEnvironmentVariable("DUALPANE_TEST_FIND_OPEN") != null ? "opening" : "Up") + ": tab “" + a.Title + "”, folder " + a.Folder + ", results " + a.IsFindResults + ", view items " + a.Count(Native.SVGIO_ALLVIEW));
+                };
+                ft.Start();
+            }
+            // Test hook: DUALPANE_TEST_FINDBOX=1 opens the Find box 3 seconds after start (to look at it).
+            if (Environment.GetEnvironmentVariable("DUALPANE_TEST_FINDBOX") == "1")
+            {
+                Timer fb = new Timer();
+                fb.Interval = 3000;
+                fb.Tick += delegate { fb.Stop(); ShowFind(); };
+                fb.Start();
             }
             Shortcuts.CheckAvailability();
             ActivePane = Panes[startPane];
@@ -677,6 +714,7 @@ namespace OrclFileExplorer
                 "Alt+1 ... Alt+4\t\tOne to four panes side by side\n" +
                 "Double-click a divider\tMake the panes equal width\n" +
                 "Ctrl+H\t\t\tShow / hide hidden files\n" +
+                "Ctrl+F / F3\t\tFind in this folder and its subfolders\n" +
                 "Ctrl+T\t\t\tNew tab\n" +
                 "Ctrl+W / middle-click tab\tClose tab\n" +
                 "Ctrl+Tab / Ctrl+Shift+Tab\tNext / previous tab\n" +
@@ -694,7 +732,7 @@ namespace OrclFileExplorer
             BrowserTab t = ActivePane == null ? null : ActivePane.ActiveTab;
             if (t == null || !t.Created) return;
             int all = t.Count(Native.SVGIO_ALLVIEW), sel = t.Count(Native.SVGIO_SELECTION);
-            string s = all < 0 ? "" : all + (all == 1 ? " item" : " items");
+            string s = t.IsFindResults ? FindStatus(t, all) : all < 0 ? "" : all + (all == 1 ? " item" : " items");
             if (sel > 0) s += "     " + sel + " selected";
             if (FolderSizes)
             {
@@ -790,6 +828,7 @@ namespace OrclFileExplorer
             }
             Pane p = ActivePane;
             BrowserTab t = p.ActiveTab;
+            if (ctrl && !alt && !shift && key == Keys.F || !ctrl && !alt && !shift && key == Keys.F3) { ShowFind(); return true; }
             if (ctrl && !alt && key == Keys.T) { p.NewTab(); return true; }
             if (ctrl && !alt && key == Keys.W) { if (t != null) p.CloseTab(t); return true; }
             if (ctrl && !alt && key == Keys.Tab) { p.CycleTab(shift ? -1 : 1); return true; }
@@ -986,6 +1025,8 @@ namespace OrclFileExplorer
                             case "autofit": AutoFit = v != "0"; break;
                             case "foldersizes": FolderSizes = v == "1"; break;
                             case "autoupdate": AutoUpdateCheck = v != "0"; break;
+                            case "find": if (v.Trim().Length > 0 && findHistory.Count < FindQuery.HistorySize) findHistory.Add(v); break;
+                            case "findcontents": findContents = v == "1"; break;
                             case "updatecheck": long ut; if (long.TryParse(v, out ut) && ut > 0 && ut <= DateTime.MaxValue.Ticks) lastUpdateCheck = new DateTime(ut, DateTimeKind.Utc); break;
                             case "treewidth": if (int.TryParse(v, out n) && n >= 80) treeWidth = n; break;
                             case "previewwidth": if (int.TryParse(v, out n) && n >= 100) previewWidth = n; break;
@@ -1062,6 +1103,8 @@ namespace OrclFileExplorer
                 sb.AppendLine("autofit=" + (AutoFit ? "1" : "0"));
                 sb.AppendLine("foldersizes=" + (FolderSizes ? "1" : "0"));
                 sb.AppendLine("autoupdate=" + (AutoUpdateCheck ? "1" : "0"));
+                sb.AppendLine("findcontents=" + (findContents ? "1" : "0"));
+                foreach (string f in findHistory) sb.AppendLine("find=" + f.Replace("\r", " ").Replace("\n", " "));
                 sb.AppendLine("updatecheck=" + lastUpdateCheck.Ticks);
                 int tw = Ready && ShowTree ? treeSplit.SplitterDistance : Native.Px(treeWidth);
                 int pw = Ready && ShowPreview ? previewSplit.Panel2.Width : Native.Px(previewWidth);

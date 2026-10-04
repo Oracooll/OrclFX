@@ -31,6 +31,20 @@ a single `orclfx.exe`, no installer package and no admin rights needed.
   header. The list is stored in your OneDrive, so all your computers share it; shortcuts to folders
   that don't exist on the current computer are dimmed and listed in a warning line.
 
+**Find** (magnifier in the title bar, Ctrl+F or F3)
+- Searches the folder open in the active pane and all its subfolders, and shows the results in a new
+  tab of that pane, in the real Explorer list: open, right-click, preview and sort them as usual, with
+  a Folder path column showing where each one is. Double-clicking a folder in the results opens it in
+  that tab; Back or Up returns to the searched folder.
+- Type part of a name (`report`), or patterns such as `*.pdf;*.docx`; folders that match are found
+  too. The app's own search runs in the background, works everywhere (also in folders Windows doesn't
+  index and on network drives), shows results as they come and can be stopped; it doesn't follow
+  folder links, so nothing is found twice.
+- **Also search inside files** hands the search to Windows Search, like File Explorer's search box:
+  it finds words inside documents (Office, PDF, text …) in folders Windows indexes, and understands
+  filters such as `kind:music`, `size:>10MB` or `date:this week`.
+- Recent searches are remembered.
+
 **View**
 - View modes in the title bar (Details, List, Tiles, Content, Medium and Large icons), all eight
   in ☰ › View mode.
@@ -46,6 +60,7 @@ a single `orclfx.exe`, no installer package and no admin rights needed.
 | Double-click empty space, Backspace, Alt+Up | Up one level |
 | Alt+Left / Alt+Right | Back / Forward |
 | Tab | Next pane |
+| Ctrl+F, F3 | Find in this folder and its subfolders |
 | Ctrl+T / Ctrl+W | New tab / close tab (middle-click a tab also closes it) |
 | Ctrl+Tab / Ctrl+Shift+Tab | Next / previous tab |
 | Ctrl+L, Alt+D, F4 | Edit the address |
@@ -127,7 +142,7 @@ the tests on every push.
   Windows applies some light/dark choices only when an app starts.
 - Only one window runs at a time; launching the app again brings the open window to the front.
 - See [CHANGELOG.md](CHANGELOG.md) for the version history. Versions are `major.minor.build` with a
-  three-digit build (1.1.012).
+  three-digit build (1.1.013).
 
 ## License
 

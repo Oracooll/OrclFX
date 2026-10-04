@@ -186,6 +186,40 @@ namespace OrclFileExplorer
         [PreserveSig] int Compare(IShellItem psi, uint hint, out int piOrder);
     }
 
+    // A Find results view asks its host (through IObjectWithSite / IServiceProvider) for an ICommDlgBrowser, so
+    // the app can handle double-click and Enter itself, the way the Open and Save dialogs do.
+    [ComImport, Guid("FC4801A3-2BA9-11CF-A229-00AA003D7352"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+    public interface IObjectWithSite
+    {
+        [PreserveSig] int SetSite([MarshalAs(UnmanagedType.IUnknown)] object pUnkSite);
+        [PreserveSig] int GetSite(ref Guid riid, out IntPtr ppvSite);
+    }
+
+    [ComImport, Guid("6d5140c1-7436-11ce-8034-00aa006009fa"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+    public interface IOleServiceProvider
+    {
+        [PreserveSig] int QueryService(ref Guid guidService, ref Guid riid, out IntPtr ppvObject);
+    }
+
+    [ComImport, Guid("000214F1-0000-0000-C000-000000000046"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+    public interface ICommDlgBrowser
+    {
+        [PreserveSig] int OnDefaultCommand([MarshalAs(UnmanagedType.IUnknown)] object ppshv);
+        [PreserveSig] int OnStateChange([MarshalAs(UnmanagedType.IUnknown)] object ppshv, uint uChange);
+        [PreserveSig] int IncludeObject([MarshalAs(UnmanagedType.IUnknown)] object ppshv, IntPtr pidl);
+    }
+
+    // The list behind IExplorerBrowser.FillFromObject: Find adds its results to it as they come in.
+    [ComImport, Guid("96E5AE6D-6AE1-4b1c-900C-C6480EAA8828"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+    public interface IResultsFolder
+    {
+        [PreserveSig] int AddItem(IShellItem psi);
+        [PreserveSig] int AddIDList(IntPtr pidl, IntPtr ppidlAdded);
+        [PreserveSig] int RemoveItem(IShellItem psi);
+        [PreserveSig] int RemoveIDList(IntPtr pidl);
+        [PreserveSig] int RemoveAll();
+    }
+
     [ComImport, Guid("b63ea76d-1f85-456f-a19c-48159efa858b"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
     public interface IShellItemArray
     {

@@ -3,6 +3,13 @@
 Versions are `major.minor.build` with a three-digit build number. Every release bumps the build;
 the minor number changes only for larger milestones.
 
+## 1.1.013
+- Find: the magnifier in the title bar (or Ctrl+F / F3) searches the folder in the active pane and all
+  its subfolders by name (part of a name, or patterns like `*.pdf;*.docx`). Results appear as they are
+  found in a new tab, in the real Explorer list with a Folder path column; double-clicking a folder
+  opens it there and Back/Up returns to the searched folder. Optionally, Windows Search also looks
+  inside files, like File Explorer's search box. Recent searches are remembered.
+
 ## 1.1.012
 - `--install --quiet` and `--uninstall --quiet` work without any windows (exit code 1 on failure), and the
   Settings › Apps entry has a quiet uninstall command. Needed for installing through winget.

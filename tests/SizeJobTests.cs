@@ -24,7 +24,7 @@ namespace OrclFileExplorer.Tests
             return null;
         }
 
-        static bool MakeJunction(string link, string target)
+        internal static bool MakeJunction(string link, string target)
         {
             ProcessStartInfo psi = new ProcessStartInfo("cmd.exe", "/c mklink /J \"" + link + "\" \"" + target + "\"");
             psi.UseShellExecute = false;
