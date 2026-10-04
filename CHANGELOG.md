@@ -3,6 +3,10 @@
 Versions are `major.minor.build` with a three-digit build number. Every release bumps the build;
 the minor number changes only for larger milestones.
 
+## 1.1.009
+- New app icon: a yellow folder with documents (transparent background). The icon generator
+  now crops a transparent image to its visible part so the small taskbar sizes stay legible.
+
 ## 1.1.008
 Fixes from a second code audit:
 - Shortcuts: changes that couldn't be saved yet are no longer lost when the shared list is reloaded;
