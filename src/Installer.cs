@@ -102,6 +102,7 @@ namespace OrclFileExplorer
         // After an update has replaced the installed exe: refresh the Start menu shortcut and the Settings > Apps entry.
         public static void Register()
         {
+            Util.RemoveDownloadMark(InstalledExe);
             try { CreateShortcut(StartMenuLink, InstalledExe); } catch { }
             MigrateOldInstall();
             using (RegistryKey k = Registry.CurrentUser.CreateSubKey(UninstallKey))

@@ -70,6 +70,8 @@ Running a newer `orclfx.exe` by hand (or `orclfx.exe --install`) updates the ins
 `orclfx.exe --portable` runs it without installing.
 
 Windows SmartScreen may warn about a downloaded unsigned program: choose **More info › Run anyway**.
+That's only needed once: installing (and updating) removes the browser's "downloaded from the internet"
+mark from the installed program, so Windows doesn't ask "The publisher could not be verified" on every start.
 
 **Requirements:** Windows 10 or 11 with .NET Framework 4.8, which Windows includes.
 
@@ -120,7 +122,7 @@ the tests on every push.
   Windows applies some light/dark choices only when an app starts.
 - Only one window runs at a time; launching the app again brings the open window to the front.
 - See [CHANGELOG.md](CHANGELOG.md) for the version history. Versions are `major.minor.build` with a
-  three-digit build (1.1.010).
+  three-digit build (1.1.011).
 
 ## License
 

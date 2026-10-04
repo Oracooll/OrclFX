@@ -63,6 +63,43 @@ namespace OrclFileExplorer.Tests
             Assert.True(Regex.IsMatch(Installer.Version, @"^\d+\.\d+\.\d{3}$"), "the app's own version, got " + Installer.Version);
         }
 
+        static void Mark(string file)
+        {
+            System.Diagnostics.ProcessStartInfo psi = new System.Diagnostics.ProcessStartInfo("cmd.exe",
+                "/c echo [ZoneTransfer]>\"" + file + ":Zone.Identifier\" && echo ZoneId=3>>\"" + file + ":Zone.Identifier\"");
+            psi.UseShellExecute = false;
+            psi.CreateNoWindow = true;
+            using (System.Diagnostics.Process p = System.Diagnostics.Process.Start(psi)) p.WaitForExit();
+        }
+
+        static bool Marked(string file)
+        {
+            IntPtr h = Native.CreateFile(file + ":Zone.Identifier", 0x80000000, 7, IntPtr.Zero, 3, 0, IntPtr.Zero);
+            if (h == (IntPtr)(-1)) return false;
+            Native.CloseHandle(h);
+            return true;
+        }
+
+        [Test]
+        static void RemovesTheDownloadMark()
+        {
+            using (TempDir d = new TempDir())
+            {
+                string f = d.File("orclfx.exe", "program");
+                Mark(f);
+                Assert.True(Marked(f), "the test file got a mark");
+                Assert.True(Util.RemoveDownloadMark(f), "removed");
+                Assert.True(!Marked(f), "no mark left");
+                Assert.Equal("program", File.ReadAllText(f), "the file itself is untouched");
+                Assert.True(Util.RemoveDownloadMark(f), "a file without a mark is fine");
+            }
+            // The installed app removes its own mark at startup, while it's running: try it on this running program.
+            string self = System.Reflection.Assembly.GetExecutingAssembly().Location;
+            Mark(self);
+            Assert.True(Marked(self), "the running test program got a mark");
+            Assert.True(Util.RemoveDownloadMark(self) && !Marked(self), "removed from a running program");
+        }
+
         [Test]
         static void WriteAllTextAtomic_KeepsABackup()
         {

@@ -58,6 +58,17 @@ namespace OrclFileExplorer
             });
         }
 
+        // Removes the "downloaded from the internet" mark (the Zone.Identifier stream) that browsers attach. On the
+        // installed program it makes Windows ask "The publisher could not be verified" on every start; the user
+        // already chose to install it. True if the file has no mark afterwards.
+        public static bool RemoveDownloadMark(string path)
+        {
+            string stream = path + ":Zone.Identifier";
+            if (Native.DeleteFile(stream)) return true;
+            int err = System.Runtime.InteropServices.Marshal.GetLastWin32Error();
+            return err == 2 || err == 3; // there was no mark
+        }
+
         // A short, stable key for a file path, usable in a mutex name.
         public static string PathKey(string path)
         {

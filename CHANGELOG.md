@@ -3,6 +3,11 @@
 Versions are `major.minor.build` with a three-digit build number. Every release bumps the build;
 the minor number changes only for larger milestones.
 
+## 1.1.011
+- No more "The publisher could not be verified" warning on every start. A copy installed from a browser
+  download kept the browser's "downloaded from the internet" mark; installing, updating and starting
+  the installed program now remove it.
+
 ## 1.1.010
 - Check for updates: the menu finds the newest release on GitHub and, if you agree, downloads it,
   checks it (size, SHA-256 checksum, version), saves your tabs, replaces the program and restarts.
