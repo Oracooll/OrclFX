@@ -18,7 +18,7 @@ New-Item -ItemType Directory -Force (Split-Path $Out) | Out-Null
 $sources = Get-ChildItem (Join-Path $root 'src') -Recurse -Filter *.cs | ForEach-Object { $_.FullName }
 & $csc /nologo /target:winexe /platform:anycpu /optimize+ `
     "/out:$Out" "/win32manifest:$root\src\app.manifest" "/win32icon:$ico" "/resource:$ico,app.ico" `
-    /r:System.Windows.Forms.dll /r:System.Drawing.dll $sources
+    /r:System.Windows.Forms.dll /r:System.Drawing.dll /r:System.Web.Extensions.dll $sources
 if ($LASTEXITCODE -ne 0) { throw "Build failed" }
 Write-Host "Built $Out"
 

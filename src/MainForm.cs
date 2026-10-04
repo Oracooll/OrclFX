@@ -15,7 +15,7 @@ using Microsoft.Win32;
 
 namespace OrclFileExplorer
 {
-    class MainForm : Form, IMessageFilter
+    partial class MainForm : Form, IMessageFilter
     {
         public static readonly string StateFile = Environment.GetEnvironmentVariable("DUALPANE_STATE") ?? Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "DualPane", "state.txt");
@@ -66,6 +66,11 @@ namespace OrclFileExplorer
             Icon = AppIcon();
             titleBar = new TitleBar(this);
             titleBar.SetIcon(Icon);
+            titleBar.IconClick += delegate
+            {
+                Rectangle r = titleBar.IconRect;
+                ActivePane.ShowMainMenu(titleBar, new Point(r.Left, r.Bottom + Native.Px(2)), ToolStripDropDownDirection.BelowRight);
+            };
             for (int i = 0; i < 3; i++)
             {
                 int mode = i;
@@ -199,6 +204,7 @@ namespace OrclFileExplorer
             hook = Native.SetWindowsHookEx(Native.WH_MOUSE, hookProc, IntPtr.Zero, Native.GetCurrentThreadId());
             Application.AddMessageFilter(this);
             statusTimer.Start();
+            ScheduleUpdateCheck();
             BrowserTab t = ActivePane.ActiveTab;
             if (t != null) BeginInvoke((MethodInvoker)t.Activate);
         }
@@ -736,6 +742,7 @@ namespace OrclFileExplorer
                 }
             }
             if (noticeText != null && unchecked(Environment.TickCount - noticeTick) < 6000) s += "     " + noticeText;
+            else if (available != null) s += "     ⬆ Version " + Util.FormatVersion(available.Version) + " is available: menu › Update";
             if (stateSaveError != null) s += "     \u26A0 Settings couldn't be saved (" + stateSaveError + "); retrying.";
             if (statusLeft.Text != s) statusLeft.Text = s;
         }
@@ -978,6 +985,8 @@ namespace OrclFileExplorer
                             case "single": if (v == "1") PaneCount = 1; break; // older settings files
                             case "autofit": AutoFit = v != "0"; break;
                             case "foldersizes": FolderSizes = v == "1"; break;
+                            case "autoupdate": AutoUpdateCheck = v != "0"; break;
+                            case "updatecheck": long ut; if (long.TryParse(v, out ut) && ut > 0 && ut <= DateTime.MaxValue.Ticks) lastUpdateCheck = new DateTime(ut, DateTimeKind.Utc); break;
                             case "treewidth": if (int.TryParse(v, out n) && n >= 80) treeWidth = n; break;
                             case "previewwidth": if (int.TryParse(v, out n) && n >= 100) previewWidth = n; break;
                             case "shortcuts": ShowShortcuts = v != "0"; break;
@@ -1052,6 +1061,8 @@ namespace OrclFileExplorer
                 sb.AppendLine("preview=" + (ShowPreview ? "1" : "0"));
                 sb.AppendLine("autofit=" + (AutoFit ? "1" : "0"));
                 sb.AppendLine("foldersizes=" + (FolderSizes ? "1" : "0"));
+                sb.AppendLine("autoupdate=" + (AutoUpdateCheck ? "1" : "0"));
+                sb.AppendLine("updatecheck=" + lastUpdateCheck.Ticks);
                 int tw = Ready && ShowTree ? treeSplit.SplitterDistance : Native.Px(treeWidth);
                 int pw = Ready && ShowPreview ? previewSplit.Panel2.Width : Native.Px(previewWidth);
                 sb.AppendLine("treewidth=" + (int)Math.Round(tw * 100.0 / Native.Px(100)));

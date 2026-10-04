@@ -53,6 +53,8 @@ namespace OrclFileExplorer
                 MessageBox.Show("Something went wrong:\n\n" + e.Exception.Message, Program.AppName, MessageBoxButtons.OK, MessageBoxIcon.Warning);
             };
             Trace("start: " + string.Join(" ", args));
+            // --update <process id> <exe to replace> [--portable]: this is a downloaded update (see Updater).
+            if (args.Length >= 3 && args[0] == "--update") { FinishUpdate(args); return; }
             bool portable = false, restarted = false;
             foreach (string a in args)
             {
@@ -73,9 +75,35 @@ namespace OrclFileExplorer
                 // Another window already uses this settings file (installed or portable): bring it forward instead,
                 // so two windows never overwrite each other's tabs and shortcuts.
                 if (!first) { Trace("another copy is running: exit"); Installer.ActivateRunningCopy(); return; }
+                Updater.CleanDownloads();
                 Application.Run(new MainForm());
                 Trace("exit");
             }
+        }
+
+        // Replaces the old exe with this one once the old app has closed, then starts it again. If anything
+        // fails, the old version is started instead, so the user is never left without the app.
+        static void FinishUpdate(string[] args)
+        {
+            int pid;
+            int.TryParse(args[1], out pid);
+            string target = args[2];
+            bool portable = Array.IndexOf(args, "--portable") >= 0;
+            string startArgs = "--restart" + (portable ? " --portable" : "");
+            try
+            {
+                Updater.WaitAndReplace(pid, Application.ExecutablePath, target);
+                if (string.Equals(Path.GetFullPath(target), Installer.InstalledPath, StringComparison.OrdinalIgnoreCase)) Installer.Register();
+                Trace("updated " + target);
+            }
+            catch (Exception ex)
+            {
+                LogError(ex);
+                MessageBox.Show("The update couldn't be installed: " + ex.Message + "\n\nThe current version will start instead. You can download the new version from " +
+                    Updater.ReleasesPage, AppName, MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            }
+            try { Process.Start(target, startArgs); }
+            catch (Exception ex) { LogError(ex); }
         }
     }
 }

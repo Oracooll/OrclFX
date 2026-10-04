@@ -3,6 +3,12 @@
 Versions are `major.minor.build` with a three-digit build number. Every release bumps the build;
 the minor number changes only for larger milestones.
 
+## 1.1.010
+- Check for updates: the menu finds the newest release on GitHub and, if you agree, downloads it,
+  checks it (size, SHA-256 checksum, version), saves your tabs, replaces the program and restarts.
+  A daily background check notes new versions in the status bar (can be turned off in the menu).
+- The app icon at the top left of the title bar opens the main menu.
+
 ## 1.1.009
 - New app icon: a yellow folder with documents (transparent background). The icon generator
   now crops a transparent image to its visible part so the small taskbar sizes stay legible.

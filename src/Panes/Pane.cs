@@ -253,7 +253,10 @@ namespace OrclFileExplorer
             m.Show(screen);
         }
 
-        void ShowMainMenu()
+        void ShowMainMenu() { ShowMainMenu(menuBtn, new Point(menuBtn.Width, menuBtn.Height), ToolStripDropDownDirection.BelowLeft); }
+
+        // The main menu (this pane's tab commands plus the app-wide ones), shown at a point of anchor.
+        public void ShowMainMenu(Control anchor, Point at, ToolStripDropDownDirection direction)
         {
             ContextMenuStrip m = Main.NewMenu();
             BrowserTab t = ActiveTab;
@@ -315,13 +318,18 @@ namespace OrclFileExplorer
 
             if (!Installer.IsRunningInstalledCopy())
                 AddItem(m.Items, "Install on this computer…", null, delegate { Installer.InstallFromMenu(); });
+            Updater.Release update = Main.AvailableUpdate;
+            AddItem(m.Items, update != null ? "Update to version " + Util.FormatVersion(update.Version) + "…" : "Check for updates…", null,
+                delegate { if (update != null) Main.OfferUpdate(update); else Main.CheckForUpdates(true); });
+            ToolStripMenuItem auto = AddItem(m.Items, "Check for updates automatically", null, delegate { Main.SetAutoUpdateCheck(!Main.AutoUpdateCheck); });
+            auto.Checked = Main.AutoUpdateCheck;
             AddItem(m.Items, "Keyboard shortcuts", null, delegate { Main.ShowHelp(); });
             AddItem(m.Items, "About " + Program.AppName, null, delegate
             {
                 MessageBox.Show(Main, Program.AppName + " " + Installer.Version + "\n\nA light multi-pane file manager built on the Windows Explorer view.\n\nSettings: " + MainForm.StateFile + "\nShortcuts (shared through OneDrive): " + ShortcutsPane.ListFile,
                     "About " + Program.AppName, MessageBoxButtons.OK, MessageBoxIcon.Information);
             });
-            m.Show(menuBtn, new Point(menuBtn.Width, menuBtn.Height), ToolStripDropDownDirection.BelowLeft);
+            m.Show(anchor, at, direction);
         }
 
         static ToolStripMenuItem AddItem(ToolStripItemCollection items, string text, string keys, EventHandler click)

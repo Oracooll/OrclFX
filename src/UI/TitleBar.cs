@@ -192,6 +192,7 @@ namespace OrclFileExplorer
             Graphics g = e.Graphics;
             g.Clear(Theme.Bar);
             int s = Native.Px(16), x = Native.Px(12);
+            if (iconHot) using (SolidBrush b = new SolidBrush(Theme.Hover)) g.FillRectangle(b, IconRect);
             if (icon != null) g.DrawIcon(icon, new Rectangle(x, (Height - s) / 2, s, s));
             bool activeWindow = Form.ActiveForm == form;
             TextRenderer.DrawText(g, form.Text, Font, new Rectangle(x + s + Native.Px(10), 0, Width / 2, Height),
@@ -223,11 +224,49 @@ namespace OrclFileExplorer
             }
         }
 
-        // Let the empty parts of the bar act as the window caption (drag, double-click, system menu).
+        // The app icon at the left opens the main menu.
+        public event EventHandler IconClick;
+        bool iconHot;
+
+        // The icon with a little room around it, kept clear of the window's top edge so resizing still works there.
+        public Rectangle IconRect
+        {
+            get
+            {
+                int s = Native.Px(16), pad = Native.Px(6);
+                return new Rectangle(Native.Px(12) - pad, (Height - s) / 2 - pad, s + 2 * pad, s + 2 * pad);
+            }
+        }
+
+        protected override void OnMouseMove(MouseEventArgs e)
+        {
+            base.OnMouseMove(e);
+            bool hot = IconRect.Contains(e.Location);
+            if (hot != iconHot) { iconHot = hot; Cursor = hot ? Cursors.Hand : Cursors.Default; Invalidate(IconRect); }
+        }
+
+        protected override void OnMouseLeave(EventArgs e)
+        {
+            base.OnMouseLeave(e);
+            if (iconHot) { iconHot = false; Cursor = Cursors.Default; Invalidate(IconRect); }
+        }
+
+        protected override void OnMouseDown(MouseEventArgs e)
+        {
+            base.OnMouseDown(e);
+            if (e.Button == MouseButtons.Left && IconRect.Contains(e.Location) && IconClick != null) IconClick(this, EventArgs.Empty);
+        }
+
+        // Let the empty parts of the bar act as the window caption (drag, double-click, system menu);
+        // only the icon takes clicks itself.
         protected override void WndProc(ref Message m)
         {
             const int WM_NCHITTEST = 0x84, HTTRANSPARENT = -1;
-            if (m.Msg == WM_NCHITTEST) { m.Result = (IntPtr)HTTRANSPARENT; return; }
+            if (m.Msg == WM_NCHITTEST)
+            {
+                Point p = PointToClient(new Point(unchecked((short)(long)m.LParam), unchecked((short)((long)m.LParam >> 16))));
+                if (!IconRect.Contains(p)) { m.Result = (IntPtr)HTTRANSPARENT; return; }
+            }
             base.WndProc(ref m);
         }
     }

@@ -93,6 +93,15 @@ namespace OrclFileExplorer
                 MessageBox.Show("Install failed: " + ex.Message, Program.AppName, MessageBoxButtons.OK, MessageBoxIcon.Error);
                 return false;
             }
+            Register();
+            return true;
+        }
+
+        public static string InstalledPath { get { return InstalledExe; } }
+
+        // After an update has replaced the installed exe: refresh the Start menu shortcut and the Settings > Apps entry.
+        public static void Register()
+        {
             try { CreateShortcut(StartMenuLink, InstalledExe); } catch { }
             MigrateOldInstall();
             using (RegistryKey k = Registry.CurrentUser.CreateSubKey(UninstallKey))
@@ -107,7 +116,6 @@ namespace OrclFileExplorer
                 k.SetValue("NoRepair", 1, RegistryValueKind.DWord);
                 k.SetValue("EstimatedSize", (int)(new FileInfo(InstalledExe).Length / 1024), RegistryValueKind.DWord);
             }
-            return true;
         }
 
         // Removes the pre-1.1 "DualPane" install and points a taskbar pin made for it at the new exe.

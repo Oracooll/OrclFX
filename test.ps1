@@ -14,7 +14,7 @@ $tests = Join-Path $outDir 'orclfx.tests.exe'
 
 & (Join-Path $root 'build.ps1') -Out $app
 $sources = Get-ChildItem (Join-Path $root 'tests') -Recurse -Filter *.cs | ForEach-Object { $_.FullName }
-& $csc /nologo /target:exe /platform:anycpu "/out:$tests" "/r:$app" /r:System.Windows.Forms.dll /r:System.Drawing.dll $sources
+& $csc /nologo /target:exe /platform:anycpu "/out:$tests" "/r:$app" /r:System.Windows.Forms.dll /r:System.Drawing.dll /r:System.Web.Extensions.dll $sources
 if ($LASTEXITCODE -ne 0) { throw "Test build failed" }
 
 Write-Host ""
