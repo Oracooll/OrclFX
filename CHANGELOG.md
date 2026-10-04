@@ -3,6 +3,21 @@
 Versions are `major.minor.build` with a three-digit build number. Every release bumps the build;
 the minor number changes only for larger milestones.
 
+## 1.1.005
+Fixes from a code audit:
+- Shortcuts shared through OneDrive now merge properly: a shortcut deleted or renamed on another
+  computer is no longer brought back or overwritten by this one.
+- A failed save of the shortcuts list or the settings is shown and retried instead of being lost
+  silently; a damaged or empty settings file is restored from its `.bak` copy.
+- Only one window per settings file, portable copies included; file writes use unique temporary
+  files and never overlap.
+- Preview handlers run only outside the app (no in-process fallback); thumbnails are made in the
+  background; free disk space is read in the background, so a slow network drive can't freeze the window.
+- Folder sizes: limits are enforced inside large folders, unreadable folders are counted and the
+  total is shown as "at least", and results older than two minutes are recalculated.
+- Navigation and preview failures are detected and reported; shortcut icons load in the background.
+- Uninstall removes only `orclfx.exe` and an empty install folder; tabs show the new name right
+  after a folder is renamed; smaller resource-cleanup fixes.
 ## 1.1.004
 - Shortcuts pane: a single click only selects; double-click or Enter opens (Ctrl: in a new tab).
 - Shortcuts pane: sort icons at the right end of its header (as arranged, name A to Z, name Z to A,

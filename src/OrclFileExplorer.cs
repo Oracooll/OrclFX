@@ -19,8 +19,8 @@ using Microsoft.Win32;
 [assembly: AssemblyDescription("Dual-pane file manager")]
 // Version shown as major.minor.build with three-digit build (1.1.001). Bump the build number for every
 // release; the minor number only changes when the owner says so.
-[assembly: AssemblyVersion("1.1.4.0")]
-[assembly: AssemblyFileVersion("1.1.4.0")]
+[assembly: AssemblyVersion("1.1.5.0")]
+[assembly: AssemblyFileVersion("1.1.5.0")]
 
 namespace OrclFileExplorer
 {
@@ -28,6 +28,17 @@ namespace OrclFileExplorer
     {
         public const string AppName = "Orcl File Explorer";
         public static bool Portable;
+
+        public static void LogError(Exception ex)
+        {
+            try
+            {
+                Directory.CreateDirectory(Path.GetDirectoryName(MainForm.StateFile));
+                File.AppendAllText(Path.Combine(Path.GetDirectoryName(MainForm.StateFile), "errors.log"),
+                    DateTime.Now.ToString("s") + "  " + Installer.Version + "\r\n" + ex + "\r\n\r\n");
+            }
+            catch { }
+        }
 
         // Diagnostics: set DUALPANE_TRACE to a file path to log startup, restarts and exits.
         public static void Trace(string s)
@@ -45,13 +56,7 @@ namespace OrclFileExplorer
             Application.SetUnhandledExceptionMode(UnhandledExceptionMode.CatchException);
             Application.ThreadException += delegate(object s, System.Threading.ThreadExceptionEventArgs e)
             {
-                try
-                {
-                    Directory.CreateDirectory(Path.GetDirectoryName(MainForm.StateFile));
-                    File.AppendAllText(Path.Combine(Path.GetDirectoryName(MainForm.StateFile), "errors.log"),
-                        DateTime.Now.ToString("s") + "  " + Installer.Version + "\r\n" + e.Exception + "\r\n\r\n");
-                }
-                catch { }
+                LogError(e.Exception);
                 MessageBox.Show("Something went wrong:\n\n" + e.Exception.Message, Program.AppName, MessageBoxButtons.OK, MessageBoxIcon.Warning);
             };
             Trace("start: " + string.Join(" ", args));
@@ -68,11 +73,13 @@ namespace OrclFileExplorer
             // One window per user: a second launch brings the running one to the front instead,
             // so two windows never overwrite each other's saved tabs.
             bool first;
-            using (System.Threading.Mutex single = new System.Threading.Mutex(true, portable ? "DualPane.Portable." + Guid.NewGuid() : "DualPane.SingleInstance." + Environment.UserName, out first))
+            using (System.Threading.Mutex single = new System.Threading.Mutex(true, "OrclFx.Instance." + Native.PathKey(MainForm.StateFile), out first))
             {
                 // After a restart (theme change) the previous window may still be closing: wait for it.
                 if (!first && restarted) { try { first = single.WaitOne(15000); } catch (System.Threading.AbandonedMutexException) { first = true; } }
-                if (!first && !portable) { Trace("another copy is running: exit"); Installer.ActivateRunningCopy(); return; }
+                // Another window already uses this settings file (installed or portable): bring it forward instead,
+                // so two windows never overwrite each other's tabs and shortcuts.
+                if (!first) { Trace("another copy is running: exit"); Installer.ActivateRunningCopy(); return; }
                 Application.Run(new MainForm());
                 Trace("exit");
             }
@@ -522,7 +529,7 @@ namespace OrclFileExplorer
 
         [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
         public static extern IntPtr FindFirstFileEx(string name, int infoLevel, out WIN32_FIND_DATA data, int searchOp, IntPtr filter, int flags);
-        [DllImport("kernel32.dll", CharSet = CharSet.Unicode)]
+        [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
         public static extern bool FindNextFile(IntPtr h, out WIN32_FIND_DATA data);
         [DllImport("kernel32.dll")] public static extern bool FindClose(IntPtr h);
         [DllImport("kernel32.dll")] public static extern IntPtr GetCurrentThread();
@@ -571,10 +578,36 @@ namespace OrclFileExplorer
         {
             string dir = Path.GetDirectoryName(path);
             Directory.CreateDirectory(dir);
-            string tmp = path + ".tmp";
-            File.WriteAllText(tmp, text, new UTF8Encoding(false));
-            if (File.Exists(path)) File.Replace(tmp, path, path + ".bak", true);
-            else File.Move(tmp, path);
+            // A unique temp name, and one writer at a time per file across all processes.
+            string tmp = path + "." + Guid.NewGuid().ToString("N") + ".tmp";
+            using (System.Threading.Mutex m = new System.Threading.Mutex(false, "OrclFx.Write." + PathKey(path)))
+            {
+                bool owned = false;
+                try { owned = m.WaitOne(5000); } catch (System.Threading.AbandonedMutexException) { owned = true; }
+                if (!owned) throw new IOException("another program is writing " + Path.GetFileName(path));
+                try
+                {
+                    File.WriteAllText(tmp, text, new UTF8Encoding(false));
+                    if (File.Exists(path)) File.Replace(tmp, path, path + ".bak", true);
+                    else File.Move(tmp, path);
+                }
+                finally
+                {
+                    try { if (File.Exists(tmp)) File.Delete(tmp); } catch { }
+                    m.ReleaseMutex();
+                }
+            }
+        }
+
+        // A short, stable key for a file path, usable in a mutex name.
+        public static string PathKey(string path)
+        {
+            string p = Path.GetFullPath(path).ToLowerInvariant();
+            using (System.Security.Cryptography.SHA1 sha = System.Security.Cryptography.SHA1.Create())
+            {
+                byte[] h = sha.ComputeHash(Encoding.UTF8.GetBytes(p));
+                return BitConverter.ToString(h, 0, 10).Replace("-", "");
+            }
         }
 
         public static string FormatBytes(long b)
@@ -862,7 +895,11 @@ namespace OrclFileExplorer
         }
 
         Font Bold { get { if (bold == null) bold = new Font(Font, FontStyle.Bold); return bold; } }
-        protected override void OnFontChanged(EventArgs e) { bold = null; base.OnFontChanged(e); }
+        protected override void OnFontChanged(EventArgs e)
+        {
+            if (bold != null) { bold.Dispose(); bold = null; }
+            base.OnFontChanged(e);
+        }
 
         void DoLayout(Graphics g)
         {
@@ -1092,8 +1129,10 @@ namespace OrclFileExplorer
             if (browser == null) { Folder = path; return true; }
             IntPtr pidl = Native.ParsePath(path);
             if (pidl == IntPtr.Zero) return false;
-            try { browser.BrowseToIDList(pidl, Native.SBSP_ABSOLUTE); } finally { Marshal.FreeCoTaskMem(pidl); }
-            return true;
+            int hr;
+            try { hr = browser.BrowseToIDList(pidl, Native.SBSP_ABSOLUTE); } finally { Marshal.FreeCoTaskMem(pidl); }
+            // A locked tab cancels the navigation on purpose and opens a new tab instead: that counts as success.
+            return hr == 0 || hr == Native.HRESULT_CANCELLED;
         }
 
         public void Nav(uint flags) { if (browser != null) browser.BrowseToIDList(IntPtr.Zero, flags); }
@@ -1258,7 +1297,12 @@ namespace OrclFileExplorer
             return 0;
         }
 
-        int IExplorerBrowserEvents.OnNavigationFailed(IntPtr pidl) { return 0; }
+        int IExplorerBrowserEvents.OnNavigationFailed(IntPtr pidl)
+        {
+            string name = Native.GetName(pidl, Native.SIGDN_NORMALDISPLAY) ?? "the folder";
+            Pane.BeginInvoke((MethodInvoker)delegate { Pane.Main.Notice("\u26A0 Couldn't open " + name); });
+            return 0;
+        }
     }
 
     // ------------------------------------------------------------------ Pane = tab strip + address bar + views
@@ -1421,6 +1465,8 @@ namespace OrclFileExplorer
         {
             if (Tabs.Count > 1) Select((active + d + Tabs.Count) % Tabs.Count);
         }
+
+        public void RefreshTabs() { strip.Invalidate(); }
 
         public void ToggleLock(BrowserTab t)
         {
@@ -1943,7 +1989,8 @@ namespace OrclFileExplorer
         {
             IShellItem item = Native.ItemFromPath(path);
             if (item == null) return false;
-            return tree.AppendRoot(item, enumFlags, style, IntPtr.Zero) == 0;
+            try { return tree.AppendRoot(item, enumFlags, style, IntPtr.Zero) == 0; }
+            finally { Marshal.ReleaseComObject(item); }
         }
 
         RECT HostRect()
@@ -1994,9 +2041,14 @@ namespace OrclFileExplorer
                 for (int i = chain.Count - 1; i >= 0; i--) tree.SetItemState(chain[i], NSTCIS_EXPANDED, NSTCIS_EXPANDED);
                 tree.SetItemState(item, NSTCIS_SELECTED, NSTCIS_SELECTED);
                 tree.EnsureItemVisible(item);
+                foreach (IShellItem x in chain) try { Marshal.ReleaseComObject(x); } catch { }
             }
             catch { }
-            finally { syncing = false; }
+            finally
+            {
+                syncing = false;
+                try { Marshal.ReleaseComObject(item); } catch { }
+            }
         }
 
         public void Destroy()
@@ -2137,7 +2189,55 @@ namespace OrclFileExplorer
             header.Text = path.Length == 0 ? "Preview" : Path.GetFileName(path.TrimEnd('\\'));
             if (path.Length == 0) { ShowMessage("Select a file to preview"); return; }
             if (!Directory.Exists(path) && TryHandler(path)) return;
-            if (!TryThumbnail(path)) ShowMessage("No preview available");
+            StartThumbnail(path);
+        }
+
+        int thumbTicket;
+
+        // Thumbnail extraction can be slow (video, large images, cloud files), so it runs off the UI thread;
+        // a result that arrives after the selection changed is discarded.
+        void StartThumbnail(string path)
+        {
+            int ticket = ++thumbTicket;
+            SIZE s = new SIZE();
+            s.cx = Math.Max(64, Math.Min(1024, host.ClientSize.Width));
+            s.cy = Math.Max(64, Math.Min(1024, host.ClientSize.Height));
+            ShowMessage("Loading preview…");
+            System.Threading.Thread th = new System.Threading.Thread(delegate()
+            {
+                Bitmap bmp = null;
+                IShellItem item = null;
+                try
+                {
+                    item = Native.ItemFromPath(path);
+                    IShellItemImageFactory fac = item as IShellItemImageFactory;
+                    IntPtr hbmp;
+                    if (fac != null && fac.GetImage(s, 0, out hbmp) == 0 && hbmp != IntPtr.Zero)
+                    {
+                        try { bmp = BitmapWithAlpha(hbmp); }
+                        finally { Native.DeleteObject(hbmp); }
+                    }
+                }
+                catch { }
+                finally { if (item != null) try { Marshal.ReleaseComObject(item); } catch { } }
+                try
+                {
+                    BeginInvoke((MethodInvoker)delegate
+                    {
+                        if (ticket != thumbTicket || current != path) { if (bmp != null) bmp.Dispose(); return; }
+                        if (bmp == null) { ShowMessage("No preview available"); return; }
+                        Image old = picture.Image;
+                        picture.Image = bmp;
+                        if (old != null) old.Dispose();
+                        message.Visible = false;
+                        picture.Visible = true;
+                    });
+                }
+                catch { if (bmp != null) bmp.Dispose(); }
+            });
+            th.SetApartmentState(System.Threading.ApartmentState.STA);
+            th.IsBackground = true;
+            th.Start();
         }
 
         void ShowMessage(string text)
@@ -2154,9 +2254,9 @@ namespace OrclFileExplorer
             object o = null;
             try
             {
-                // Out of process first (like File Explorer), so a misbehaving handler can't take DualPane down;
-                // some handlers only work in process, so fall back to that.
-                o = Native.CreateComObject(new Guid(clsid), 0x4 /* CLSCTX_LOCAL_SERVER */) ?? Native.CreateComObject(new Guid(clsid), 0x1 /* INPROC */);
+                // Out of process only, like File Explorer (prevhost.exe): a misbehaving handler can't crash or
+                // run inside the app. Handlers that only work in process get the thumbnail instead.
+                o = Native.CreateComObject(new Guid(clsid), 0x4 /* CLSCTX_LOCAL_SERVER */);
                 if (o == null) return false;
                 bool ok = false;
                 IInitializeWithStream ws = o as IInitializeWithStream;
@@ -2188,8 +2288,7 @@ namespace OrclFileExplorer
                 }
                 message.Visible = picture.Visible = false;
                 RECT r = HostRect();
-                handler.SetWindow(host.Handle, ref r);
-                handler.DoPreview();
+                if (handler.SetWindow(host.Handle, ref r) != 0 || handler.DoPreview() != 0) { Unload(); return false; }
                 return true;
             }
             catch
@@ -2198,22 +2297,6 @@ namespace OrclFileExplorer
                 Unload();
                 return false;
             }
-        }
-
-        bool TryThumbnail(string path)
-        {
-            IShellItemImageFactory f = Native.ItemFromPath(path) as IShellItemImageFactory;
-            if (f == null) return false;
-            SIZE s = new SIZE();
-            s.cx = Math.Max(64, Math.Min(1024, host.ClientSize.Width));
-            s.cy = Math.Max(64, Math.Min(1024, host.ClientSize.Height));
-            IntPtr hbmp;
-            if (f.GetImage(s, 0, out hbmp) != 0 || hbmp == IntPtr.Zero) return false;
-            try { picture.Image = BitmapWithAlpha(hbmp); }
-            finally { Native.DeleteObject(hbmp); }
-            message.Visible = false;
-            picture.Visible = true;
-            return true;
         }
 
         // Image.FromHbitmap drops the alpha channel; keep it when the shell returns a transparent image.
@@ -2240,6 +2323,7 @@ namespace OrclFileExplorer
         }
         public void Unload()
         {
+            thumbTicket++; // any thumbnail still being made is no longer wanted
             if (handler != null)
             {
                 try { handler.Unload(); } catch { }
@@ -2269,6 +2353,7 @@ namespace OrclFileExplorer
             }
             long total = job.TotalBytes;
             string state = job.Failure != null ? "stopped" : job.Finished ? Native.FormatBytes(total) + " in " + job.TotalFiles.ToString("N0") + " files" : "calculating… " + Native.FormatBytes(total);
+            if (job.Errors > 0) state += "  (at least: " + job.Errors + (job.Errors == 1 ? " folder" : " folders") + " couldn't be read)";
             header.Text = Path.GetFileName(job.Root.TrimEnd('\\')) + "  ·  " + state;
             if (header.Text.StartsWith("  ")) header.Text = job.Root + "  ·  " + state;
             sizes.BeginUpdate();
@@ -2306,6 +2391,7 @@ namespace OrclFileExplorer
         public volatile bool Cancel;
         public bool Finished;
         public string Failure;   // set when the scan stopped for a "critical" reason
+        public int Errors;       // folders that couldn't be read: the totals are then a lower bound
         public DateTime FinishedAt;
         readonly MainForm main;
         long scanned;
@@ -2355,7 +2441,7 @@ namespace OrclFileExplorer
                 {
                     if (Cancel || Failure != null) break;
                     ScanTree(e);
-                    e.Done = true;
+                    lock (Entries) e.Done = true;
                     Notify(false);
                 }
             }
@@ -2374,11 +2460,14 @@ namespace OrclFileExplorer
             while (stack.Count > 0 && !Cancel && Failure == null)
             {
                 string dir = stack.Pop();
+                long bytes = 0, files = 0;
                 Enumerate(dir, delegate(Native.WIN32_FIND_DATA d, bool isDir)
                 {
                     if (isDir) stack.Push(System.IO.Path.Combine(dir, d.cFileName));
-                    else { e.Bytes += Size(d); e.Files++; }
+                    else { bytes += Size(d); files++; }
                 });
+                // Readers lock Entries; update the live totals under the same lock.
+                lock (Entries) { e.Bytes += bytes; e.Files += files; }
                 Notify(false);
             }
         }
@@ -2387,13 +2476,17 @@ namespace OrclFileExplorer
 
         void Enumerate(string dir, Visit visit)
         {
-            if (++scanned > MaxEntries) { Failure = "more than " + (MaxEntries / 1000000) + " million items to scan"; return; }
-            if (clock.Elapsed.TotalSeconds > MaxSeconds) { Failure = "the scan took longer than " + MaxSeconds + " seconds"; return; }
+            if (OverBudget()) return;
             string pattern = (dir.StartsWith(@"\\") ? dir : @"\\?\" + dir).TrimEnd('\\') + @"\*";
             Native.WIN32_FIND_DATA d;
             // FindExInfoBasic, FIND_FIRST_EX_LARGE_FETCH. Enumerating never downloads OneDrive files.
             IntPtr h = Native.FindFirstFileEx(pattern, 1, out d, 0, IntPtr.Zero, 2);
-            if (h == (IntPtr)(-1)) return;
+            if (h == (IntPtr)(-1))
+            {
+                int err = Marshal.GetLastWin32Error();
+                if (err != 2 && err != 18) System.Threading.Interlocked.Increment(ref Errors); // not "no files"
+                return;
+            }
             try
             {
                 do
@@ -2406,12 +2499,22 @@ namespace OrclFileExplorer
                     const uint IO_REPARSE_TAG_MOUNT_POINT = 0xA0000003, IO_REPARSE_TAG_SYMLINK = 0xA000000C;
                     if (isDir && (d.dwFileAttributes & 0x400) != 0 &&
                         (d.dwReserved0 == IO_REPARSE_TAG_MOUNT_POINT || d.dwReserved0 == IO_REPARSE_TAG_SYMLINK)) continue;
-                    scanned++;
+                    // The limits are checked for every item, so one huge folder can't run past them.
+                    if (OverBudget()) return;
                     visit(d, isDir);
                 }
                 while (Native.FindNextFile(h, out d));
+                if (Marshal.GetLastWin32Error() != 18 /* ERROR_NO_MORE_FILES */) System.Threading.Interlocked.Increment(ref Errors);
             }
             finally { Native.FindClose(h); }
+        }
+
+        bool OverBudget()
+        {
+            if (Failure != null) return true;
+            if (++scanned > MaxEntries) { Failure = "more than " + (MaxEntries / 1000000) + " million items to scan"; return true; }
+            if ((scanned & 255) == 0 && clock.Elapsed.TotalSeconds > MaxSeconds) { Failure = "the scan took longer than " + MaxSeconds + " seconds"; return true; }
+            return false;
         }
 
         int lastNotifyTick = Environment.TickCount - 1000;
@@ -2465,11 +2568,17 @@ namespace OrclFileExplorer
         DateTime knownStamp;           // last-write time of the file as we last read or wrote it
         readonly HashSet<string> removedHere = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         List<KeyValuePair<string, string>> pendingLegacy;
+        // The list as last read from / written to the shared file (label, path), arranged order: the common
+        // ancestor for merging changes made here with changes made on another computer meanwhile.
+        List<KeyValuePair<string, string>> baseEntries = new List<KeyValuePair<string, string>>();
+        string saveError;
+        readonly Timer saveRetry = new Timer();
         bool checking, checkAgain;
         ListViewItem editingItem;
         // While editing a label: true = the edit renames the real folder, false = only the shortcut's label.
         bool renamingFolder, editRequested;
         string labelBeforeEdit;
+        readonly HashSet<string> iconsPending = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
         // The list lives in OneDrive (when present) so every computer signed in to it shares the same shortcuts.
         // Old per-computer shortcuts still waiting to be moved into the shared file (kept in state.txt until then).
@@ -2559,11 +2668,25 @@ namespace OrclFileExplorer
             notice.Visible = false;
             reloadTimer.Interval = 700;
             reloadTimer.Tick += delegate { reloadTimer.Stop(); LoadList(); };
+            saveRetry.Interval = 5000;
+            saveRetry.Tick += delegate { if (SaveList()) saveRetry.Stop(); ShowAvailability(); };
 
             Controls.Add(list);
             Controls.Add(notice);
             Controls.Add(headerBar);
             list.ListViewItemSorter = new ShortcutSorter(0);
+        }
+
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing)
+            {
+                if (watcher != null) { watcher.EnableRaisingEvents = false; watcher.Dispose(); watcher = null; }
+                reloadTimer.Dispose();
+                saveRetry.Dispose();
+                icons.Dispose();
+            }
+            base.Dispose(disposing);
         }
 
         // ---- sorting
@@ -2776,6 +2899,7 @@ namespace OrclFileExplorer
                 loadedOk = true;
                 foreach (KeyValuePair<string, string> s in legacy) Add(s.Value, s.Key, false);
                 if (legacy.Count > 0 && !SaveList()) pendingLegacy = legacy;
+                baseEntries = CurrentEntries();
                 CheckAvailability();
             }
             try
@@ -2844,12 +2968,74 @@ namespace OrclFileExplorer
             loadedOk = true;
             knownStamp = stamp;
             removedHere.Clear();
+            baseEntries = ParseList(lines);
+            SetEntries(baseEntries);
+        }
+
+        // Replaces the displayed list (arranged order) without saving.
+        void SetEntries(List<KeyValuePair<string, string>> entries)
+        {
             list.BeginUpdate();
             list.Items.Clear();
-            foreach (KeyValuePair<string, string> s in ParseList(lines)) Add(s.Value, s.Key, false);
+            nextSeq = 0;
+            foreach (KeyValuePair<string, string> s in entries) Add(s.Value, s.Key, false);
             list.EndUpdate();
             ApplyWidth();
             CheckAvailability();
+        }
+
+        List<KeyValuePair<string, string>> CurrentEntries()
+        {
+            List<KeyValuePair<string, string>> r = new List<KeyValuePair<string, string>>();
+            foreach (ListViewItem it in Arranged()) r.Add(new KeyValuePair<string, string>(it.Text, (string)it.Tag));
+            return r;
+        }
+
+        // Three-way merge of the shortcuts (label, path) against their common ancestor: additions on either
+        // side are kept, a deletion on either side wins, a label changed here wins over the other side, and
+        // the order comes from whichever side rearranged it.
+        static List<KeyValuePair<string, string>> Merge(List<KeyValuePair<string, string>> baseList,
+            List<KeyValuePair<string, string>> local, List<KeyValuePair<string, string>> remote)
+        {
+            Dictionary<string, string> b = ToMap(baseList), l = ToMap(local), r = ToMap(remote);
+            bool localReordered = !SameOrder(baseList, local, b, l);
+            List<KeyValuePair<string, string>> first = localReordered ? local : remote, second = localReordered ? remote : local;
+            List<KeyValuePair<string, string>> result = new List<KeyValuePair<string, string>>();
+            HashSet<string> done = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (List<KeyValuePair<string, string>> src in new List<KeyValuePair<string, string>>[] { first, second })
+                foreach (KeyValuePair<string, string> e in src)
+                {
+                    string p = Key(e.Value);
+                    if (done.Contains(p)) continue;
+                    bool inB = b.ContainsKey(p), inL = l.ContainsKey(p), inR = r.ContainsKey(p);
+                    bool keep = inB ? (inL && inR) : (inL || inR);
+                    if (!keep) continue;
+                    done.Add(p);
+                    string label = inL && (!inB || l[p] != b[p]) ? l[p] : inR ? r[p] : l[p];
+                    result.Add(new KeyValuePair<string, string>(label, e.Value));
+                }
+            return result;
+        }
+
+        static string Key(string path) { return (path ?? "").TrimEnd('\\').ToLowerInvariant(); }
+
+        static Dictionary<string, string> ToMap(List<KeyValuePair<string, string>> list)
+        {
+            Dictionary<string, string> m = new Dictionary<string, string>();
+            foreach (KeyValuePair<string, string> e in list) m[Key(e.Value)] = e.Key;
+            return m;
+        }
+
+        // Whether the entries both lists share appear in the same order.
+        static bool SameOrder(List<KeyValuePair<string, string>> a, List<KeyValuePair<string, string>> b,
+            Dictionary<string, string> aMap, Dictionary<string, string> bMap)
+        {
+            List<string> x = new List<string>(), y = new List<string>();
+            foreach (KeyValuePair<string, string> e in a) if (bMap.ContainsKey(Key(e.Value))) x.Add(Key(e.Value));
+            foreach (KeyValuePair<string, string> e in b) if (aMap.ContainsKey(Key(e.Value))) y.Add(Key(e.Value));
+            if (x.Count != y.Count) return false;
+            for (int i = 0; i < x.Count; i++) if (x[i] != y[i]) return false;
+            return true;
         }
 
         bool SaveList()
@@ -2857,21 +3043,29 @@ namespace OrclFileExplorer
             if (!loadedOk) return false; // never overwrite a list we couldn't read
             try
             {
-                // Another computer changed the file since we read it: keep its additions too.
+                List<KeyValuePair<string, string>> entries = CurrentEntries();
+                // Another computer changed the file since we read it: merge both sets of changes.
                 if (File.Exists(ListFile) && File.GetLastWriteTimeUtc(ListFile) != knownStamp)
                 {
-                    foreach (KeyValuePair<string, string> s in ParseList(File.ReadAllLines(ListFile, Encoding.UTF8)))
-                        if (!removedHere.Contains(s.Value) && !Contains(s.Value)) Add(s.Value, s.Key, false);
+                    entries = Merge(baseEntries, entries, ParseList(File.ReadAllLines(ListFile, Encoding.UTF8)));
+                    SetEntries(entries);
                 }
                 StringBuilder sb = new StringBuilder();
                 sb.AppendLine("# Orcl File Explorer shortcuts, one per line as: label, a vertical bar, then the folder. Shared between computers through OneDrive.");
-                foreach (ListViewItem it in Arranged()) sb.AppendLine(it.Text + "|" + Portable((string)it.Tag));
+                foreach (KeyValuePair<string, string> e in entries) sb.AppendLine(e.Key + "|" + Portable(e.Value));
                 Native.WriteAllTextAtomic(ListFile, sb.ToString());
                 knownStamp = File.GetLastWriteTimeUtc(ListFile);
+                baseEntries = entries;
                 pendingLegacy = null;
+                saveError = null;
                 return true;
             }
-            catch { return false; }
+            catch (Exception ex)
+            {
+                saveError = ex.Message;
+                Program.LogError(ex);
+                return false;
+            }
         }
 
         bool Contains(string path)
@@ -2951,7 +3145,9 @@ namespace OrclFileExplorer
         void ListChanged()
         {
             if (sortMode != 0) list.Sort();
-            SaveList();
+            // A failed save is kept (the list on screen is the truth) and retried until it succeeds.
+            if (!SaveList()) saveRetry.Start();
+            ShowAvailability();
             main.StateChanged();
         }
 
@@ -3001,6 +3197,16 @@ namespace OrclFileExplorer
                 it.ToolTipText = missing ? "Not available on this computer: " + p : p;
                 if (missing) names.Add(it.Text);
             }
+            if (saveError != null || (!loadedOk && notice.Visible))
+            {
+                if (saveError != null)
+                {
+                    notice.Text = "\u26A0  Shortcuts couldn't be saved (" + saveError + "); retrying. They're kept here meanwhile.";
+                    notice.Visible = true;
+                }
+                if (main.Shortcuts != null) main.UpdateStatus();
+                return;
+            }
             notice.Visible = names.Count > 0;
             if (names.Count > 0)
                 notice.Text = "\u26A0  " + names.Count + (names.Count == 1 ? " shortcut points to a folder that isn't" : " shortcuts point to folders that aren't") +
@@ -3017,14 +3223,26 @@ namespace OrclFileExplorer
             if (string.IsNullOrEmpty(label)) label = path;
             label = label.Replace('|', '-');
             removedHere.Remove(path);
-            if (!icons.Images.ContainsKey(path))
+            if (!icons.Images.ContainsKey(path) && iconsPending.Add(path))
             {
-                IntPtr pidl = Native.ParsePath(path);
-                if (pidl != IntPtr.Zero)
+                string iconPath = path;
+                System.Threading.ThreadPool.QueueUserWorkItem(delegate
                 {
-                    try { Icon ic = Native.SmallIcon(pidl); if (ic != null) icons.Images.Add(path, ic); /* the ImageList keeps using ic until its handle exists: don't dispose */ }
-                    finally { Marshal.FreeCoTaskMem(pidl); }
-                }
+                    Icon ic = null;
+                    IntPtr pidl = Native.ParsePath(iconPath);
+                    if (pidl != IntPtr.Zero)
+                        try { ic = Native.SmallIcon(pidl); } catch { } finally { Marshal.FreeCoTaskMem(pidl); }
+                    try
+                    {
+                        BeginInvoke((MethodInvoker)delegate
+                        {
+                            iconsPending.Remove(iconPath);
+                            // the ImageList keeps using ic until its handle exists: don't dispose it here
+                            if (ic != null && !icons.Images.ContainsKey(iconPath)) { icons.Images.Add(iconPath, ic); list.Invalidate(); }
+                        });
+                    }
+                    catch { if (ic != null) ic.Dispose(); }
+                });
             }
             ListViewItem it = new ListViewItem(label, path);
             it.Name = (nextSeq++).ToString("D9");
@@ -3325,6 +3543,17 @@ namespace OrclFileExplorer
         int startPane;
         string freeRoot;
         int freeTick;
+        bool freeBusy;
+        string noticeText, stateSaveError;
+        int noticeTick;
+
+        // A short message in the status bar for a few seconds.
+        public void Notice(string text)
+        {
+            noticeText = text;
+            noticeTick = Environment.TickCount;
+            UpdateStatus();
+        }
 
         public MainForm()
         {
@@ -3587,7 +3816,10 @@ namespace OrclFileExplorer
             if (FolderSizes)
             {
                 // Sizes are shown for the selected folder, or for the current folder when nothing is selected.
-                string target = sel != null ? (Directory.Exists(sel) ? sel : null) : (Directory.Exists(t.Address) ? t.Address : null);
+                // The folder check is only repeated when the selection or folder changes.
+                string candidate = sel ?? t.Address;
+                if (candidate != lastSizeCandidate) { lastSizeCandidate = candidate; lastSizeTarget = candidate != null && Directory.Exists(candidate) ? candidate : null; }
+                string target = lastSizeTarget;
                 SizeJob j = target != null ? EnsureSizeJob(target) : null;
                 if (target == null && sizeJob != null)
                 {
@@ -3603,9 +3835,12 @@ namespace OrclFileExplorer
             if (ShowPreview) preview.Show(sel);
         }
 
+        string lastSizeCandidate, lastSizeTarget;
+
         SizeJob EnsureSizeJob(string target)
         {
-            if (sizeJob != null && Native.SameFolder(sizeJob.Root, target)) return sizeJob;
+            if (sizeJob != null && Native.SameFolder(sizeJob.Root, target) &&
+                !(sizeJob.Finished && (DateTime.Now - sizeJob.FinishedAt).TotalMinutes >= 2)) return sizeJob;
             if (sizeJob != null && !sizeJob.Finished)
             {
                 sizeJob.Cancel = true;
@@ -3615,7 +3850,7 @@ namespace OrclFileExplorer
             sizeSkip = SizeSkipReason(target);
             if (sizeSkip != null) return null;
             SizeJob cached;
-            if (sizeCache.TryGetValue(target, out cached) && cached.Finished && cached.Failure == null && (DateTime.Now - cached.FinishedAt).TotalMinutes < 2)
+            if (sizeCache.TryGetValue(target, out cached) && cached.Finished && cached.Failure == null && cached.Errors == 0 && (DateTime.Now - cached.FinishedAt).TotalMinutes < 2)
                 return sizeJob = cached;
             if (sizeCache.Count > 200) sizeCache.Clear();
             sizeJob = SizeJob.Start(target, this);
@@ -3927,7 +4162,7 @@ namespace OrclFileExplorer
             if (FolderSizes)
             {
                 if (sizeJob != null)
-                    s += "     Folder size: " + Native.FormatBytes(sizeJob.TotalBytes) + (sizeJob.Finished ? "" : " (calculating…)");
+                    s += "     Folder size: " + (sizeJob.Errors > 0 ? "at least " : "") + Native.FormatBytes(sizeJob.TotalBytes) + (sizeJob.Finished ? "" : " (calculating…)");
                 else if (sizeSkip != null)
                     s += "     Folder size: " + sizeSkip;
             }
@@ -3937,16 +4172,33 @@ namespace OrclFileExplorer
 
             string root = null;
             try { if (t.Address.Length > 2 && (t.Address[1] == ':' || t.Address.StartsWith(@"\\"))) root = Path.GetPathRoot(t.Address); } catch { }
-            if (root != freeRoot || Environment.TickCount - freeTick > 5000)
+            if ((root != freeRoot || unchecked(Environment.TickCount - freeTick) > 5000) && !freeBusy)
             {
+                // A slow or disconnected network drive must not freeze the window: ask in the background.
                 freeRoot = root;
                 freeTick = Environment.TickCount;
-                ulong free, total, totalFree;
-                string f = "";
-                if (root != null && Native.GetDiskFreeSpaceEx(root, out free, out total, out totalFree) && total > 0)
-                    f = FormatSize(free) + " free of " + FormatSize(total) + " (" + (100 * free / total) + "%)";
-                statusRight.Text = f;
+                if (root == null) statusRight.Text = "";
+                else
+                {
+                    freeBusy = true;
+                    string askRoot = root;
+                    System.Threading.ThreadPool.QueueUserWorkItem(delegate
+                    {
+                        ulong free, total, totalFree;
+                        string f = "";
+                        try
+                        {
+                            if (Native.GetDiskFreeSpaceEx(askRoot, out free, out total, out totalFree) && total > 0)
+                                f = FormatSize(free) + " free of " + FormatSize(total) + " (" + (100 * free / total) + "%)";
+                        }
+                        catch { }
+                        try { BeginInvoke((MethodInvoker)delegate { freeBusy = false; if (askRoot == freeRoot) statusRight.Text = f; }); } catch { }
+                    });
+                }
             }
+            if (noticeText != null && unchecked(Environment.TickCount - noticeTick) < 6000) s += "     " + noticeText;
+            if (stateSaveError != null) s += "     \u26A0 Settings couldn't be saved (" + stateSaveError + "); retrying.";
+            if (statusLeft.Text != s) statusLeft.Text = s;
         }
 
         static string FormatSize(ulong b)
@@ -4121,8 +4373,14 @@ namespace OrclFileExplorer
                     if (locked != null) t.LockedFolder = locked;
                     string moved = Native.Rebase(t.Folder, oldPath, newPath);
                     if (moved == null) continue;
-                    if (t.Created) t.Navigate(moved); else t.Folder = moved;
+                    if (t.Created) t.Navigate(moved);
+                    else
+                    {
+                        t.Folder = t.Address = moved;
+                        t.Title = Path.GetFileName(moved.TrimEnd('\\'));
+                    }
                 }
+            foreach (Pane p in Panes) p.RefreshTabs();
             StateChanged();
         }
 
@@ -4138,6 +4396,22 @@ namespace OrclFileExplorer
 
         // ---- persistence
 
+        // The settings lines, or those of the .bak copy when the file is missing, unreadable or empty.
+        static string[] ReadStateLines()
+        {
+            foreach (string file in new string[] { StateFile, StateFile + ".bak" })
+            {
+                try
+                {
+                    if (!File.Exists(file)) continue;
+                    string[] lines = File.ReadAllLines(file);
+                    foreach (string l in lines) if (l.StartsWith("pane") && l.Contains(".tab=")) return lines;
+                }
+                catch { }
+            }
+            return null;
+        }
+
         void LoadState()
         {
             List<string>[] tabs = { new List<string>(), new List<string>(), new List<string>(), new List<string>() };
@@ -4145,9 +4419,10 @@ namespace OrclFileExplorer
             int[] sel = { 0, 0, 0, 0 };
             try
             {
-                if (File.Exists(StateFile))
+                string[] stateLines = ReadStateLines();
+                if (stateLines != null)
                 {
-                    foreach (string line in File.ReadAllLines(StateFile))
+                    foreach (string line in stateLines)
                     try
                     {
                         int eq = line.IndexOf('=');
@@ -4265,8 +4540,19 @@ namespace OrclFileExplorer
                 if (Shortcuts.PendingLegacy != null)
                     foreach (KeyValuePair<string, string> s in Shortcuts.PendingLegacy) sb.AppendLine("shortcut=" + s.Key + "|" + s.Value);
                 Native.WriteAllTextAtomic(StateFile, sb.ToString());
+                stateSaveError = null;
             }
-            catch { }
+            catch (Exception ex)
+            {
+                stateSaveError = ex.Message;
+                Program.LogError(ex);
+                saveTimer.Stop();
+                saveTimer.Interval = 10000; // retry
+                saveTimer.Start();
+                UpdateStatus();
+                return;
+            }
+            saveTimer.Interval = 1500;
         }
     }
 
@@ -4398,7 +4684,8 @@ namespace OrclFileExplorer
             }
             catch { }
             // The old exe may still be running; delete what we can, the rest goes next time.
-            try { if (Directory.Exists(OldInstallDir)) Directory.Delete(OldInstallDir, true); } catch { }
+            try { if (File.Exists(OldInstalledExe)) File.Delete(OldInstalledExe); } catch { }
+            try { if (Directory.Exists(OldInstallDir)) Directory.Delete(OldInstallDir, false); } catch { } // only if now empty
         }
 
         static void CreateShortcut(string link, string target)
@@ -4433,11 +4720,12 @@ namespace OrclFileExplorer
                 if (string.Equals(dir, defaultDir, StringComparison.OrdinalIgnoreCase))
                     try { Directory.Delete(dir, false); } catch { }
             }
-            MessageBox.Show("Orcl File Explorer was uninstalled.", Program.AppName, MessageBoxButtons.OK, MessageBoxIcon.Information);
-            // The running exe can't delete itself: remove it a moment after we exit, retrying for a while.
-            // InstallDir is always %LOCALAPPDATA%\Programs\DualPane.
+            MessageBox.Show("Orcl File Explorer was uninstalled. Its program file is removed a few seconds after this message closes.",
+                Program.AppName, MessageBoxButtons.OK, MessageBoxIcon.Information);
+            // The running exe can't delete itself: delete just orclfx.exe a moment after we exit (retrying while it
+            // is still in use), then the folder only if nothing else is left in it.
             ProcessStartInfo psi = new ProcessStartInfo("cmd.exe",
-                "/c for /l %i in (1,1,15) do (ping 127.0.0.1 -n 2 > nul & rmdir /s /q \"" + InstallDir + "\" 2> nul & if not exist \"" + InstallDir + "\" exit)");
+                "/c for /l %i in (1,1,15) do (ping 127.0.0.1 -n 2 > nul & del /f /q \"" + InstalledExe + "\" 2> nul & if not exist \"" + InstalledExe + "\" (rmdir \"" + InstallDir + "\" 2> nul & exit))");
             psi.CreateNoWindow = true;
             psi.UseShellExecute = false;
             try { Process.Start(psi); } catch { }

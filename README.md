@@ -25,7 +25,7 @@ a single `orclfx.exe`, no installer package and no admin rights needed.
 **Side panes** (title bar or Alt+T / Alt+P / Alt+S)
 - **Tree**: one folder tree that follows the active pane.
 - **Preview**: previews the active pane's selected file with the Windows preview handlers
-  (PDF, Office, images, text …). Handlers run outside the app, as in File Explorer.
+  (PDF, Office, images, text …). Handlers run outside the app, as in File Explorer; files without an out-of-process handler show a thumbnail.
 - **Shortcuts**: a strip of favourite folders. Drop folders onto it, double-click to open
   (Ctrl+double-click or middle-click for a new tab), F2 renames the real folder, sort icons on its
   header. The list is stored in your OneDrive, so all your computers share it; shortcuts to folders
@@ -96,7 +96,7 @@ Shell COM interfaces).
   Windows applies some light/dark choices only when an app starts.
 - Only one window runs at a time; launching the app again brings the open window to the front.
 - See [CHANGELOG.md](CHANGELOG.md) for the version history. Versions are `major.minor.build` with a
-  three-digit build (1.1.004).
+  three-digit build (1.1.005).
 
 ## License
 
