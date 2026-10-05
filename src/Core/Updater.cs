@@ -149,7 +149,7 @@ namespace OrclFileExplorer
             Stopwatch sw = Stopwatch.StartNew();
             while (true)
             {
-                try { File.Copy(source, target, true); return; }
+                try { Util.ReplaceFileSafely(source, target); return; }
                 catch (IOException) { if (sw.Elapsed.TotalSeconds > 10) throw; }
                 catch (UnauthorizedAccessException) { if (sw.Elapsed.TotalSeconds > 10) throw; }
                 Thread.Sleep(250);
@@ -159,6 +159,7 @@ namespace OrclFileExplorer
         // Removes downloads left from earlier updates (the update exe can't delete itself).
         public static void CleanDownloads()
         {
+            Util.DeleteOld(System.Windows.Forms.Application.ExecutablePath); // the previous version, kept during the swap
             try
             {
                 if (!Directory.Exists(DownloadFolder)) return;

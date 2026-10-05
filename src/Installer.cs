@@ -83,7 +83,8 @@ namespace OrclFileExplorer
             try
             {
                 Directory.CreateDirectory(InstallDir);
-                File.Copy(Application.ExecutablePath, InstalledExe, true);
+                Util.ReplaceFileSafely(Application.ExecutablePath, InstalledExe);
+                Register();
             }
             catch (IOException)
             {
@@ -96,8 +97,21 @@ namespace OrclFileExplorer
                 if (!Quiet) MessageBox.Show("Install failed: " + ex.Message, Program.AppName, MessageBoxButtons.OK, MessageBoxIcon.Error);
                 return false;
             }
-            Register();
             return true;
+        }
+
+        // Whether the installed copy is running (another process than this one).
+        static bool InstalledCopyRunning()
+        {
+            int me = Process.GetCurrentProcess().Id;
+            foreach (Process p in Process.GetProcessesByName("orclfx"))
+                using (p)
+                {
+                    if (p.Id == me) continue;
+                    try { if (string.Equals(p.MainModule.FileName, InstalledExe, StringComparison.OrdinalIgnoreCase)) return true; }
+                    catch { return true; } // can't tell: be safe
+                }
+            return false;
         }
 
         public static string InstalledPath { get { return InstalledExe; } }
@@ -173,6 +187,13 @@ namespace OrclFileExplorer
 
         public static void Uninstall()
         {
+            // While it runs, its program file can't be removed: uninstalling now would only half work.
+            if (InstalledCopyRunning())
+            {
+                if (Quiet) { Environment.ExitCode = 1; return; }
+                MessageBox.Show("Orcl File Explorer is running. Close it, then uninstall again.", Program.AppName, MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
             // Quiet (winget): no questions, and the settings are kept.
             if (!Quiet && MessageBox.Show("Uninstall Orcl File Explorer from this computer?", Program.AppName, MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes) return;
             bool wipeSettings = !Quiet && MessageBox.Show("Also delete your saved tabs and settings?", Program.AppName, MessageBoxButtons.YesNo, MessageBoxIcon.Question) == DialogResult.Yes;

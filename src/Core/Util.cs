@@ -78,13 +78,43 @@ namespace OrclFileExplorer
             return err == 2 || err == 3; // there was no mark
         }
 
-        // A short, stable key for a file path, usable in a mutex name.
-        public static string PathKey(string path)
+        // Puts a copy of source in place of target without ever leaving target broken: the copy is made next to
+        // it as target.new and checked first, then swapped in in one step (the previous file stays as target.old
+        // until DeleteOld). If anything fails, target is still the previous, working file.
+        public static void ReplaceFileSafely(string source, string target)
         {
-            string p = Path.GetFullPath(path).ToLowerInvariant();
+            string fresh = target + ".new", old = target + ".old";
+            try { if (File.Exists(fresh)) File.Delete(fresh); } catch { }
+            File.Copy(source, fresh, true);
+            try
+            {
+                if (new FileInfo(fresh).Length != new FileInfo(source).Length) throw new IOException("the copy of " + Path.GetFileName(target) + " is incomplete");
+                if (File.Exists(target))
+                {
+                    try { if (File.Exists(old)) File.Delete(old); } catch { }
+                    File.Replace(fresh, target, old, true);
+                }
+                else File.Move(fresh, target);
+            }
+            finally { try { if (File.Exists(fresh)) File.Delete(fresh); } catch { } }
+            DeleteOld(target);
+        }
+
+        // Removes target.old left by ReplaceFileSafely (it can still be in use right after an update).
+        public static void DeleteOld(string target)
+        {
+            try { if (File.Exists(target + ".old")) File.Delete(target + ".old"); } catch { }
+        }
+
+        // A short, stable key for a file path, usable in a mutex name.
+        public static string PathKey(string path) { return TextKey(Path.GetFullPath(path)); }
+
+        // A short, stable key for any text, ignoring case.
+        public static string TextKey(string text)
+        {
             using (System.Security.Cryptography.SHA1 sha = System.Security.Cryptography.SHA1.Create())
             {
-                byte[] h = sha.ComputeHash(Encoding.UTF8.GetBytes(p));
+                byte[] h = sha.ComputeHash(Encoding.UTF8.GetBytes(text.ToLowerInvariant()));
                 return BitConverter.ToString(h, 0, 10).Replace("-", "");
             }
         }

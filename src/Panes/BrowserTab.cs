@@ -98,7 +98,14 @@ namespace OrclFileExplorer
 
         public bool Navigate(string path)
         {
-            if (browser == null) { Folder = path; return true; }
+            if (browser == null)
+            {
+                // Not shown yet: a locked tab still never leaves its folder; the folder opens in a new tab, as it
+                // would from a shown one.
+                if (Locked && !Util.SameFolder(path, LockedFolder)) { Pane.AddTab(path, false, true); return true; }
+                Folder = path;
+                return true;
+            }
             IntPtr pidl = Native.ParsePath(path);
             if (pidl == IntPtr.Zero) return false;
             int hr;
@@ -379,14 +386,16 @@ namespace OrclFileExplorer
         }
 
         // In case the view doesn't report the results list as a navigation: look for it for up to 3 seconds.
+        int findGeneration;   // each Find gets its own results watcher
+
         void WatchForResults()
         {
             Timer t = new Timer();
-            int tries = 0;
+            int tries = 0, generation = ++findGeneration;
             t.Interval = 100;
             t.Tick += delegate
             {
-                if (!findPending || FindInContents) { t.Stop(); t.Dispose(); return; }
+                if (!findPending || FindInContents || generation != findGeneration) { t.Stop(); t.Dispose(); return; }
                 if (++tries > 30)
                 {
                     // The results list never appeared: back to the folder instead of a tab stuck in Find mode.

@@ -239,7 +239,7 @@ namespace OrclFileExplorer
                 m.Items.Add("Duplicate tab", null, delegate { AddTab(tab.Folder, false, true); });
                 m.Items.Add(Main.PaneCount > 2 ? "Open in next pane" : "Open in other pane", null, delegate { Main.Other(this).AddTab(tab.Folder, false, true); });
                 ToolStripItem add = m.Items.Add("Add to Shortcuts", null, delegate { Main.Shortcuts.Add(tab.Address, tab.Title); });
-                add.Enabled = Directory.Exists(tab.Address);
+                add.Enabled = Util.IsNetworkPath(tab.Address) ? Path.IsPathRooted(tab.Address) : Directory.Exists(tab.Address);
                 m.Items.Add(new ToolStripSeparator());
                 ToolStripItem close = m.Items.Add("Close tab", null, delegate { CloseTab(tab); });
                 close.Enabled = !tab.Locked && Tabs.Count > 1;

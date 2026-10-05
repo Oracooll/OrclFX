@@ -152,7 +152,7 @@ namespace OrclFileExplorer
             reloadTimer.Interval = 700;
             reloadTimer.Tick += delegate { reloadTimer.Stop(); LoadList(); };
             saveRetry.Interval = 5000;
-            saveRetry.Tick += delegate { if (SaveList()) saveRetry.Stop(); ShowAvailability(); };
+            saveRetry.Tick += delegate { if (editingItem != null) return; if (SaveList()) saveRetry.Stop(); ShowAvailability(); };
 
             Controls.Add(list);
             Controls.Add(notice);
@@ -527,13 +527,28 @@ namespace OrclFileExplorer
         {
             try
             {
-                // Our own save (unless OneDrive has also left a conflict copy to merge).
-                if (File.Exists(ListFile) && File.GetLastWriteTimeUtc(ListFile) == knownStamp && ShortcutList.ConflictCopies(ListFile).Count == 0) return;
+                // Our own save (unless OneDrive has also left a new conflict copy to merge).
+                if (File.Exists(ListFile) && File.GetLastWriteTimeUtc(ListFile) == knownStamp && NewConflictCopies().Count == 0) return;
             }
             catch { }
             reloadTimer.Interval = 700;
             reloadTimer.Stop();
             reloadTimer.Start();
+        }
+
+        // Conflict copies already merged, with their last-write time when merged.
+        readonly Dictionary<string, DateTime> mergedCopies = new Dictionary<string, DateTime>(StringComparer.OrdinalIgnoreCase);
+
+        List<string> NewConflictCopies()
+        {
+            List<string> r = new List<string>();
+            foreach (string c in ShortcutList.ConflictCopies(ListFile))
+            {
+                DateTime done;
+                try { if (mergedCopies.TryGetValue(c, out done) && done == File.GetLastWriteTimeUtc(c)) continue; } catch { continue; }
+                r.Add(c);
+            }
+            return r;
         }
 
         void LoadList()
@@ -566,8 +581,14 @@ namespace OrclFileExplorer
             // OneDrive's conflict copies hold changes another computer made at the same time: add them.
             List<string> conflicts = new List<string>();
             List<KeyValuePair<string, string>> incoming = remote;
-            foreach (string c in ShortcutList.ConflictCopies(ListFile))
-                try { incoming = ShortcutList.Union(incoming, ShortcutList.Parse(File.ReadAllLines(c, Encoding.UTF8))); conflicts.Add(c); }
+            foreach (string c in NewConflictCopies())
+                try
+                {
+                    DateTime written = File.GetLastWriteTimeUtc(c);
+                    incoming = ShortcutList.Union(incoming, ShortcutList.Parse(File.ReadAllLines(c, Encoding.UTF8)));
+                    conflicts.Add(c);
+                    mergedCopies[c] = written; // even if it can't be deleted, it isn't merged again
+                }
                 catch { } // still syncing: next time
             if (dirty || conflicts.Count > 0)
             {
@@ -601,7 +622,8 @@ namespace OrclFileExplorer
         List<KeyValuePair<string, string>> CurrentEntries()
         {
             List<KeyValuePair<string, string>> r = new List<KeyValuePair<string, string>>();
-            foreach (ListViewItem it in Arranged()) r.Add(new KeyValuePair<string, string>(it.Text, (string)it.Tag));
+            // While a label is being edited (for a folder rename it shows the folder's name), save it as it was.
+            foreach (ListViewItem it in Arranged()) r.Add(new KeyValuePair<string, string>(it == editingItem && labelBeforeEdit != null ? labelBeforeEdit : it.Text, (string)it.Tag));
             return r;
         }
 
@@ -644,6 +666,8 @@ namespace OrclFileExplorer
 
         void BeginRename(ListViewItem it, bool folder)
         {
+            it = Current(it);
+            if (it == null) return;
             string path = (string)it.Tag;
             if (folder && (unavailable.Contains(path) || !Directory.Exists(path) || Path.GetDirectoryName(path.TrimEnd('\\')) == null))
             {
@@ -801,8 +825,19 @@ namespace OrclFileExplorer
             if (save) ListChanged();
         }
 
+        // The list's item for the same folder: a menu opened before the list was reloaded holds an item that's
+        // no longer in it. Null when the shortcut is gone.
+        ListViewItem Current(ListViewItem it)
+        {
+            if (it == null || it.ListView != null) return it;
+            foreach (ListViewItem x in list.Items) if (Util.SameFolder((string)x.Tag, (string)it.Tag)) return x;
+            return null;
+        }
+
         void Remove(ListViewItem it)
         {
+            it = Current(it);
+            if (it == null) return;
             list.Items.Remove(it);
             // Drop its cached icon (the image list keeps one per folder).
             if (icons.Images.ContainsKey((string)it.Tag))
@@ -818,6 +853,8 @@ namespace OrclFileExplorer
 
         void MoveItem(ListViewItem it, int to)
         {
+            it = Current(it);
+            if (it == null) return;
             to = Math.Max(0, Math.Min(list.Items.Count - 1, to));
             if (it.Index == to || sortMode != 0) return;
             // Renumber the arranged positions and let the list re-sort (inserting would be re-sorted anyway).

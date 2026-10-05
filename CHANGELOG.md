@@ -3,6 +3,19 @@
 Versions are `major.minor.build` with a three-digit build number. Every release bumps the build;
 the minor number changes only for larger milestones.
 
+## 1.1.018
+Fixes from audit round 2:
+- Updates and installs replace the program safely: the new copy is checked before it's swapped in, so a
+  failed update (full disk, antivirus) leaves the previous version working.
+- Uninstalling while the app runs is refused (a quiet uninstall reports failure) instead of half working.
+- A quiet install can't show a crash window if registering it fails.
+- Shortcuts: a conflict copy that can't be deleted is merged only once (no endless saving); the old
+  `DualPane` list's merge note is the same on every computer, and is ignored when the list itself hasn't
+  synced yet (it could have emptied the list); a save retry during a rename no longer saves the folder name
+  as the label; menu actions on a shortcut replaced by a reload work, and can't block later reloads.
+- "Open in other pane" onto a locked tab that hasn't been shown yet opens the folder in a new tab.
+- The tab menu no longer touches a network share on the UI thread.
+
 ## 1.1.017
 Fixes from an audit:
 - Shortcuts are no longer lost between computers: OneDrive's conflict copies (`shortcuts-<computer>.txt`,

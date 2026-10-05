@@ -109,6 +109,26 @@ namespace OrclFileExplorer.Tests
         }
 
         [Test]
+        static void AFailedReplaceLeavesTheOldProgram()
+        {
+            using (TempDir d = new TempDir())
+            {
+                string target = d.File("orclfx.exe", "old version");
+                bool failed = false;
+                try { Util.ReplaceFileSafely(Path.Combine(d.Path, "missing.exe"), target); }
+                catch (IOException) { failed = true; }
+                Assert.True(failed, "the failure is reported");
+                Assert.Equal("old version", File.ReadAllText(target), "the old program is untouched");
+                Assert.True(!File.Exists(target + ".new"), "no half copy left behind");
+
+                string source = d.File("new.exe", "new version");
+                Util.ReplaceFileSafely(source, target);
+                Assert.Equal("new version", File.ReadAllText(target), "replaced");
+                Assert.True(!File.Exists(target + ".old") && !File.Exists(target + ".new"), "nothing left behind");
+            }
+        }
+
+        [Test]
         static void ReplacesTheExeAfterTheOldOneExits()
         {
             using (TempDir d = new TempDir())

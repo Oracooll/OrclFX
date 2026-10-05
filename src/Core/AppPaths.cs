@@ -99,8 +99,12 @@ namespace OrclFileExplorer
         {
             if (!File.Exists(source) || Util.SameFolder(source, target)) return;
             string sourceText = File.ReadAllText(source, System.Text.Encoding.UTF8);
-            string note = Path.Combine(Path.GetDirectoryName(target), "." + Path.GetFileName(target) + ".merged-" + Util.PathKey(source));
+            // Named from the source's portable path (%OneDrive%\...), so every computer uses the same note.
+            string note = Path.Combine(Path.GetDirectoryName(target), "." + Path.GetFileName(target) + ".merged-" + Util.TextKey(ShortcutList.ToPortable(source)));
             string noteText = File.Exists(note) ? File.ReadAllText(note, System.Text.Encoding.UTF8) : null;
+            // Without the list itself (not synced yet), the note can't be used: a three-way merge would read every
+            // shortcut in it as removed. A union then keeps everything.
+            if (!File.Exists(target)) noteText = null;
             if (noteText == sourceText && !onlyHere) return; // nothing new there
             Directory.CreateDirectory(Path.GetDirectoryName(target));
             ShortcutList.MergeInto(target, ShortcutList.Parse(Lines(sourceText)), noteText == null ? null : ShortcutList.Parse(Lines(noteText)));

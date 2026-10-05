@@ -93,6 +93,21 @@ namespace OrclFileExplorer.Tests
         }
 
         [Test]
+        static void NoteWithoutTheListDoesNotEmptyIt()
+        {
+            // The note has synced to a new computer but shortcuts.txt hasn't yet: merging must keep everything.
+            using (TempDir d = new TempDir())
+            {
+                string oldList = d.File(@"OneDrive\DualPane\shortcuts.txt", "A|C:\\A\r\nB|C:\\B\r\nNew|C:\\New\r\n");
+                string newList = Path.Combine(d.Path, @"OneDrive\Documents\OrclFX\shortcuts.txt");
+                string note = Path.Combine(Path.GetDirectoryName(newList), ".shortcuts.txt.merged-" + Util.TextKey(ShortcutList.ToPortable(oldList)));
+                d.File(@"OneDrive\Documents\OrclFX\" + Path.GetFileName(note), "A|C:\\A\r\nB|C:\\B\r\n");
+                AppPaths.MergeList(oldList, newList, false);
+                Assert.Sequence(new string[] { @"C:\A", @"C:\B", @"C:\New" }, Folders(newList), "everything kept");
+            }
+        }
+
+        [Test]
         static void MovesALocalOnlyList()
         {
             using (TempDir d = new TempDir())
