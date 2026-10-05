@@ -118,9 +118,11 @@ namespace OrclFileExplorer
             }
         }
 
+        // The tab under p. The rectangles are from the last paint; a tab closed since then (a quick second click
+        // while one closes) must not give an index past the end of the tabs.
         int HitTest(Point p)
         {
-            for (int i = 0; i < rects.Count; i++) if (rects[i].Contains(p)) return i;
+            for (int i = 0; i < rects.Count && i < pane.Tabs.Count; i++) if (rects[i].Contains(p)) return i;
             return -1;
         }
 
@@ -137,7 +139,7 @@ namespace OrclFileExplorer
         {
             base.OnMouseMove(e);
             int i = HitTest(e.Location);
-            if (drag >= 0 && (MouseButtons & MouseButtons.Left) != 0 && i >= 0 && i != drag && drag < rects.Count)
+            if (drag >= 0 && (MouseButtons & MouseButtons.Left) != 0 && i >= 0 && i != drag && drag < rects.Count && drag < pane.Tabs.Count)
             {
                 // Moving right: the dragged tab's width must fit before the cursor; moving left: after it.
                 // Otherwise tabs of different widths would swap back and forth on every mouse move.

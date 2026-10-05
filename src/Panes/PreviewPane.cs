@@ -211,7 +211,7 @@ namespace OrclFileExplorer
             if (old != null) old.Dispose();
             if (!host.IsHandleCreated) return;
             for (IntPtr h = Native.GetWindow(host.Handle, 5 /* GW_CHILD */); h != IntPtr.Zero; h = Native.GetWindow(h, 2 /* GW_HWNDNEXT */))
-                if (h != picture.Handle && h != message.Handle && h != sizes.Handle) Native.ShowWindow(h, 0);
+                if (h != picture.Handle && h != message.Handle && h != sizes.Handle) Native.ShowWindowAsync(h, 0); // a hung handler can't block
         }
 
         // Image.FromHbitmap drops the alpha channel; keep it when the shell returns a transparent image.
@@ -250,7 +250,12 @@ namespace OrclFileExplorer
             ++thumbTicket;
             if (worker == null) return;
             worker.Quit();
-            worker.WaitForExit(2000);
+            if (!worker.WaitForExit(2000) && host.IsHandleCreated)
+            {
+                // The handler is stuck: ask its window to close without waiting for it, so closing can't hang on it.
+                for (IntPtr h = Native.GetWindow(host.Handle, 5 /* GW_CHILD */); h != IntPtr.Zero; h = Native.GetWindow(h, 2 /* GW_HWNDNEXT */))
+                    if (h != picture.Handle && h != message.Handle && h != sizes.Handle) { Native.ShowWindowAsync(h, 0); Native.PostMessage(h, 0x10 /* WM_CLOSE */, IntPtr.Zero, IntPtr.Zero); }
+            }
             worker = null;
         }
 

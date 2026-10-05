@@ -138,8 +138,11 @@ the tests on every push.
 The shared folder is `Documents\OrclFX` when Documents is backed up to OneDrive, or
 `OneDrive\Documents\OrclFX` when your OneDrive has a Documents folder (so computers with and without the
 backup share it). Without either, the list stays on that computer in `%APPDATA%\OrclFX`.
-Versions up to 1.1.014 used `DualPane` folders; 1.1.015 moves the settings and copies the shortcuts list
-on first start (the old OneDrive copy stays until every computer has updated, and can then be deleted).
+Versions up to 1.1.014 used `DualPane` folders. Newer versions move the settings and merge the old shortcuts
+list into the new one, again whenever a computer still on an old version has changed it, so nothing is lost
+while your computers update one by one. Once all are updated, the old `OneDrive\DualPane` folder can be
+deleted. When OneDrive keeps two versions of the list (two computers changed it before syncing, leaving a
+`shortcuts-<computer>.txt` copy), the copy is merged in and removed.
 
 ## Notes
 
@@ -147,7 +150,7 @@ on first start (the old OneDrive copy stays until every computer has updated, an
   Windows applies some light/dark choices only when an app starts.
 - Only one window runs at a time; launching the app again brings the open window to the front.
 - See [CHANGELOG.md](CHANGELOG.md) for the version history. Versions are `major.minor.build` with a
-  three-digit build (1.1.016).
+  three-digit build (1.1.017).
 
 ## License
 

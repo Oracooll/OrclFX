@@ -161,6 +161,7 @@ namespace OrclFileExplorer
 
         public void MoveTab(int from, int to)
         {
+            if (from < 0 || from >= Tabs.Count || to < 0 || to >= Tabs.Count) return;
             BrowserTab cur = ActiveTab, t = Tabs[from];
             Tabs.RemoveAt(from);
             Tabs.Insert(to, t);

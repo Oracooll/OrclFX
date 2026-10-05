@@ -17,6 +17,15 @@ namespace OrclFileExplorer
             return null;
         }
 
+        // A network share or mapped network drive. Decided from the path and the drive letter only, without
+        // touching the network, so it's safe to call on the UI thread.
+        public static bool IsNetworkPath(string path)
+        {
+            if (string.IsNullOrEmpty(path)) return false;
+            if (path.StartsWith(@"\\")) return !path.StartsWith(@"\\?\") || path.StartsWith(@"\\?\UNC\", StringComparison.OrdinalIgnoreCase);
+            return path.Length >= 2 && path[1] == ':' && Native.GetDriveType(path.Substring(0, 2) + @"\") == 4; // DRIVE_REMOTE
+        }
+
         public static bool SameFolder(string a, string b)
         {
             return a != null && b != null && string.Equals(a.TrimEnd('\\'), b.TrimEnd('\\'), StringComparison.OrdinalIgnoreCase);

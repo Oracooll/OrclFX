@@ -58,17 +58,24 @@ namespace OrclFileExplorer
             Environment.GetEnvironmentVariable("OneDrive") ?? Environment.GetEnvironmentVariable("OneDriveConsumer") ?? AppData,
             "DualPane", "shortcuts.txt");
 
-        // Run once at startup, before anything reads the settings. Does nothing when tests point the files elsewhere.
+        // Run at every start, before anything reads the settings. Does nothing when tests point the files elsewhere.
         public static void MigrateFromDualPane()
         {
             if (Environment.GetEnvironmentVariable("DUALPANE_STATE") != null || Environment.GetEnvironmentVariable("DUALPANE_SHORTCUTS") != null) return;
-            try { Migrate(OldLocalFolder, LocalFolder, OldShortcutsFile, ShortcutsFile); }
+            try
+            {
+                Migrate(OldLocalFolder, LocalFolder, OldShortcutsFile, ShortcutsFile);
+                // A list this computer kept locally before the shared folder appeared (OneDrive\Documents created later).
+                string localList = Path.Combine(LocalFolder, "shortcuts.txt");
+                if (!Util.SameFolder(localList, ShortcutsFile)) MergeList(localList, ShortcutsFile, true);
+            }
             catch (Exception ex) { Program.LogError(ex); }
         }
 
         // The per-computer files (state.txt, its .bak, errors.log) are moved; the old folder goes if that leaves
-        // it empty. The shortcuts list is copied when it lives in OneDrive: computers that haven't updated yet keep
-        // reading the old one. One that was only on this computer is moved. Nothing is overwritten.
+        // it empty. The old shortcuts list is merged into the new one (see MergeList): one in OneDrive stays where
+        // it is, because computers that haven't updated yet keep using it, and its later changes are merged in on
+        // the next start; one that was only on this computer is merged once and renamed to .migrated.
         internal static void Migrate(string oldLocal, string newLocal, string oldShortcuts, string newShortcuts)
         {
             if (Directory.Exists(oldLocal) && !File.Exists(Path.Combine(newLocal, "state.txt")))
@@ -79,16 +86,37 @@ namespace OrclFileExplorer
                     Directory.CreateDirectory(newLocal);
                     File.Move(from, to);
                 }
-            if (File.Exists(oldShortcuts) && !File.Exists(newShortcuts))
-            {
-                Directory.CreateDirectory(Path.GetDirectoryName(newShortcuts));
-                bool onlyHere = Util.SameFolder(Path.GetDirectoryName(oldShortcuts), oldLocal);
-                if (onlyHere) File.Move(oldShortcuts, newShortcuts);
-                else File.Copy(oldShortcuts, newShortcuts);
-                string bak = oldShortcuts + ".bak";
-                if (onlyHere && File.Exists(bak) && !File.Exists(newShortcuts + ".bak")) File.Move(bak, newShortcuts + ".bak");
-            }
+            MergeList(oldShortcuts, newShortcuts, Util.SameFolder(Path.GetDirectoryName(oldShortcuts), oldLocal));
             try { if (Directory.Exists(oldLocal) && Directory.GetFileSystemEntries(oldLocal).Length == 0) Directory.Delete(oldLocal); } catch { }
         }
+
+        // Merges the shortcuts list source into target whenever source has changed since it was last merged.
+        // A hidden note next to target remembers what was taken from source last time, so the merge is three-way
+        // (changes and removals on either side carry over, removed shortcuts don't come back). The first time,
+        // or without the note, it's a union: nothing is lost. A local-only source (onlyHere) is renamed to
+        // .migrated afterwards.
+        internal static void MergeList(string source, string target, bool onlyHere)
+        {
+            if (!File.Exists(source) || Util.SameFolder(source, target)) return;
+            string sourceText = File.ReadAllText(source, System.Text.Encoding.UTF8);
+            string note = Path.Combine(Path.GetDirectoryName(target), "." + Path.GetFileName(target) + ".merged-" + Util.PathKey(source));
+            string noteText = File.Exists(note) ? File.ReadAllText(note, System.Text.Encoding.UTF8) : null;
+            if (noteText == sourceText && !onlyHere) return; // nothing new there
+            Directory.CreateDirectory(Path.GetDirectoryName(target));
+            ShortcutList.MergeInto(target, ShortcutList.Parse(Lines(sourceText)), noteText == null ? null : ShortcutList.Parse(Lines(noteText)));
+            if (onlyHere)
+            {
+                string moved = source + ".migrated";
+                if (File.Exists(moved)) File.Delete(moved);
+                File.Move(source, moved);
+                try { if (File.Exists(source + ".bak")) File.Delete(source + ".bak"); } catch { }
+                return;
+            }
+            if (File.Exists(note)) File.SetAttributes(note, FileAttributes.Normal);
+            File.WriteAllText(note, sourceText, new System.Text.UTF8Encoding(false));
+            File.SetAttributes(note, FileAttributes.Hidden);
+        }
+
+        static string[] Lines(string text) { return text.Replace("\r\n", "\n").Split('\n'); }
     }
 }

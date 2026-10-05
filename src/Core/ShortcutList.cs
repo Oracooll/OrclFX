@@ -63,6 +63,48 @@ namespace OrclFileExplorer
             });
         }
 
+        // current plus the shortcuts of extra it doesn't have yet (same folder = same shortcut), added at the end.
+        // Used when there is no common ancestor to merge against: nothing is lost, nothing is removed.
+        public static List<KeyValuePair<string, string>> Union(List<KeyValuePair<string, string>> current, List<KeyValuePair<string, string>> extra)
+        {
+            List<KeyValuePair<string, string>> r = new List<KeyValuePair<string, string>>(current);
+            HashSet<string> have = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (KeyValuePair<string, string> e in current) have.Add(Key(e.Value));
+            foreach (KeyValuePair<string, string> e in extra) if (have.Add(Key(e.Value))) r.Add(e);
+            return r;
+        }
+
+        // The copies OneDrive makes when two computers changed the file before syncing: it keeps both, renaming
+        // one to "shortcuts-<computer>.txt" (sometimes with a number) next to "shortcuts.txt".
+        public static List<string> ConflictCopies(string file)
+        {
+            List<string> r = new List<string>();
+            try
+            {
+                string dir = Path.GetDirectoryName(file), name = Path.GetFileNameWithoutExtension(file), ext = Path.GetExtension(file);
+                if (!Directory.Exists(dir)) return r;
+                foreach (string f in Directory.GetFiles(dir, name + "-*" + ext))
+                    if (f.EndsWith(ext, StringComparison.OrdinalIgnoreCase)) r.Add(f);
+                r.Sort(StringComparer.OrdinalIgnoreCase);
+            }
+            catch { }
+            return r;
+        }
+
+        // Brings another list into target, under target's lock. When lastMerged (what was taken from that list
+        // the previous time) is known it's a three-way merge, so additions, renames and removals on either side
+        // all carry over; otherwise a union, which never loses a shortcut.
+        public static void MergeInto(string target, List<KeyValuePair<string, string>> source, List<KeyValuePair<string, string>> lastMerged)
+        {
+            Util.WithFileLock(target, delegate
+            {
+                List<KeyValuePair<string, string>> current = File.Exists(target) ? Parse(File.ReadAllLines(target, Encoding.UTF8)) : new List<KeyValuePair<string, string>>();
+                List<KeyValuePair<string, string>> merged = lastMerged == null ? Union(current, source) : Merge(lastMerged, current, source);
+                Util.WriteAllTextAtomic(target, Serialize(merged));
+                return true;
+            });
+        }
+
         // Three-way merge of the shortcuts (label, path) against their common ancestor: additions on either
         // side are kept, a deletion on either side wins, a label changed here wins over the other side, and
         // the order comes from whichever side rearranged it.

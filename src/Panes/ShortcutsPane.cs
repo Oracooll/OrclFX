@@ -133,8 +133,11 @@ namespace OrclFileExplorer
             list.AfterLabelEdit += AfterLabelEdit;
             // Editing starts only from F2 or the menu, never from a slow click on a selected item.
             list.BeforeLabelEdit += delegate(object s, LabelEditEventArgs e) { if (!editRequested) e.CancelEdit = true; editRequested = false; };
-            list.DragEnter += ListDragOver;
+            // The dragged folders are worked out once per drag: checking every file on every mouse move would
+            // stall dragging thousands of files, or files from a network share.
+            list.DragEnter += delegate(object s, DragEventArgs e) { dragFolders = DroppedFolders(e.Data).Count; ListDragOver(s, e); };
             list.DragOver += ListDragOver;
+            list.DragLeave += delegate { dragFolders = 0; };
             list.DragDrop += ListDragDrop;
             // Theme and width are applied once the list has finished creating its items (not during creation).
             list.HandleCreated += delegate { list.BeginInvoke((MethodInvoker)delegate { ApplyTheme(); ApplyWidth(); }); };
@@ -490,15 +493,23 @@ namespace OrclFileExplorer
             else
             {
                 loadedOk = true;
-                foreach (KeyValuePair<string, string> s in legacy) Add(s.Value, s.Key, false);
-                if (legacy.Count > 0 && !SaveList()) pendingLegacy = legacy;
-                baseEntries = CurrentEntries();
+                baseEntries = new List<KeyValuePair<string, string>>();
                 CheckAvailability();
+            }
+            // Shortcuts from very old versions, kept in this computer's settings: added to the shared list (once
+            // they're in it, they're no longer kept in the settings).
+            if (legacy.Count > 0)
+            {
+                foreach (KeyValuePair<string, string> s in legacy) if (!Contains(s.Value)) Add(s.Value, s.Key, false);
+                dirty = true;
+                if (!SaveList()) { pendingLegacy = legacy; saveRetry.Start(); }
             }
             try
             {
                 Directory.CreateDirectory(Path.GetDirectoryName(ListFile));
-                watcher = new FileSystemWatcher(Path.GetDirectoryName(ListFile), Path.GetFileName(ListFile));
+                // shortcuts*.txt: the list, and the copies OneDrive makes when two computers changed it at once.
+                watcher = new FileSystemWatcher(Path.GetDirectoryName(ListFile),
+                    Path.GetFileNameWithoutExtension(ListFile) + "*" + Path.GetExtension(ListFile));
                 watcher.NotifyFilter = NotifyFilters.LastWrite | NotifyFilters.FileName | NotifyFilters.Size;
                 watcher.SynchronizingObject = this;
                 FileSystemEventHandler h = delegate { OnListFileChanged(); };
@@ -514,7 +525,12 @@ namespace OrclFileExplorer
 
         void OnListFileChanged()
         {
-            try { if (File.Exists(ListFile) && File.GetLastWriteTimeUtc(ListFile) == knownStamp) return; } catch { } // our own save
+            try
+            {
+                // Our own save (unless OneDrive has also left a conflict copy to merge).
+                if (File.Exists(ListFile) && File.GetLastWriteTimeUtc(ListFile) == knownStamp && ShortcutList.ConflictCopies(ListFile).Count == 0) return;
+            }
+            catch { }
             reloadTimer.Interval = 700;
             reloadTimer.Stop();
             reloadTimer.Start();
@@ -547,14 +563,22 @@ namespace OrclFileExplorer
             loadedOk = true;
             knownStamp = stamp;
             List<KeyValuePair<string, string>> remote = ShortcutList.Parse(lines);
-            if (dirty)
+            // OneDrive's conflict copies hold changes another computer made at the same time: add them.
+            List<string> conflicts = new List<string>();
+            List<KeyValuePair<string, string>> incoming = remote;
+            foreach (string c in ShortcutList.ConflictCopies(ListFile))
+                try { incoming = ShortcutList.Union(incoming, ShortcutList.Parse(File.ReadAllLines(c, Encoding.UTF8))); conflicts.Add(c); }
+                catch { } // still syncing: next time
+            if (dirty || conflicts.Count > 0)
             {
-                // Changes made here haven't been saved yet (a save failed, or the file wasn't readable when
-                // they were made): keep them by merging with the new contents, and save the result.
-                List<KeyValuePair<string, string>> merged = ShortcutList.Merge(baseEntries, CurrentEntries(), remote);
+                // Changes made here haven't been saved yet (a save failed, or the file wasn't readable when they
+                // were made), or a conflict copy has to be merged: keep everything and save the result.
+                List<KeyValuePair<string, string>> merged = dirty ? ShortcutList.Merge(baseEntries, CurrentEntries(), incoming) : incoming;
                 baseEntries = remote;
                 SetEntries(merged);
-                if (!SaveList()) saveRetry.Start();
+                dirty = true;
+                if (SaveList()) { foreach (string c in conflicts) try { File.Delete(c); } catch { } }
+                else saveRetry.Start();
                 ShowAvailability();
                 return;
             }
@@ -807,6 +831,8 @@ namespace OrclFileExplorer
         }
 
 
+        int dragFolders;   // folders in the current drag (from DragEnter)
+
         static List<string> DroppedFolders(IDataObject data)
         {
             List<string> result = new List<string>();
@@ -817,7 +843,7 @@ namespace OrclFileExplorer
 
         void ListDragOver(object sender, DragEventArgs e)
         {
-            if (DroppedFolders(e.Data).Count == 0) e.Effect = DragDropEffects.None;
+            if (dragFolders == 0) e.Effect = DragDropEffects.None;
             else if ((e.AllowedEffect & DragDropEffects.Link) != 0) e.Effect = DragDropEffects.Link;
             else if ((e.AllowedEffect & DragDropEffects.Copy) != 0) e.Effect = DragDropEffects.Copy;
             else e.Effect = DragDropEffects.None;
@@ -862,7 +888,8 @@ namespace OrclFileExplorer
             m.Items.Add(new ToolStripSeparator());
             BrowserTab t = main.ActivePane.ActiveTab;
             ToolStripItem add = m.Items.Add("Add current folder", null, delegate { if (t != null) Add(t.Address, t.Title); });
-            add.Enabled = t != null && Directory.Exists(t.Address);
+            // No disk check for network folders here: a slow or lost share would freeze the menu.
+            add.Enabled = t != null && (Util.IsNetworkPath(t.Address) ? Path.IsPathRooted(t.Address) : Directory.Exists(t.Address));
             m.Show(screen);
         }
     }

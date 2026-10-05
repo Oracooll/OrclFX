@@ -142,6 +142,30 @@ namespace OrclFileExplorer.Tests
         }
 
         [Test]
+        static void UnionKeepsEverything()
+        {
+            Assert.Sequence(Show(L(A, B, C)), Show(ShortcutList.Union(L(A, B), L(S("Other label", @"c:\b\"), C))), "current first, then what's new");
+        }
+
+        [Test]
+        static void FindsOneDriveConflictCopies()
+        {
+            using (TempDir d = new TempDir())
+            {
+                string f = d.File("shortcuts.txt", "x");
+                d.File("shortcuts-DESKTOP-ABC.txt", "y");
+                d.File("shortcuts-LAPTOP-2.txt", "z");
+                d.File("shortcuts.txt.bak", "b");
+                d.File("shortcuts-old.txtx", "no");
+                d.File("other-DESKTOP.txt", "no");
+                List<string> c = ShortcutList.ConflictCopies(f);
+                List<string> names = new List<string>();
+                foreach (string p in c) names.Add(System.IO.Path.GetFileName(p));
+                Assert.Sequence(new string[] { "shortcuts-DESKTOP-ABC.txt", "shortcuts-LAPTOP-2.txt" }, names, "conflict copies");
+            }
+        }
+
+        [Test]
         static void Reload_KeepsUnsavedChanges()
         {
             // A save failed here (shortcut B added), then another computer's version (with C) arrives:

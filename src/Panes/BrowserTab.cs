@@ -295,7 +295,7 @@ namespace OrclFileExplorer
         // Shows an empty results list in this tab and fills it with what a name search finds.
         public void StartFind(string root, string text)
         {
-            StopFind();
+            ClearFind(); // earlier results: their list is about to be replaced, and their search stopped
             FindText = text;
             FindRoot = root;
             FindInContents = false;
@@ -312,7 +312,7 @@ namespace OrclFileExplorer
         // Names and contents: Windows Search (the same as File Explorer's search box) shows its results here.
         public void StartWindowsSearch(string root, string text)
         {
-            StopFind();
+            ClearFind();
             // A fresh view goes straight to the search (a new tab would otherwise still be opening its folder).
             DestroyBrowser();
             EnsureCreated(false);
@@ -344,14 +344,17 @@ namespace OrclFileExplorer
         // the tab with a fresh view.
         bool FillResults()
         {
+            string root0 = FindRoot;
             DestroyBrowser();
             EnsureCreated(false);
-            if (browser == null) { ClearFind(); return false; }
+            if (browser == null) { ClearFind(); EnsureCreated(); return false; }
             // Double-click and Enter in the results come to OnDefaultCommand (see below).
             IObjectWithSite site = browser as IObjectWithSite;
             if (site != null) site.SetSite(this);
             if (browser.FillFromObject(null, 0x200 /* EBF_NODROPTARGET */) == 0) { Resize(); WatchForResults(); return true; }
+            // Back to the folder, rather than leaving an empty view.
             ClearFind();
+            Navigate(root0);
             Pane.Main.Notice("⚠ Find couldn't show its results here");
             return false;
         }
@@ -383,7 +386,17 @@ namespace OrclFileExplorer
             t.Interval = 100;
             t.Tick += delegate
             {
-                if (!findPending || FindInContents || ++tries > 30) { t.Stop(); t.Dispose(); return; }
+                if (!findPending || FindInContents) { t.Stop(); t.Dispose(); return; }
+                if (++tries > 30)
+                {
+                    // The results list never appeared: back to the folder instead of a tab stuck in Find mode.
+                    t.Stop();
+                    t.Dispose();
+                    string root = FindRoot;
+                    LeaveResults(root);
+                    Pane.Main.Notice("⚠ Find couldn't show its results here");
+                    return;
+                }
                 IResultsFolder r = GetResultsFolder();
                 if (r == null) return;
                 Marshal.ReleaseComObject(r);
@@ -560,7 +573,8 @@ namespace OrclFileExplorer
                 ResultsShown();
                 return 0;
             }
-            if (IsFindResults && !findPending) ClearFind(); // left the results (opened a folder, Back, ...)
+            // Left the results (opened a folder, Back, ...), or went to a folder before they appeared.
+            if (IsFindResults && (!findPending || Native.GetName(pidl, Native.SIGDN_FILESYSPATH) != null)) ClearFind();
             ReadNames(pidl);
             Pane.TabNavigated(this);
             return 0;

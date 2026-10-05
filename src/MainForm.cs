@@ -417,7 +417,15 @@ namespace OrclFileExplorer
                 // Sizes are shown for the selected folder, or for the current folder when nothing is selected.
                 // The folder check is only repeated when the selection or folder changes.
                 string candidate = sel ?? t.Address;
-                if (candidate != lastSizeCandidate) { lastSizeCandidate = candidate; lastSizeTarget = candidate != null && Directory.Exists(candidate) ? candidate : null; }
+                if (candidate != lastSizeCandidate)
+                {
+                    lastSizeCandidate = candidate;
+                    // Sizes aren't calculated on network locations; checking one on this thread could freeze the
+                    // window on a slow or lost share, so it isn't even looked at.
+                    bool network = Util.IsNetworkPath(candidate);
+                    lastSizeTarget = candidate != null && !network && Directory.Exists(candidate) ? candidate : null;
+                    if (network) sizeSkip = "not calculated on network locations";
+                }
                 string target = lastSizeTarget;
                 SizeJob j = target != null ? EnsureSizeJob(target) : null;
                 if (target == null && sizeJob != null)
@@ -822,7 +830,19 @@ namespace OrclFileExplorer
 
         // ---- input routing
 
+        // An exception thrown here would end the app (message filters run outside WinForms' error handler).
         bool IMessageFilter.PreFilterMessage(ref Message m)
+        {
+            try { return FilterMessage(ref m); }
+            catch (Exception ex)
+            {
+                Program.LogError(ex);
+                try { Notice("\u26A0 " + ex.Message); } catch { }
+                return false;
+            }
+        }
+
+        bool FilterMessage(ref Message m)
         {
             int msg = m.Msg;
             if (msg == 0x201 || msg == 0x204 || msg == 0x207)
@@ -1003,7 +1023,8 @@ namespace OrclFileExplorer
             Pane p = mode == 2 ? Other(ActivePane) : ActivePane;
             BrowserTab t = p.ActiveTab;
             if (mode == 1 || t == null) { p.AddTab(path, false, true); return; }
-            if (!Util.SameFolder(path, t.Folder) && !t.Navigate(path)) { SystemSounds.Beep.Play(); return; }
+            // A Find results tab "is" in its searched folder, but opening that folder should still show it.
+            if ((t.IsFindResults || !Util.SameFolder(path, t.Folder)) && !t.Navigate(path)) { SystemSounds.Beep.Play(); return; }
             SetActivePane(p);
             if (focusView) t.Activate();
         }

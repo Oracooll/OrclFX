@@ -3,6 +3,21 @@
 Versions are `major.minor.build` with a three-digit build number. Every release bumps the build;
 the minor number changes only for larger milestones.
 
+## 1.1.017
+Fixes from an audit:
+- Shortcuts are no longer lost between computers: OneDrive's conflict copies (`shortcuts-<computer>.txt`,
+  made when two computers changed the list before syncing) are merged in and removed; changes a computer
+  still on an old version makes to the old `DualPane` list are merged in; a list kept locally before
+  `OneDrive\Documents` existed joins the shared one; shortcuts from very old versions are kept.
+- No freezes on network folders: the folder-size check and the Shortcuts menu no longer touch the network on
+  the UI thread; a preview handler that hangs can't freeze the window or closing.
+- An error inside a keyboard shortcut no longer closes the app (it's logged and shown in the status bar).
+- Dragging many files over the Shortcuts pane no longer re-checks every file on each mouse move.
+- Find: searching again in a results tab no longer loses early results; a tab can't get stuck in Find mode,
+  and returns to its folder if the results can't be shown; the searched folder can be reopened from the
+  tree or Shortcuts.
+- Quick clicks on tabs while one is closing no longer cause an error.
+
 ## 1.1.016
 - Tabs the app opens (a folder opened from a locked tab, Ctrl+T, Find results, Duplicate) never land
   between locked tabs: from a locked tab, the new tab goes after that group of locked tabs. Dragging
