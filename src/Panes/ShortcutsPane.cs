@@ -539,10 +539,19 @@ namespace OrclFileExplorer
         // Conflict copies merged but not yet removed (their content is in the list once it's saved).
         readonly List<string> copiesToDelete = new List<string>();
 
+        // Only a copy that's unchanged since it was merged: OneDrive may have put a new one under the same name,
+        // which is then merged on the next reload instead.
         void DeleteMergedCopies()
         {
             foreach (string c in copiesToDelete.ToArray())
-                try { File.Delete(c); copiesToDelete.Remove(c); } catch { }
+                try
+                {
+                    DateTime merged;
+                    if (!File.Exists(c) || !mergedCopies.TryGetValue(c, out merged) || File.GetLastWriteTimeUtc(c) != merged) { copiesToDelete.Remove(c); continue; }
+                    File.Delete(c);
+                    copiesToDelete.Remove(c);
+                }
+                catch { }
         }
 
         // Conflict copies already merged, with their last-write time when merged.

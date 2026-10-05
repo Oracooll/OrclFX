@@ -3,6 +3,13 @@
 Versions are `major.minor.build` with a three-digit build number. Every release bumps the build;
 the minor number changes only for larger milestones.
 
+## 1.1.020
+Fixes from audit round 4:
+- After a monitor is unplugged or rearranged, the window no longer reopens with its title bar off-screen
+  (where it couldn't be moved, maximized or closed): it's moved back onto a screen.
+- A OneDrive conflict copy is only removed if it's unchanged since it was merged.
+- Hand-edited, absurdly large pane sizes in the settings can no longer break startup.
+
 ## 1.1.019
 Fixes from audit round 3:
 - Closing the app with a very narrow window made the next start show "Something went wrong" with every pane

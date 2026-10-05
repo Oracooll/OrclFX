@@ -174,7 +174,8 @@ namespace OrclFileExplorer
             vsplit.Panel2MinSize = Native.Px(50);
             vsplit.Panel2Collapsed = !ShowShortcuts;
             int sh = Native.Px(shortcutsHeight);
-            if (vsplit.Height > sh + Native.Px(200)) vsplit.SplitterDistance = vsplit.Height - sh - vsplit.SplitterWidth;
+            try { if (vsplit.Height > sh + Native.Px(200)) vsplit.SplitterDistance = vsplit.Height - sh - vsplit.SplitterWidth; }
+            catch (Exception ex) { Program.LogError(ex); }
             vsplit.SplitterMoved += delegate { StateChanged(); };
             // A splitter rejects positions (and minimum sizes) that don't fit its width; never let that stop the
             // window from starting (the panes would stay empty).
@@ -1066,9 +1067,12 @@ namespace OrclFileExplorer
                                     int.TryParse(a[2], NumberStyles.Integer, CultureInfo.InvariantCulture, out ww) &&
                                     int.TryParse(a[3], NumberStyles.Integer, CultureInfo.InvariantCulture, out wh) && ww > 200 && wh > 150)
                                 {
-                                    Rectangle r = new Rectangle(wx, wy, ww, wh);
-                                    foreach (Screen s in Screen.AllScreens)
-                                        if (s.WorkingArea.IntersectsWith(r)) { StartPosition = FormStartPosition.Manual; Bounds = r; break; }
+                                    // Moved back on screen if its title bar would be off it (a monitor unplugged or
+                                    // rearranged since): otherwise it couldn't be dragged, maximized or closed.
+                                    List<Rectangle> areas = new List<Rectangle>();
+                                    foreach (Screen s in Screen.AllScreens) areas.Add(s.WorkingArea);
+                                    StartPosition = FormStartPosition.Manual;
+                                    Bounds = WindowPlacement.Fit(new Rectangle(wx, wy, ww, wh), areas, Native.Px(34), Native.Px(120));
                                 }
                                 break;
                             case "maximized": if (v == "1") WindowState = FormWindowState.Maximized; break;
@@ -1092,10 +1096,10 @@ namespace OrclFileExplorer
                             case "find": if (v.Trim().Length > 0 && findHistory.Count < FindQuery.HistorySize) findHistory.Add(v); break;
                             case "findcontents": findContents = v == "1"; break;
                             case "updatecheck": long ut; if (long.TryParse(v, out ut) && ut > 0 && ut <= DateTime.MaxValue.Ticks) lastUpdateCheck = new DateTime(ut, DateTimeKind.Utc); break;
-                            case "treewidth": if (int.TryParse(v, out n) && n >= 80) treeWidth = n; break;
-                            case "previewwidth": if (int.TryParse(v, out n) && n >= 100) previewWidth = n; break;
+                            case "treewidth": if (int.TryParse(v, out n) && n >= 80 && n <= 5000) treeWidth = n; break;
+                            case "previewwidth": if (int.TryParse(v, out n) && n >= 100 && n <= 5000) previewWidth = n; break;
                             case "shortcuts": ShowShortcuts = v != "0"; break;
-                            case "shortcutsheight": if (int.TryParse(v, out n) && n >= 40) shortcutsHeight = n; break;
+                            case "shortcutsheight": if (int.TryParse(v, out n) && n >= 40 && n <= 5000) shortcutsHeight = n; break;
                             case "shortcutswidth": Shortcuts.WidthSetting = v; break;
                             case "shortcutsort": if (int.TryParse(v, out n)) Shortcuts.SortMode = n; break;
                             case "shortcut":
