@@ -63,7 +63,7 @@ namespace OrclFileExplorer
         {
             Text = Program.AppName + " " + Installer.Version;
             // Room for the tree, one pane and the preview; a saved narrower size is widened to this.
-            MinimumSize = new Size(Native.Px(640), Native.Px(400));
+            MinimumSize = new Size(Native.Px(800), Native.Px(400)); // wide enough for the title bar's buttons and icon
             Font = new Font("Segoe UI", 9f);
             Icon = AppIcon();
             titleBar = new TitleBar(this);
@@ -195,6 +195,7 @@ namespace OrclFileExplorer
             UpdateLayoutButtons();
             if (ShowTree) tree.EnsureCreated();
             Ready = true;
+            ListenForShow();
             Activated += delegate { Shortcuts.CheckAvailability(); };
             // Test hook: DUALPANE_TEST_THEME=<0|1|2> switches theme 3 seconds after start (used to test live switching).
             int testTheme;
@@ -323,6 +324,8 @@ namespace OrclFileExplorer
                 WhenIdle();
                 return;
             }
+            // Closing for real after waiting hidden: if saving fails, the question needs a visible window.
+            if (closeWhenIdle && !Visible) Show();
             while (true)
             {
                 string problem = SaveAll();
@@ -333,6 +336,7 @@ namespace OrclFileExplorer
                 if (r == DialogResult.No) break;
                 e.Cancel = true;
                 restarting = false;
+                closeWhenIdle = false; // the user keeps the window: don't close it later
                 saveTimer.Interval = 10000;
                 saveTimer.Start();
                 return;
@@ -630,6 +634,34 @@ namespace OrclFileExplorer
         bool restarting;
         bool closeWhenIdle, restartWhenIdle;   // put off until the shell's copies and moves have finished
         Timer idleTimer;
+
+        // A second start of the app sets this event: show the window, even while it waits hidden for a copy
+        // (it then stays open).
+        void ListenForShow()
+        {
+            System.Threading.EventWaitHandle ev;
+            try { ev = new System.Threading.EventWaitHandle(false, System.Threading.EventResetMode.AutoReset, Program.ShowEventName); }
+            catch { return; }
+            System.Threading.Thread th = new System.Threading.Thread(delegate()
+            {
+                while (true)
+                {
+                    ev.WaitOne();
+                    try { BeginInvoke((MethodInvoker)ShowFromElsewhere); } catch { return; }
+                }
+            });
+            th.IsBackground = true;
+            th.Start();
+        }
+
+        void ShowFromElsewhere()
+        {
+            if (IsDisposed) return;
+            closeWhenIdle = false;
+            if (!Visible) Show();
+            if (WindowState == FormWindowState.Minimized) WindowState = FormWindowState.Normal;
+            Activate();
+        }
 
         void WhenIdle()
         {

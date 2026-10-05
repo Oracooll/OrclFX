@@ -385,7 +385,7 @@ namespace OrclFileExplorer
                 int n;
                 string v = (value ?? "").Trim();
                 widthInChars = v.EndsWith("c");
-                widthValue = int.TryParse(v.TrimEnd('c', 'p'), out n) && n > 0 ? n : 0;
+                widthValue = int.TryParse(v.TrimEnd('c', 'p'), out n) && n > 0 ? Math.Min(n, 2000) : 0; // the dialog allows up to 2000
                 ApplyWidth();
             }
         }
@@ -689,7 +689,7 @@ namespace OrclFileExplorer
             it = Current(it);
             if (it == null) return;
             string path = (string)it.Tag;
-            if (folder && (unavailable.Contains(path) || !Directory.Exists(path) || Path.GetDirectoryName(path.TrimEnd('\\')) == null))
+            if (folder && (unavailable.Contains(path) || !Util.IsNetworkPath(path) && !Directory.Exists(path) || Path.GetDirectoryName(path.TrimEnd('\\')) == null))
             {
                 SystemSounds.Beep.Play();
                 MessageBox.Show(main, Directory.Exists(path) ? "A drive can't be renamed from here." : "This folder isn't available on this computer, so it can't be renamed.",

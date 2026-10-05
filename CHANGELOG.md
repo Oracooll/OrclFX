@@ -3,6 +3,15 @@
 Versions are `major.minor.build` with a three-digit build number. Every release bumps the build;
 the minor number changes only for larger milestones.
 
+## 1.1.022
+Fixes from audit round 6:
+- Starting the app while its window waits hidden for a copy to finish shows the window again (before, the
+  start did nothing until the copy had finished).
+- If saving fails when the window closes after a copy, the window comes back to ask, instead of staying
+  invisible.
+- Renaming a shortcut's folder on a network share no longer checks the share on the UI thread.
+- The window's minimum width leaves room for all title bar buttons and the icon.
+
 ## 1.1.021
 Fixes from audit round 5:
 - Copies, moves and deletes started in a pane keep running when you close the window (it hides until

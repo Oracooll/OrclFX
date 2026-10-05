@@ -20,6 +20,8 @@ namespace OrclFileExplorer
     static class Program
     {
         public const string AppName = "Orcl File Explorer";
+        // Set by a second start of the app: the running one shows its window (see MainForm.ListenForShow).
+        public static string ShowEventName { get { return "OrclFx.Show." + Util.PathKey(MainForm.StateFile); } }
         public static bool Portable;
 
         public static void LogError(Exception ex)
@@ -77,7 +79,20 @@ namespace OrclFileExplorer
                 if (!first && restarted) { try { first = single.WaitOne(15000); } catch (System.Threading.AbandonedMutexException) { first = true; } }
                 // Another window already uses this settings file (installed or portable): bring it forward instead,
                 // so two windows never overwrite each other's tabs and shortcuts.
-                if (!first) { Trace("another copy is running: exit"); Installer.ActivateRunningCopy(); return; }
+                if (!first)
+                {
+                    Trace("another copy is running: exit");
+                    // Ask it to show its window: it may be hidden while a copy finishes (and then can't be found
+                    // as a visible window).
+                    try
+                    {
+                        System.Threading.EventWaitHandle show;
+                        if (System.Threading.EventWaitHandle.TryOpenExisting(ShowEventName, out show)) using (show) show.Set();
+                    }
+                    catch { }
+                    Installer.ActivateRunningCopy();
+                    return;
+                }
                 AppPaths.MigrateFromDualPane();
                 Updater.CleanDownloads();
                 // Copies installed by 1.1.010 or earlier from a browser download kept the browser's mark (see Util).
