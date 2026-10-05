@@ -536,6 +536,15 @@ namespace OrclFileExplorer
             reloadTimer.Start();
         }
 
+        // Conflict copies merged but not yet removed (their content is in the list once it's saved).
+        readonly List<string> copiesToDelete = new List<string>();
+
+        void DeleteMergedCopies()
+        {
+            foreach (string c in copiesToDelete.ToArray())
+                try { File.Delete(c); copiesToDelete.Remove(c); } catch { }
+        }
+
         // Conflict copies already merged, with their last-write time when merged.
         readonly Dictionary<string, DateTime> mergedCopies = new Dictionary<string, DateTime>(StringComparer.OrdinalIgnoreCase);
 
@@ -598,7 +607,8 @@ namespace OrclFileExplorer
                 baseEntries = remote;
                 SetEntries(merged);
                 dirty = true;
-                if (SaveList()) { foreach (string c in conflicts) try { File.Delete(c); } catch { } }
+                copiesToDelete.AddRange(conflicts); // removed once their content is saved (now or on a retry)
+                if (SaveList()) DeleteMergedCopies();
                 else saveRetry.Start();
                 ShowAvailability();
                 return;
@@ -639,6 +649,7 @@ namespace OrclFileExplorer
                 knownStamp = File.GetLastWriteTimeUtc(ListFile);
                 baseEntries = entries;
                 dirty = false;
+                DeleteMergedCopies();
                 pendingLegacy = null;
                 saveError = null;
                 return true;

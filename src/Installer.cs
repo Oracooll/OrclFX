@@ -103,11 +103,13 @@ namespace OrclFileExplorer
         // Whether the installed copy is running (another process than this one).
         static bool InstalledCopyRunning()
         {
-            int me = Process.GetCurrentProcess().Id;
+            Process self = Process.GetCurrentProcess();
+            int me = self.Id, session = self.SessionId;
             foreach (Process p in Process.GetProcessesByName("orclfx"))
                 using (p)
                 {
-                    if (p.Id == me) continue;
+                    // Another Windows user's copy runs from their own install, not this one.
+                    if (p.Id == me || p.SessionId != session) continue;
                     try { if (string.Equals(p.MainModule.FileName, InstalledExe, StringComparison.OrdinalIgnoreCase)) return true; }
                     catch { return true; } // can't tell: be safe
                 }

@@ -92,7 +92,14 @@ namespace OrclFileExplorer
                 if (File.Exists(target))
                 {
                     try { if (File.Exists(old)) File.Delete(old); } catch { }
-                    File.Replace(fresh, target, old, true);
+                    try { File.Replace(fresh, target, old, true); }
+                    catch
+                    {
+                        // File.Replace can fail after it has already moved target to target.old (for example when
+                        // antivirus holds the new copy): put the previous file back before reporting the failure.
+                        if (!File.Exists(target) && File.Exists(old)) try { File.Move(old, target); } catch { }
+                        throw;
+                    }
                 }
                 else File.Move(fresh, target);
             }

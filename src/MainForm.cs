@@ -62,6 +62,8 @@ namespace OrclFileExplorer
         public MainForm()
         {
             Text = Program.AppName + " " + Installer.Version;
+            // Room for the tree, one pane and the preview; a saved narrower size is widened to this.
+            MinimumSize = new Size(Native.Px(640), Native.Px(400));
             Font = new Font("Segoe UI", 9f);
             Icon = AppIcon();
             titleBar = new TitleBar(this);
@@ -174,11 +176,17 @@ namespace OrclFileExplorer
             int sh = Native.Px(shortcutsHeight);
             if (vsplit.Height > sh + Native.Px(200)) vsplit.SplitterDistance = vsplit.Height - sh - vsplit.SplitterWidth;
             vsplit.SplitterMoved += delegate { StateChanged(); };
-            treeSplit.Panel1MinSize = Native.Px(120);
-            previewSplit.Panel2MinSize = Native.Px(150);
-            treeSplit.SplitterDistance = Math.Max(Native.Px(120), Math.Min(treeSplit.Width / 3, Native.Px(treeWidth)));
-            int pw = Math.Max(Native.Px(150), Math.Min(previewSplit.Width / 2, Native.Px(previewWidth)));
-            previewSplit.SplitterDistance = Math.Max(previewSplit.Panel1MinSize, previewSplit.Width - pw - previewSplit.SplitterWidth);
+            // A splitter rejects positions (and minimum sizes) that don't fit its width; never let that stop the
+            // window from starting (the panes would stay empty).
+            try
+            {
+                treeSplit.Panel1MinSize = Native.Px(120);
+                previewSplit.Panel2MinSize = Native.Px(150);
+                treeSplit.SplitterDistance = Math.Max(Native.Px(120), Math.Min(treeSplit.Width / 3, Native.Px(treeWidth)));
+                int pw = Math.Max(Native.Px(150), Math.Min(previewSplit.Width / 2, Native.Px(previewWidth)));
+                previewSplit.SplitterDistance = Math.Max(previewSplit.Panel1MinSize, previewSplit.Width - pw - previewSplit.SplitterWidth);
+            }
+            catch (Exception ex) { Program.LogError(ex); }
             treeSplit.SplitterMoved += delegate { StateChanged(); };
             previewSplit.SplitterMoved += delegate { StateChanged(); };
             treeSplit.Panel1Collapsed = !ShowTree;

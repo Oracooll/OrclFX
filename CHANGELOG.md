@@ -3,6 +3,15 @@
 Versions are `major.minor.build` with a three-digit build number. Every release bumps the build;
 the minor number changes only for larger milestones.
 
+## 1.1.019
+Fixes from audit round 3:
+- Closing the app with a very narrow window made the next start show "Something went wrong" with every pane
+  empty. The window now has a minimum size and always starts properly.
+- An update or install whose final swap fails can no longer leave the program file missing.
+- Uninstall isn't refused because another Windows user has the app open.
+- A OneDrive conflict copy whose removal had to wait is removed after the next successful save (it could
+  otherwise bring removed shortcuts back after a restart).
+
 ## 1.1.018
 Fixes from audit round 2:
 - Updates and installs replace the program safely: the new copy is checked before it's swapped in, so a
