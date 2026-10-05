@@ -28,7 +28,7 @@ a single `orclfx.exe`, no installer package and no admin rights needed.
   (PDF, Office, images, text …). Handlers run outside the app, as in File Explorer; files without an out-of-process handler show a thumbnail.
 - **Shortcuts**: a strip of favourite folders. Drop folders onto it, double-click to open
   (Ctrl+double-click or middle-click for a new tab), F2 renames the real folder, sort icons on its
-  header. The list is stored in your OneDrive, so all your computers share it; shortcuts to folders
+  header. The list is stored in your OneDrive (Documents\OrclFX), so all your computers share it; shortcuts to folders
   that don't exist on the current computer are dimmed and listed in a warning line.
 
 **Find** (magnifier in the title bar, Ctrl+F or F3)
@@ -130,11 +130,15 @@ the tests on every push.
 
 | What | Where |
 |---|---|
-| Tabs, layout and settings | `%APPDATA%\DualPane\state.txt` (with a `.bak` copy) |
-| Shared shortcuts list | `%OneDrive%\DualPane\shortcuts.txt` |
-| Error log | `%APPDATA%\DualPane\errors.log` |
+| Tabs, layout and settings (this computer only) | `%APPDATA%\OrclFX\state.txt` (with a `.bak` copy) |
+| Shortcuts list (shared by your computers) | `Documents\OrclFX\shortcuts.txt` in your OneDrive (see below) |
+| Error log | `%APPDATA%\OrclFX\errors.log` |
 
-(The folders keep the project's original name, DualPane, so earlier installs carry over.)
+The shared folder is `Documents\OrclFX` when Documents is backed up to OneDrive, or
+`OneDrive\Documents\OrclFX` when your OneDrive has a Documents folder (so computers with and without the
+backup share it). Without either, the list stays on that computer in `%APPDATA%\OrclFX`.
+Versions up to 1.1.014 used `DualPane` folders; 1.1.015 moves the settings and copies the shortcuts list
+on first start (the old OneDrive copy stays until every computer has updated, and can then be deleted).
 
 ## Notes
 
@@ -142,7 +146,7 @@ the tests on every push.
   Windows applies some light/dark choices only when an app starts.
 - Only one window runs at a time; launching the app again brings the open window to the front.
 - See [CHANGELOG.md](CHANGELOG.md) for the version history. Versions are `major.minor.build` with a
-  three-digit build (1.1.014).
+  three-digit build (1.1.015).
 
 ## License
 

@@ -181,12 +181,12 @@ namespace OrclFileExplorer
             try { Registry.CurrentUser.DeleteSubKeyTree(UninstallKey, false); } catch { }
             if (wipeSettings)
             {
-                // Only DualPane's own files, and the folder only if it is the default one and now empty.
+                // Only this computer's settings files, and the folder only if it is the default one and now empty.
                 // The shared shortcuts list in OneDrive is left alone: other computers use it.
                 string dir = Path.GetDirectoryName(MainForm.StateFile);
                 foreach (string name in new string[] { MainForm.StateFile, MainForm.StateFile + ".bak" })
                     try { File.Delete(name); } catch { }
-                string defaultDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "DualPane");
+                string defaultDir = AppPaths.LocalFolder;
                 if (string.Equals(dir, defaultDir, StringComparison.OrdinalIgnoreCase))
                     try { Directory.Delete(dir, false); } catch { }
             }

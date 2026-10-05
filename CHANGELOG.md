@@ -3,6 +3,12 @@
 Versions are `major.minor.build` with a three-digit build number. Every release bumps the build;
 the minor number changes only for larger milestones.
 
+## 1.1.015
+- Settings move out of the old `DualPane` folders. The shortcuts list, shared by your computers, is now
+  in `Documents\OrclFX` in OneDrive (when Documents is backed up to OneDrive, or OneDrive has a Documents
+  folder), otherwise in `%APPDATA%\OrclFX`. Each computer's own tabs and settings are in
+  `%APPDATA%\OrclFX`. Existing settings are moved and the shortcuts list copied on first start.
+
 ## 1.1.014
 - Shortcuts pane: folders added while the app runs get their icon (since 1.1.005 they stayed without
   one), removing a shortcut no longer shifts the other shortcuts' icons, and the icons of shortcuts

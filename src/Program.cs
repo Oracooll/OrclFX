@@ -78,6 +78,7 @@ namespace OrclFileExplorer
                 // Another window already uses this settings file (installed or portable): bring it forward instead,
                 // so two windows never overwrite each other's tabs and shortcuts.
                 if (!first) { Trace("another copy is running: exit"); Installer.ActivateRunningCopy(); return; }
+                AppPaths.MigrateFromDualPane();
                 Updater.CleanDownloads();
                 // Copies installed by 1.1.010 or earlier from a browser download kept the browser's mark (see Util).
                 if (Installer.IsRunningInstalledCopy()) Util.RemoveDownloadMark(Application.ExecutablePath);

@@ -17,8 +17,7 @@ namespace OrclFileExplorer
 {
     partial class MainForm : Form, IMessageFilter
     {
-        public static readonly string StateFile = Environment.GetEnvironmentVariable("DUALPANE_STATE") ?? Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "DualPane", "state.txt");
+        public static readonly string StateFile = AppPaths.StateFile;
 
         public readonly Pane[] Panes = new Pane[4];
         // How many panes are shown side by side (1-4). With 1, only the active pane is shown.

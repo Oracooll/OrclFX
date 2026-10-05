@@ -67,10 +67,7 @@ namespace OrclFileExplorer
             return ok;
         }
 
-        public static readonly string ListFile = Environment.GetEnvironmentVariable("DUALPANE_SHORTCUTS") ?? Path.Combine(
-            Environment.GetEnvironmentVariable("OneDrive") ?? Environment.GetEnvironmentVariable("OneDriveConsumer") ??
-            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData)),
-            "DualPane", "shortcuts.txt");
+        public static readonly string ListFile = AppPaths.ShortcutsFile;
 
         public string NoticeText { get { return notice.Visible ? notice.Text : null; } }
 
