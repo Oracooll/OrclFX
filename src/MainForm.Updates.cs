@@ -109,6 +109,12 @@ namespace OrclFileExplorer
                     Program.AppName, MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
             }
+            if (ProcessReference.Busy > 0)
+            {
+                MessageBox.Show(this, "A copy or move is still running in Orcl File Explorer. Update when it has finished (menu \u203A Update).",
+                    Program.AppName, MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
             // The new version reads the saved settings, so they must be saved first.
             string problem = SaveAll();
             if (problem != null)

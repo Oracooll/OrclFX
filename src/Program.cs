@@ -82,7 +82,12 @@ namespace OrclFileExplorer
                 Updater.CleanDownloads();
                 // Copies installed by 1.1.010 or earlier from a browser download kept the browser's mark (see Util).
                 if (Installer.IsRunningInstalledCopy()) Util.RemoveDownloadMark(Application.ExecutablePath);
+                ProcessReference.Register();
                 Application.Run(new MainForm());
+                // Let a new window (theme restart, update) start now, but don't end this process while the shell is
+                // still copying or moving files for it: that would cut the operation off halfway.
+                try { single.ReleaseMutex(); } catch { }
+                while (ProcessReference.Busy > 0) { Application.DoEvents(); System.Threading.Thread.Sleep(200); }
                 Trace("exit");
             }
         }

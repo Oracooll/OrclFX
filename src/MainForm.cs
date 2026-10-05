@@ -268,6 +268,22 @@ namespace OrclFileExplorer
                 };
                 nt.Start();
             }
+            // Test hook: DUALPANE_TEST_HOLDREF=<seconds> takes a shell process reference (as a running copy does)
+            // for that long, to test that closing waits for it.
+            int holdSeconds;
+            if (int.TryParse(Environment.GetEnvironmentVariable("DUALPANE_TEST_HOLDREF"), out holdSeconds))
+            {
+                IntPtr held = ProcessReference.TestTake();
+                Program.Trace("holding a process reference: " + (held != IntPtr.Zero) + ", busy " + ProcessReference.Busy);
+                System.Threading.Thread rt = new System.Threading.Thread(delegate()
+                {
+                    System.Threading.Thread.Sleep(holdSeconds * 1000);
+                    Program.Trace("releasing the process reference");
+                    if (held != IntPtr.Zero) Marshal.Release(held);
+                });
+                rt.IsBackground = true;
+                rt.Start();
+            }
             // Test hook: DUALPANE_TEST_FINDBOX=1 opens the Find box 3 seconds after start (to look at it).
             if (Environment.GetEnvironmentVariable("DUALPANE_TEST_FINDBOX") == "1")
             {
@@ -296,6 +312,17 @@ namespace OrclFileExplorer
             // Save the settings and any shortcut changes still waiting for a retry. If that fails, say so
             // instead of exiting and losing them (but never hold up Windows shutting down).
             bool userClose = e.CloseReason != CloseReason.WindowsShutDown && e.CloseReason != CloseReason.TaskManagerClosing;
+            // A copy, move or delete started here is still running: its progress window belongs to this window,
+            // so hide instead of closing, and close once it has finished.
+            if (userClose && ProcessReference.Busy > 0 && !closeWhenIdle)
+            {
+                SaveAll();
+                e.Cancel = true;
+                closeWhenIdle = true;
+                Hide();
+                WhenIdle();
+                return;
+            }
             while (true)
             {
                 string problem = SaveAll();
@@ -601,12 +628,39 @@ namespace OrclFileExplorer
         }
 
         bool restarting;
+        bool closeWhenIdle, restartWhenIdle;   // put off until the shell's copies and moves have finished
+        Timer idleTimer;
+
+        void WhenIdle()
+        {
+            if (idleTimer != null) return;
+            idleTimer = new Timer();
+            idleTimer.Interval = 500;
+            idleTimer.Tick += delegate
+            {
+                if (ProcessReference.Busy > 0) return;
+                idleTimer.Stop();
+                idleTimer.Dispose();
+                idleTimer = null;
+                if (closeWhenIdle) { Close(); return; }
+                if (restartWhenIdle) { restartWhenIdle = false; RestartForTheme(); }
+            };
+            idleTimer.Start();
+        }
 
         // Windows fixes some light/dark decisions once per running app, so switching live leaves parts
         // (Explorer's lists, menus, scrollbars) in the old mode. Restarting is the only reliable switch.
         void RestartForTheme()
         {
             if (!Ready || restarting) return;
+            // Not in the middle of a copy or move: the restart waits until it has finished.
+            if (ProcessReference.Busy > 0)
+            {
+                restartWhenIdle = true;
+                Notice("The theme switches when the current copy or move has finished.");
+                WhenIdle();
+                return;
+            }
             saveTimer.Stop();
             // The new window reads the saved settings: don't restart if they couldn't be saved.
             string problem = SaveAll();
@@ -1070,7 +1124,8 @@ namespace OrclFileExplorer
                                     // Moved back on screen if its title bar would be off it (a monitor unplugged or
                                     // rearranged since): otherwise it couldn't be dragged, maximized or closed.
                                     List<Rectangle> areas = new List<Rectangle>();
-                                    foreach (Screen s in Screen.AllScreens) areas.Add(s.WorkingArea);
+                                    areas.Add(Screen.PrimaryScreen.WorkingArea); // first: where a window that's nowhere goes
+                                    foreach (Screen s in Screen.AllScreens) if (!s.Primary) areas.Add(s.WorkingArea);
                                     StartPosition = FormStartPosition.Manual;
                                     Bounds = WindowPlacement.Fit(new Rectangle(wx, wy, ww, wh), areas, Native.Px(34), Native.Px(120));
                                 }

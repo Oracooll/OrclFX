@@ -30,8 +30,18 @@ namespace OrclFileExplorer
         {
             Pane = pane;
             Folder = Title = Address = folder;
-            IntPtr pidl = Native.ParsePath(folder);
-            if (pidl != IntPtr.Zero) try { ReadNames(pidl); } finally { Marshal.FreeCoTaskMem(pidl); }
+            // A network folder isn't looked up here: with the share offline that would wait for the network for
+            // every such tab before the window even appears. Its names are read when the tab is first shown.
+            if (Util.IsNetworkPath(folder))
+            {
+                string name = Path.GetFileName(folder.TrimEnd('\\'));
+                Title = string.IsNullOrEmpty(name) ? folder : name;
+            }
+            else
+            {
+                IntPtr pidl = Native.ParsePath(folder);
+                if (pidl != IntPtr.Zero) try { ReadNames(pidl); } finally { Marshal.FreeCoTaskMem(pidl); }
+            }
             Locked = locked;
             if (locked) LockedFolder = Folder;
             Host.Dock = DockStyle.Fill;
@@ -480,6 +490,13 @@ namespace OrclFileExplorer
             finally { Marshal.ReleaseComObject(v); }
         }
 
+        // A folder opened from the results: in this tab, or in a new one when this tab is locked.
+        void OpenFromResults(string folder)
+        {
+            if (Locked && !Util.SameFolder(folder, LockedFolder)) Pane.AddTab(folder, false, true);
+            else LeaveResults(folder);
+        }
+
         // Back to an ordinary folder view (of folder) in this tab.
         void LeaveResults(string folder)
         {
@@ -529,7 +546,7 @@ namespace OrclFileExplorer
             if (!IsFindResults || FindInContents) return 1;
             string path = SelectedPath();
             if (path == null || !Directory.Exists(path)) return 1;
-            Pane.BeginInvoke((MethodInvoker)delegate { LeaveResults(path); });
+            Pane.BeginInvoke((MethodInvoker)delegate { OpenFromResults(path); });
             return 0;
         }
 
@@ -559,7 +576,7 @@ namespace OrclFileExplorer
             if (IsFindResults && !findPending)
             {
                 string to = Native.GetName(pidl, Native.SIGDN_DESKTOPABSOLUTEPARSING);
-                if (to != null) { Pane.BeginInvoke((MethodInvoker)delegate { LeaveResults(to); }); return Native.HRESULT_CANCELLED; }
+                if (to != null) { Pane.BeginInvoke((MethodInvoker)delegate { OpenFromResults(to); }); return Native.HRESULT_CANCELLED; }
             }
             if (!Locked) return 0;
             string target = Native.GetName(pidl, Native.SIGDN_DESKTOPABSOLUTEPARSING);

@@ -3,6 +3,16 @@
 Versions are `major.minor.build` with a three-digit build number. Every release bumps the build;
 the minor number changes only for larger milestones.
 
+## 1.1.021
+Fixes from audit round 5:
+- Copies, moves and deletes started in a pane keep running when you close the window (it hides until
+  they finish, like File Explorer); a theme switch waits for them, and an update is put off until they're
+  done. Before, closing or restarting cut them off halfway.
+- Tabs on an offline network share or mapped drive no longer delay startup: they're looked up only when
+  first shown.
+- Opening a folder from Find results in a locked tab opens it in a new tab (the locked tab stays put).
+- A window that was completely off-screen reopens on the main monitor.
+
 ## 1.1.020
 Fixes from audit round 4:
 - After a monitor is unplugged or rearranged, the window no longer reopens with its title bar off-screen
