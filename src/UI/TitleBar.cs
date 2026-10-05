@@ -84,7 +84,7 @@ namespace OrclFileExplorer
             for (int i = 0; i < 6; i++)
             {
                 int kind = i;
-                ViewButtons[i] = new GlyphButton("", "View: " + ViewNames[i] + " (Ctrl+Shift+" + new[] { 6, 5, 7, 8, 3, 2 }[i] + ")", DockStyle.Right);
+                ViewButtons[i] = new GlyphButton("", "View: " + ViewNames[i] + " (Ctrl+Shift+" + new[] { 6, 5, 7, 8, 3, 2 }[i] + ")\nRight-click: make it the default view for every folder (green tick); again to stop", DockStyle.Right);
                 ViewButtons[i].Width = Native.Px(30);
                 ViewButtons[i].Painter = delegate(Graphics g, Rectangle r, Color c) { DrawViewIcon(g, r, c, kind); };
                 Controls.Add(ViewButtons[i]);

@@ -193,6 +193,7 @@ namespace OrclFileExplorer
 
         public void TabNavigated(BrowserTab t)
         {
+            Main.ApplyDefaultView(t); // a default view chosen in the title bar always wins
             if (t == ActiveTab)
             {
                 if (!addr.Focused) addr.Text = t.Address;

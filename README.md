@@ -48,7 +48,8 @@ a single `orclfx.exe`, no installer package and no admin rights needed.
 
 **View**
 - View modes in the title bar (Details, List, Tiles, Content, Medium and Large icons), all eight
-  in ☰ › View mode.
+  in ☰ › View mode. Right-click a view button to make it the default for every folder you open (a green
+  tick marks it); right-click it again to go back to each folder's own remembered view.
 - Light, dark or match-Windows theme from the title bar.
 - ☰ › View options: show hidden files (Ctrl+H), auto-fit the Name column, natural number sorting,
   and folder sizes. Folder sizes are calculated in the background at low priority, skip network
@@ -150,7 +151,7 @@ deleted. When OneDrive keeps two versions of the list (two computers changed it 
   Windows applies some light/dark choices only when an app starts.
 - Only one window runs at a time; launching the app again brings the open window to the front.
 - See [CHANGELOG.md](CHANGELOG.md) for the version history. Versions are `major.minor.build` with a
-  three-digit build (1.1.023).
+  three-digit build (1.1.024).
 
 ## License
 

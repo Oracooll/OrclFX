@@ -122,6 +122,7 @@ namespace OrclFileExplorer
             {
                 int v = i;
                 titleBar.ViewButtons[i].Click += delegate { SetViewMode(ButtonViewModes[v, 0], ButtonViewModes[v, 1]); };
+                titleBar.ViewButtons[i].MouseUp += delegate(object s, MouseEventArgs e) { if (e.Button == MouseButtons.Right) SetDefaultView(v); };
             }
             titleBar.LayoutButtons[6].Click += delegate { SetShowShortcuts(!ShowShortcuts); };
             statusLeft.Dock = DockStyle.Fill;
@@ -265,7 +266,9 @@ namespace OrclFileExplorer
                     nt.Stop();
                     List<string> row = new List<string>();
                     foreach (BrowserTab x in ActivePane.Tabs) row.Add((x.Locked ? "L:" : "U:") + x.Title + (x == ActivePane.ActiveTab ? "*" : ""));
-                    Program.Trace("tabs: " + string.Join(" | ", row.ToArray()));
+                    int vm, vs;
+                    ActivePane.ActiveTab.GetViewMode(out vm, out vs);
+                    Program.Trace("tabs: " + string.Join(" | ", row.ToArray()) + "  view " + vm + "/" + vs);
                 };
                 nt.Start();
             }
@@ -780,6 +783,35 @@ namespace OrclFileExplorer
         }
 
         // Lights the button for the active pane's current view (Explorer remembers the view per folder).
+        // The view every folder opens in, as an index into ButtonViewModes (settings key "defaultview"); -1 = none,
+        // each folder keeps the view Windows remembers for it.
+        int defaultView = -1;
+
+        // Right-click on a view button: it becomes the default (or stops being it, if it was).
+        void SetDefaultView(int i)
+        {
+            defaultView = defaultView == i ? -1 : i;
+            for (int k = 0; k < 6; k++) titleBar.ViewButtons[k].Marked = k == defaultView;
+            if (defaultView >= 0)
+            {
+                // Right away for the folders on screen, too.
+                foreach (Pane p in Panes) if (p.Visible && p.ActiveTab != null && p.ActiveTab.Created) ApplyDefaultView(p.ActiveTab);
+                UpdateViewButtons();
+                Notice("Every folder now opens in " + TitleBar.ViewNames[i] + " view (right-click it again to stop).");
+            }
+            else Notice("No default view: each folder opens in the view it had last.");
+            StateChanged();
+        }
+
+        // Called whenever a tab has opened a folder (or Find results).
+        public void ApplyDefaultView(BrowserTab t)
+        {
+            if (defaultView < 0 || t == null || !t.Created) return;
+            int mode, size;
+            if (t.GetViewMode(out mode, out size) && mode == ButtonViewModes[defaultView, 0] && size == ButtonViewModes[defaultView, 1]) return;
+            t.SetViewMode(ButtonViewModes[defaultView, 0], ButtonViewModes[defaultView, 1]);
+        }
+
         void UpdateViewButtons()
         {
             BrowserTab t = ActivePane == null ? null : ActivePane.ActiveTab;
@@ -1202,6 +1234,7 @@ namespace OrclFileExplorer
                                 if (bar > 0) legacyShortcuts.Add(new KeyValuePair<string, string>(v.Substring(0, bar), v.Substring(bar + 1)));
                                 break;
                             case "theme": if (int.TryParse(v, out n) && n >= 0 && n <= 2) Theme.Mode = n; break;
+                            case "defaultview": if (int.TryParse(v, out n) && n >= 0 && n < 6) { defaultView = n; titleBar.ViewButtons[n].Marked = true; } break;
                             case "activepane": if (int.TryParse(v, out n) && n >= 0 && n < Panes.Length) startPane = n; break;
                             default:
                                 int pi; bool isTab;
@@ -1279,6 +1312,7 @@ namespace OrclFileExplorer
                 sb.AppendLine("shortcutswidth=" + Shortcuts.WidthSetting);
                 sb.AppendLine("shortcutsort=" + Shortcuts.SortMode);
                 sb.AppendLine("theme=" + Theme.Mode);
+                sb.AppendLine("defaultview=" + defaultView);
                 sb.AppendLine("activepane=" + Array.IndexOf(Panes, ActivePane));
                 for (int i = 0; i < Panes.Length; i++)
                 {

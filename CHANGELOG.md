@@ -3,6 +3,12 @@
 Versions are `major.minor.build` with a three-digit build number. Every release bumps the build;
 the minor number changes only for larger milestones.
 
+## 1.1.024
+- Default view: right-click a view button in the title bar to make that view the default for every folder
+  you open, in all panes and tabs (a small green tick marks it). It always wins over the view a folder had
+  before; left-click still changes the current folder's view until you open another. Right-click the
+  ticked button again to go back to each folder's own view.
+
 ## 1.1.023
 Final fixes from the audit (round 7 found no major problems):
 - After a copy finishes, a window closed during it no longer flashes back before closing.

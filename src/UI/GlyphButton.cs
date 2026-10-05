@@ -47,6 +47,14 @@ namespace OrclFileExplorer
             set { isChecked = value; Invalidate(); }
         }
 
+        // A small green tick in the top-right corner (the view buttons: "the default view").
+        bool marked;
+        public bool Marked
+        {
+            get { return marked; }
+            set { if (marked != value) { marked = value; Invalidate(); } }
+        }
+
         protected override void OnMouseEnter(EventArgs e) { hover = true; Invalidate(); base.OnMouseEnter(e); }
         protected override void OnMouseLeave(EventArgs e) { hover = down = false; Invalidate(); base.OnMouseLeave(e); }
         protected override void OnMouseDown(MouseEventArgs e) { down = true; Invalidate(); base.OnMouseDown(e); }
@@ -80,6 +88,20 @@ namespace OrclFileExplorer
             if (label != null)
                 TextRenderer.DrawText(g, label, Font, new Rectangle(gr.Right, 0, Width - gr.Right, Height), fg,
                     TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPadding | TextFormatFlags.NoPrefix);
+            if (marked)
+            {
+                float s = Native.Px(7), x = Width - Native.Px(3) - s, y = Native.Px(3);
+                System.Drawing.Drawing2D.SmoothingMode old = g.SmoothingMode;
+                g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
+                Color green = Theme.Dark ? Color.FromArgb(87, 199, 103) : Color.FromArgb(22, 140, 52);
+                using (Pen p = new Pen(green, Math.Max(1.6f, Native.Px(2) * 0.9f)))
+                {
+                    p.StartCap = p.EndCap = System.Drawing.Drawing2D.LineCap.Round;
+                    p.LineJoin = System.Drawing.Drawing2D.LineJoin.Round;
+                    g.DrawLines(p, new PointF[] { new PointF(x, y + s * 0.55f), new PointF(x + s * 0.38f, y + s * 0.9f), new PointF(x + s, y + s * 0.1f) });
+                }
+                g.SmoothingMode = old;
+            }
         }
     }
 }
