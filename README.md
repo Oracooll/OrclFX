@@ -142,7 +142,7 @@ the tests on every push.
   Windows applies some light/dark choices only when an app starts.
 - Only one window runs at a time; launching the app again brings the open window to the front.
 - See [CHANGELOG.md](CHANGELOG.md) for the version history. Versions are `major.minor.build` with a
-  three-digit build (1.1.013).
+  three-digit build (1.1.014).
 
 ## License
 

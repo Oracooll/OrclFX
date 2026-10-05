@@ -224,6 +224,24 @@ namespace OrclFileExplorer
                 };
                 ft.Start();
             }
+            // Test hook: DUALPANE_TEST_ADDSHORTCUT=<folder>[|<folder>...] adds those shortcuts 3 seconds after start,
+            // removes the first one 3 seconds later, and logs which icon each shortcut shows after each step.
+            string testAdd = Environment.GetEnvironmentVariable("DUALPANE_TEST_ADDSHORTCUT");
+            if (testAdd != null)
+            {
+                Timer at = new Timer();
+                at.Interval = 3000;
+                int astep = 0;
+                at.Tick += delegate
+                {
+                    astep++;
+                    if (astep == 1) { Program.Trace("shortcuts before: " + Shortcuts.IconReport()); foreach (string f in testAdd.Split('|')) Shortcuts.Add(f, null); return; }
+                    Program.Trace("shortcuts after " + (astep == 2 ? "adding" : "removing the first") + ": " + Shortcuts.IconReport());
+                    if (astep == 2) Shortcuts.TestRemoveFirst();
+                    else at.Stop();
+                };
+                at.Start();
+            }
             // Test hook: DUALPANE_TEST_FINDBOX=1 opens the Find box 3 seconds after start (to look at it).
             if (Environment.GetEnvironmentVariable("DUALPANE_TEST_FINDBOX") == "1")
             {

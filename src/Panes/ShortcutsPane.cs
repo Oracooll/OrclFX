@@ -174,8 +174,14 @@ namespace OrclFileExplorer
             th.Start();
         }
 
+        // shell32 #660: sets up the system icon cache for this thread's icon lookups. Without it, lookups made
+        // while the app is still starting can come back empty.
+        [DllImport("shell32.dll", EntryPoint = "#660")]
+        static extern bool FileIconInit(bool restoreCache);
+
         void IconWorker()
         {
+            try { FileIconInit(true); } catch { }
             while (true)
             {
                 string path;
@@ -184,10 +190,9 @@ namespace OrclFileExplorer
                     if (iconQueue.Count == 0) { iconWorkerRunning = false; break; }
                     path = iconQueue.Dequeue();
                 }
-                Icon ic = null;
-                IntPtr pidl = Native.ParsePath(path);
-                if (pidl != IntPtr.Zero)
-                    try { ic = Native.SmallIcon(pidl); } catch { } finally { Marshal.FreeCoTaskMem(pidl); }
+                Icon ic = LoadIcon(path);
+                // Still nothing for a folder that exists: try once more a moment later.
+                if (ic == null && Directory.Exists(path)) { System.Threading.Thread.Sleep(500); ic = LoadIcon(path); }
                 lock (iconsReady)
                 {
                     // The pane was closed meanwhile: nobody will use the icon.
@@ -197,6 +202,15 @@ namespace OrclFileExplorer
                 // Before the window exists, OnHandleCreated picks the icons up instead.
                 if (IsHandleCreated) try { BeginInvoke((MethodInvoker)ApplyIcons); } catch { }
             }
+        }
+
+        static Icon LoadIcon(string path)
+        {
+            IntPtr pidl = Native.ParsePath(path);
+            if (pidl == IntPtr.Zero) return null;
+            try { return Native.SmallIcon(pidl); }
+            catch { return null; }
+            finally { Marshal.FreeCoTaskMem(pidl); }
         }
 
         void ApplyIcons()
@@ -210,9 +224,55 @@ namespace OrclFileExplorer
                 // the ImageList keeps using the icon until its handle exists: don't dispose it here
                 if (r.Value != null && !icons.Images.ContainsKey(r.Key)) icons.Images.Add(r.Key, r.Value);
             }
+            RefreshItemIcons();
             Program.Trace("shortcut icons: " + icons.Images.Count + " of " + list.Items.Count);
-            list.Invalidate();
         }
+
+        // The list keeps each item's icon as a position in the image list, worked out when the item is added
+        // (or its key set). An icon that arrives later, or a removed one that shifts the others, needs every
+        // item to look its icon up again by its key (the folder path).
+        void RefreshItemIcons()
+        {
+            if (!list.IsHandleCreated) return; // positions are worked out when the list is created
+            list.BeginUpdate();
+            foreach (ListViewItem it in list.Items) it.ImageKey = (string)it.Tag;
+            list.EndUpdate();
+        }
+
+        internal void TestRemoveFirst() { if (list.Items.Count > 0) Remove(list.Items[0]); }
+
+        // For the test hook's log: per item, the icon position the list shows and the one it should show.
+        internal string IconReport()
+        {
+            List<string> r = new List<string>();
+            foreach (ListViewItem it in list.Items)
+            {
+                LVITEM li = new LVITEM();
+                li.mask = 0x2; // LVIF_IMAGE
+                li.iItem = it.Index;
+                SendMessage(list.Handle, 0x104B /* LVM_GETITEMW */, IntPtr.Zero, ref li);
+                r.Add(it.Text + "=" + li.iImage + "/" + icons.Images.IndexOfKey((string)it.Tag));
+            }
+            return string.Join(", ", r.ToArray());
+        }
+
+        [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+        struct LVITEM
+        {
+            public uint mask;
+            public int iItem, iSubItem;
+            public uint state, stateMask;
+            public IntPtr pszText;
+            public int cchTextMax, iImage;
+            public IntPtr lParam;
+            public int iIndent, iGroupId;
+            public uint cColumns;
+            public IntPtr puColumns, piColFmt;
+            public int iGroup;
+        }
+
+        [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+        static extern IntPtr SendMessage(IntPtr h, int msg, IntPtr w, ref LVITEM item);
 
         protected override void OnHandleCreated(EventArgs e)
         {
@@ -724,7 +784,11 @@ namespace OrclFileExplorer
         {
             list.Items.Remove(it);
             // Drop its cached icon (the image list keeps one per folder).
-            if (icons.Images.ContainsKey((string)it.Tag)) icons.Images.RemoveByKey((string)it.Tag);
+            if (icons.Images.ContainsKey((string)it.Tag))
+            {
+                icons.Images.RemoveByKey((string)it.Tag);
+                RefreshItemIcons(); // the icons after it moved up one place
+            }
             unavailable.Remove((string)it.Tag);
             ApplyWidth();
             ShowAvailability();

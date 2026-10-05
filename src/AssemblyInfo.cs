@@ -7,7 +7,7 @@ using System.Runtime.CompilerServices;
 [assembly: AssemblyDescription("Dual-pane file manager")]
 // Version shown as major.minor.build with three-digit build (1.1.001). Bump the build number for every
 // release; the minor number only changes when the owner says so.
-[assembly: AssemblyVersion("1.1.13.0")]
-[assembly: AssemblyFileVersion("1.1.13.0")]
+[assembly: AssemblyVersion("1.1.14.0")]
+[assembly: AssemblyFileVersion("1.1.14.0")]
 // The test runner (tests\) reaches the app's internal classes directly.
 [assembly: InternalsVisibleTo("orclfx.tests")]

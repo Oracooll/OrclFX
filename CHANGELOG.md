@@ -3,6 +3,11 @@
 Versions are `major.minor.build` with a three-digit build number. Every release bumps the build;
 the minor number changes only for larger milestones.
 
+## 1.1.014
+- Shortcuts pane: folders added while the app runs get their icon (since 1.1.005 they stayed without
+  one), removing a shortcut no longer shifts the other shortcuts' icons, and the icons of shortcuts
+  loaded at startup no longer go missing now and then.
+
 ## 1.1.013
 - Find: the magnifier in the title bar (or Ctrl+F / F3) searches the folder in the active pane and all
   its subfolders by name (part of a name, or patterns like `*.pdf;*.docx`). Results appear as they are
