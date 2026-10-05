@@ -3,6 +3,11 @@
 Versions are `major.minor.build` with a three-digit build number. Every release bumps the build;
 the minor number changes only for larger milestones.
 
+## 1.1.016
+- Tabs the app opens (a folder opened from a locked tab, Ctrl+T, Find results, Duplicate) never land
+  between locked tabs: from a locked tab, the new tab goes after that group of locked tabs. Dragging
+  tabs still puts them anywhere.
+
 ## 1.1.015
 - Settings move out of the old `DualPane` folders. The shortcuts list, shared by your computers, is now
   in `Documents\OrclFX` in OneDrive (when Documents is backed up to OneDrive, or OneDrive has a Documents

@@ -241,6 +241,24 @@ namespace OrclFileExplorer
                 };
                 at.Start();
             }
+            // Test hook: DUALPANE_TEST_NAVIGATE=<folder> opens that folder from the active tab 3 seconds after start
+            // and logs the active pane's tabs (L = locked) 3 seconds later.
+            string testNav = Environment.GetEnvironmentVariable("DUALPANE_TEST_NAVIGATE");
+            if (testNav != null)
+            {
+                Timer nt = new Timer();
+                nt.Interval = 3000;
+                bool navigated = false;
+                nt.Tick += delegate
+                {
+                    if (!navigated) { navigated = true; ActivePane.ActiveTab.Navigate(testNav); return; }
+                    nt.Stop();
+                    List<string> row = new List<string>();
+                    foreach (BrowserTab x in ActivePane.Tabs) row.Add((x.Locked ? "L:" : "U:") + x.Title + (x == ActivePane.ActiveTab ? "*" : ""));
+                    Program.Trace("tabs: " + string.Join(" | ", row.ToArray()));
+                };
+                nt.Start();
+            }
             // Test hook: DUALPANE_TEST_FINDBOX=1 opens the Find box 3 seconds after start (to look at it).
             if (Environment.GetEnvironmentVariable("DUALPANE_TEST_FINDBOX") == "1")
             {

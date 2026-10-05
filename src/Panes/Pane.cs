@@ -97,7 +97,7 @@ namespace OrclFileExplorer
         public BrowserTab AddTab(string folder, bool locked, bool activate, bool atEnd = false)
         {
             BrowserTab t = new BrowserTab(this, folder, locked);
-            int at = atEnd || active < 0 ? Tabs.Count : active + 1;
+            int at = atEnd || active < 0 ? Tabs.Count : TabOrder.InsertIndex(Tabs.ConvertAll(delegate(BrowserTab x) { return x.Locked; }), active);
             Tabs.Insert(at, t);
             if (active >= at) active++;
             content.Controls.Add(t.Host);

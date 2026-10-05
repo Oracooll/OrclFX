@@ -15,7 +15,8 @@ a single `orclfx.exe`, no installer package and no admin rights needed.
 - One to four panes side by side (Alt+1 … Alt+4). Each pane has its own tabs, remembered between
   sessions; panes you hide keep their tabs for when you show them again.
 - Locked tabs (right-click a tab › Lock) never leave their folder: opening a folder from one opens
-  it in a new tab.
+  it in a new tab, placed after the group of locked tabs (tabs the app opens never land between two
+  locked tabs; you can still drag tabs anywhere).
 - The active pane, the one you used last, is framed in your accent colour. The first click on an
   inactive pane only activates it.
 - Double-click empty space in a file list to go up one level.
@@ -146,7 +147,7 @@ on first start (the old OneDrive copy stays until every computer has updated, an
   Windows applies some light/dark choices only when an app starts.
 - Only one window runs at a time; launching the app again brings the open window to the front.
 - See [CHANGELOG.md](CHANGELOG.md) for the version history. Versions are `major.minor.build` with a
-  three-digit build (1.1.015).
+  three-digit build (1.1.016).
 
 ## License
 
