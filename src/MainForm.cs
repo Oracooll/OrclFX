@@ -324,12 +324,11 @@ namespace OrclFileExplorer
                 WhenIdle();
                 return;
             }
-            // Closing for real after waiting hidden: if saving fails, the question needs a visible window.
-            if (closeWhenIdle && !Visible) Show();
             while (true)
             {
                 string problem = SaveAll();
                 if (problem == null || !userClose) break;
+                if (!Visible) Show(); // closing after waiting hidden: the question needs a visible window
                 DialogResult r = MessageBox.Show(this, problem + "\n\nYes: try again\nNo: close anyway (changes since the last save are lost)\nCancel: keep the window open",
                     Program.AppName, MessageBoxButtons.YesNoCancel, MessageBoxIcon.Warning);
                 if (r == DialogResult.Yes) continue;
@@ -644,14 +643,23 @@ namespace OrclFileExplorer
             catch { return; }
             System.Threading.Thread th = new System.Threading.Thread(delegate()
             {
-                while (true)
+                // Also stops when this window closes, so a later start's request isn't taken by a closing app.
+                while (System.Threading.WaitHandle.WaitAny(new System.Threading.WaitHandle[] { ev, formClosed }) == 0)
                 {
-                    ev.WaitOne();
-                    try { BeginInvoke((MethodInvoker)ShowFromElsewhere); } catch { return; }
+                    try { BeginInvoke((MethodInvoker)ShowFromElsewhere); } catch { break; }
                 }
+                ev.Dispose();
             });
             th.IsBackground = true;
             th.Start();
+        }
+
+        readonly System.Threading.ManualResetEvent formClosed = new System.Threading.ManualResetEvent(false);
+
+        protected override void OnFormClosed(FormClosedEventArgs e)
+        {
+            formClosed.Set();
+            base.OnFormClosed(e);
         }
 
         void ShowFromElsewhere()

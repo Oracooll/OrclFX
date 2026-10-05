@@ -3,6 +3,11 @@
 Versions are `major.minor.build` with a three-digit build number. Every release bumps the build;
 the minor number changes only for larger milestones.
 
+## 1.1.023
+Final fixes from the audit (round 7 found no major problems):
+- After a copy finishes, a window closed during it no longer flashes back before closing.
+- A closing app no longer takes a "show your window" request meant for a newly started one.
+
 ## 1.1.022
 Fixes from audit round 6:
 - Starting the app while its window waits hidden for a copy to finish shows the window again (before, the
