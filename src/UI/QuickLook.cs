@@ -57,7 +57,8 @@ namespace OrclFileExplorer
             image.BackColor = Theme.Dark ? Color.FromArgb(12, 12, 12) : Color.FromArgb(235, 235, 235);
             image.Font = Font;
             image.ShowInfo = ShowInfo;
-            image.WantsFullSize += delegate { loader.LoadFull(this.path); };
+            // (Only for the picture really on screen: the next one may still be loading.)
+            image.WantsFullSize += delegate { if (string.Equals(onScreen, this.path, StringComparison.OrdinalIgnoreCase)) loader.LoadFull(this.path, image.Original); };
             image.ZoomChanged += delegate { UpdateTitle(); };
             preview.Visible = false;
             viewerHost.Controls.Add(image);
@@ -79,6 +80,7 @@ namespace OrclFileExplorer
             };
             splitter.MouseUp += delegate { splitter.Capture = false; ThumbWidth = (int)Math.Round(thumbs.Width * 96.0 / Native.Px(96)); main.StateChanged(); };
             body.Dock = DockStyle.Fill;
+            body.Resize += delegate { FitThumbs(); };
             body.Controls.Add(viewerHost);
             body.Controls.Add(splitter);
             body.Controls.Add(thumbs);
@@ -99,7 +101,7 @@ namespace OrclFileExplorer
             refocus.Interval = 400;
             refocus.Tick += delegate { refocus.Stop(); TakeFocus(); };
             preview.Loaded += delegate { TakeFocus(); refocus.Stop(); refocus.Start(); };
-            FormClosing += delegate { refocus.Stop(); loader.Quit(); preview.Shutdown(); };
+            // (Not in FormClosing: closing the main window asks this one first, and may then be cancelled.)
             Shown += delegate
             {
                 ShowFile(this.path);
@@ -130,13 +132,22 @@ namespace OrclFileExplorer
             viewerHost.Visible = ShowViewer;
             splitter.Visible = ShowThumbs && ShowViewer;
             thumbs.Dock = ShowViewer ? DockStyle.Right : DockStyle.Fill;
-            if (ShowViewer) thumbs.Width = Math.Max(Native.Px(120), Native.Px(ThumbWidth));
+            FitThumbs();
             splitter.Dock = DockStyle.Right;
             viewerHost.Dock = DockStyle.Fill;
             body.ResumeLayout(true);
             bar.ThumbsButton.Checked = ShowThumbs;
             bar.ViewerButton.Checked = ShowViewer;
             bar.InfoButton.Checked = ShowInfo;
+        }
+
+        // The thumbnail pane's saved width, but never so wide that the picture pane has no room (a width saved on a
+        // bigger screen).
+        void FitThumbs()
+        {
+            if (!ShowViewer || !ShowThumbs) return;
+            int w = Math.Max(Native.Px(120), Math.Min(Native.Px(ThumbWidth), body.Width - Native.Px(200)));
+            if (thumbs.Width != w) thumbs.Width = w;
         }
 
         public void TogglePane(bool thumbsPane)
@@ -232,7 +243,9 @@ namespace OrclFileExplorer
         void Go(string p)
         {
             if (p == null) { System.Media.SystemSounds.Beep.Play(); return; }
-            if (tab.Created) tab.SelectPath(p, 0x1 | 0x4 | 0x8 | 0x10);
+            // Only while the list still shows this file's folder (another folder may have a file of the same name).
+            if (tab.Created && !tab.IsFindResults && Util.SameFolder(Path.GetDirectoryName(p), tab.Address))
+                tab.SelectPath(p, 0x1 | 0x4 | 0x8 | 0x10);
             ShowFile(p);
         }
 
@@ -422,6 +435,9 @@ namespace OrclFileExplorer
         protected override void OnFormClosed(FormClosedEventArgs e)
         {
             base.OnFormClosed(e);
+            refocus.Stop();
+            loader.Quit();
+            preview.Shutdown();
             refocus.Dispose();
             preview.Dispose();
             thumbs.Dispose();
@@ -584,6 +600,7 @@ namespace OrclFileExplorer
         readonly Dictionary<string, Pictures.PictureData> cache = new Dictionary<string, Pictures.PictureData>(StringComparer.OrdinalIgnoreCase);
         readonly List<string> order = new List<string>();  // oldest first
         string want, full;
+        Size fullOriginal;
         int epoch;   // bumped by Forget: a decode that started before it is out of date
         List<string> preload = new List<string>();
         volatile bool quit;
@@ -605,7 +622,10 @@ namespace OrclFileExplorer
             lock (gate)
             {
                 Pictures.PictureData d;
-                return cache.TryGetValue(p, out d) ? CopyOf(d) : null;
+                if (!cache.TryGetValue(p, out d)) return null;
+                order.Remove(p); // just used: kept longest
+                order.Add(p);
+                return CopyOf(d);
             }
         }
 
@@ -618,17 +638,9 @@ namespace OrclFileExplorer
             return c;
         }
 
-        Size OriginalOf(string p)
-        {
-            lock (gate)
-            {
-                Pictures.PictureData d;
-                return cache.TryGetValue(p, out d) ? d.Original : screenBox;
-            }
-        }
 
         public void Load(string p) { lock (gate) { want = p; full = null; } wake.Set(); }
-        public void LoadFull(string p) { lock (gate) full = p; wake.Set(); }
+        public void LoadFull(string p, Size original) { lock (gate) { full = p; fullOriginal = original; } wake.Set(); }
         public void Preload(List<string> ps) { lock (gate) preload = ps; wake.Set(); }
         public void Quit() { quit = true; wake.Set(); }
 
@@ -644,6 +656,20 @@ namespace OrclFileExplorer
 
         void Run()
         {
+            try { Work(); }
+            finally
+            {
+                lock (gate)
+                {
+                    foreach (Pictures.PictureData d in cache.Values) d.Bitmap.Dispose();
+                    cache.Clear();
+                    order.Clear();
+                }
+            }
+        }
+
+        void Work()
+        {
             while (!quit)
             {
                 wake.WaitOne();
@@ -652,9 +678,11 @@ namespace OrclFileExplorer
                     string p;
                     bool isFull = false;
                     int started;
+                    Size original;
                     lock (gate)
                     {
                         started = epoch;
+                        original = fullOriginal;
                         if (want != null) { p = want; want = null; }
                         else if (full != null) { p = full; full = null; isFull = true; }
                         else
@@ -670,7 +698,7 @@ namespace OrclFileExplorer
                         if (isFull)
                         {
                             // Up to about 60 megapixels: bigger pictures are shown a little below 100 %.
-                            Size o = OriginalOf(p);
+                            Size o = original;
                             double k = Math.Min(1.0, Math.Sqrt(60e6 / Math.Max(1.0, (double)o.Width * o.Height)));
                             d = Pictures.LoadEx(p, new Size((int)(o.Width * k), (int)(o.Height * k)), false);
                             lock (gate) if (d != null && epoch != started) { d.Bitmap.Dispose(); continue; } // turned meanwhile

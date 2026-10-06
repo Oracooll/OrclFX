@@ -31,6 +31,7 @@ namespace OrclFileExplorer
         List<string> wanted = new List<string>();
         int wantedSize;
         int generation;
+        readonly Dictionary<string, int> versions = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase); // bumped when a picture changes
         volatile bool quit;
         Thread worker;
 
@@ -105,6 +106,7 @@ namespace OrclFileExplorer
         // The picture changed (turned): its thumbnail is made again.
         public void Refresh(string path)
         {
+            lock (gate) { int v; versions.TryGetValue(path, out v); versions[path] = v + 1; } // one being made now is out of date
             Forget(path);
             failed.Remove(path);
             Invalidate();
@@ -320,14 +322,14 @@ namespace OrclFileExplorer
                 while (!quit)
                 {
                     string path;
-                    int size, gen;
+                    int size, version;
                     lock (gate)
                     {
                         if (wanted.Count == 0) break;
                         path = wanted[0];
                         wanted.RemoveAt(0);
                         size = wantedSize;
-                        gen = generation;
+                        versions.TryGetValue(path, out version);
                     }
                     Bitmap b = null;
                     try { b = PreviewWorker.ThumbnailFor(path, size); } catch { }
@@ -337,6 +339,9 @@ namespace OrclFileExplorer
                         BeginInvoke((MethodInvoker)delegate
                         {
                             if (IsDisposed) { if (b != null) b.Dispose(); return; }
+                            int now;
+                            lock (gate) versions.TryGetValue(path, out now);
+                            if (now != version) { if (b != null) b.Dispose(); RequestVisible(); return; } // turned meanwhile
                             if (b == null) { failed.Add(path); return; }
                             int have;
                             if (cacheSize.TryGetValue(path, out have) && have == thumbSize && size != thumbSize) { b.Dispose(); return; }

@@ -1027,7 +1027,8 @@ namespace OrclFileExplorer
         // The total size of the selected items, counted in the background (folders too) whenever the selection
         // changes; null when there's nothing to show.
         SelectionSize selSize;
-        string selKey;
+        string selKey, selPending;
+        int selPendingTick;
 
         string SelectionSizeText(BrowserTab t, int sel)
         {
@@ -1036,6 +1037,10 @@ namespace OrclFileExplorer
             key = t.GetHashCode() + "|" + key;
             if (key != selKey)
             {
+                // Counted once the selection has stopped changing for a moment (Shift+arrow held down changes it
+                // several times a second; listing a big selection each time would slow the window).
+                if (key != selPending) { selPending = key; selPendingTick = Environment.TickCount; ForgetSelectionSize(); return null; }
+                if (sel > 500 && unchecked(Environment.TickCount - selPendingTick) < 500) return null;
                 ForgetSelectionSize();
                 selKey = key;
                 // Listing a huge selection would hold up the window: no total for it.

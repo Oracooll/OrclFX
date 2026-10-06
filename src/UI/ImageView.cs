@@ -33,6 +33,7 @@ namespace OrclFileExplorer
         }
 
         public bool HasImage { get { return image != null; } }
+        public Size Original { get { return original; } }
         public bool IsFit { get { return fit; } }
         public float Zoom { get { return fit ? FitZoom : zoom; } }
         // The bitmap being drawn holds fewer pixels than the picture at this zoom.

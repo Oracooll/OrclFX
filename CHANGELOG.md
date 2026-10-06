@@ -3,6 +3,17 @@
 Versions are `major.minor.build` with a three-digit build number. Every release bumps the build;
 the minor number changes only for larger milestones.
 
+## 1.1.033
+Fixes from an audit loop (2 rounds; the last found no major problems):
+- Space Viewer: zooming to 100 % after stepping back through several pictures could stay blurry (the full
+  picture was loaded at screen size); a thumbnail pane made very wide on a big monitor could push the picture
+  pane off a smaller screen; closing the main window while it waited for a copy could leave a viewer that no
+  longer loaded anything; if the tab moved to another folder meanwhile, stepping could select a same-named file
+  there; a thumbnail made while the picture was being turned could keep the old orientation. The viewer also
+  frees its memory when closed.
+- The size of a big selection is counted once the selection stops changing (holding Shift+arrow in a huge folder
+  made the window sluggish).
+
 ## 1.1.032
 Space Viewer (Space on a file; formerly Quick Look), with ideas from FastStone Image Viewer:
 - Two panes: the viewer, and a thumbnail pane with every picture of the folder. Their buttons in the viewer's
