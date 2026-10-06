@@ -19,9 +19,31 @@ namespace OrclFileExplorer
 
         public static bool IsPictureKind(string path) { return kinds.Contains(Path.GetExtension(path) ?? ""); }
 
+        // Picture files of any kind Windows may show (the ones decoded here, and others through their thumbnails).
+        static readonly HashSet<string> images = new HashSet<string>(StringComparer.OrdinalIgnoreCase) {
+            ".heic", ".heif", ".webp", ".avif", ".jxl", ".jxr", ".wdp", ".ico", ".cur", ".svg", ".psd",
+            ".cr2", ".cr3", ".crw", ".nef", ".nrw", ".arw", ".srf", ".sr2", ".dng", ".orf", ".rw2", ".raf", ".srw", ".pef", ".raw" };
+
+        public static bool IsImageFile(string path) { return IsPictureKind(path) || images.Contains(Path.GetExtension(path) ?? ""); }
+
         // The picture scaled to fit box (never enlarged), turned the way its camera says (EXIF orientation); null
         // when it can't be decoded here (then the shell's thumbnail is used) or only lives in the cloud.
         public static Bitmap Load(string path, Size box)
+        {
+            PictureData d = LoadEx(path, box, false);
+            return d == null ? null : d.Bitmap;
+        }
+
+        // A decoded picture: the bitmap (scaled to fit the box asked for), the picture's own upright size, and its
+        // details for the viewer's info box.
+        public class PictureData
+        {
+            public Bitmap Bitmap;
+            public Size Original;
+            public string[] Info;
+        }
+
+        public static PictureData LoadEx(string path, Size box, bool withInfo)
         {
             FileInfo fi = new FileInfo(path);
             if (!fi.Exists || fi.Length == 0 || fi.Length > MaxFileBytes) return null;
@@ -44,6 +66,9 @@ namespace OrclFileExplorer
                     turn == RotateFlipType.Rotate90FlipX || turn == RotateFlipType.Rotate270FlipX;
                 int w = sideways ? img.Height : img.Width, h = sideways ? img.Width : img.Height;
                 Size fit = Fit(new Size(w, h), box);
+                PictureData data = new PictureData();
+                data.Original = new Size(w, h);
+                if (withInfo) data.Info = Details(img, fi, w, h);
                 Bitmap result = new Bitmap(fit.Width, fit.Height, PixelFormat.Format32bppArgb);
                 try
                 {
@@ -75,10 +100,68 @@ namespace OrclFileExplorer
                             }
                         }
                     }
-                    return result;
+                    data.Bitmap = result;
+                    return data;
                 }
                 catch { result.Dispose(); throw; }
             }
+        }
+
+        // Lines for the viewer's info box: file, size, and what the camera recorded (EXIF).
+        static string[] Details(Image img, FileInfo fi, int w, int h)
+        {
+            System.Collections.Generic.List<string> r = new System.Collections.Generic.List<string>();
+            r.Add(fi.Name);
+            r.Add(w + " × " + h + " pixels (" + (w * (double)h / 1e6).ToString("0.#") + " MP)  ·  " + Util.FormatBytes(fi.Length));
+            string taken = Ascii(img, 0x9003);
+            DateTime t;
+            if (taken != null && DateTime.TryParseExact(taken, "yyyy:MM:dd HH:mm:ss", System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out t))
+                r.Add("Taken " + t.ToString("g"));
+            else r.Add("Modified " + fi.LastWriteTime.ToString("g"));
+            string make = Ascii(img, 0x010F), model = Ascii(img, 0x0110);
+            if (model != null) r.Add(make != null && !model.StartsWith(make, StringComparison.OrdinalIgnoreCase) ? make + " " + model : model);
+            string lens = Ascii(img, 0xA434);
+            if (lens != null) r.Add(lens);
+            System.Collections.Generic.List<string> shot = new System.Collections.Generic.List<string>();
+            double f;
+            if (Rational(img, 0x920A, out f) && f > 0) shot.Add(f.ToString("0.#") + " mm");
+            if (Rational(img, 0x829D, out f) && f > 0) shot.Add("f/" + f.ToString("0.#"));
+            if (Rational(img, 0x829A, out f) && f > 0) shot.Add(f >= 1 ? f.ToString("0.#") + " s" : "1/" + Math.Round(1 / f) + " s");
+            int iso = Short(img, 0x8827);
+            if (iso > 0) shot.Add("ISO " + iso);
+            if (shot.Count > 0) r.Add(string.Join("  ·  ", shot.ToArray()));
+            return r.ToArray();
+        }
+
+        static PropertyItem Prop(Image img, int id)
+        {
+            try { foreach (int x in img.PropertyIdList) if (x == id) return img.GetPropertyItem(id); } catch { }
+            return null;
+        }
+
+        static string Ascii(Image img, int id)
+        {
+            PropertyItem p = Prop(img, id);
+            if (p == null || p.Value == null) return null;
+            string s = System.Text.Encoding.ASCII.GetString(p.Value).Trim('\0', ' ');
+            return s.Length > 0 ? s : null;
+        }
+
+        static bool Rational(Image img, int id, out double v)
+        {
+            v = 0;
+            PropertyItem p = Prop(img, id);
+            if (p == null || p.Value == null || p.Value.Length < 8) return false;
+            uint n = BitConverter.ToUInt32(p.Value, 0), d = BitConverter.ToUInt32(p.Value, 4);
+            if (d == 0) return false;
+            v = (double)n / d;
+            return true;
+        }
+
+        static int Short(Image img, int id)
+        {
+            PropertyItem p = Prop(img, id);
+            return p == null || p.Value == null || p.Value.Length < 2 ? 0 : BitConverter.ToUInt16(p.Value, 0);
         }
 
         // The largest size with the picture's proportions that fits box, never bigger than the picture itself.

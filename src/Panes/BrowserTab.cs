@@ -355,6 +355,40 @@ namespace OrclFileExplorer
             return r;
         }
 
+        // File-system paths of the files in the view (not folders), in the order shown; at most max.
+        public List<string> FilePaths(int max)
+        {
+            List<string> r = new List<string>();
+            IFolderView v = View<IFolderView>(Native.IID_IFolderView);
+            if (v == null) return r;
+            try
+            {
+                Guid iid = Native.IID_IShellItemArray;
+                object o;
+                if (v.Items(Native.SVGIO_ALLVIEW | 0x80000000 /* SVGIO_FLAG_VIEWORDER */, ref iid, out o) != 0) return r;
+                IShellItemArray arr = o as IShellItemArray;
+                uint n;
+                if (arr != null && arr.GetCount(out n) == 0)
+                    for (uint i = 0; i < n && r.Count < max; i++)
+                    {
+                        IShellItem item;
+                        if (arr.GetItemAt(i, out item) != 0) continue;
+                        uint a;
+                        // A folder (but not a .zip, which is a folder with a stream) isn't a file.
+                        if (item.GetAttributes(0x20000000 | 0x00400000, out a) >= 0 && ((a & 0x00400000) != 0 || (a & 0x20000000) == 0))
+                        {
+                            string p = Native.ItemName(item, Native.SIGDN_FILESYSPATH);
+                            if (p != null) r.Add(p);
+                        }
+                        Marshal.ReleaseComObject(item);
+                    }
+                if (o != null) Marshal.ReleaseComObject(o);
+            }
+            catch { }
+            finally { Marshal.ReleaseComObject(v); }
+            return r;
+        }
+
         // Changes whenever the selection probably did (count, anchor or focused item), cheap enough to ask often.
         public string SelectionKey(int count)
         {

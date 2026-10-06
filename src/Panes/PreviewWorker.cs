@@ -226,6 +226,18 @@ namespace OrclFileExplorer
             handler = null;
         }
 
+        // A thumbnail of at most size x size for the Space Viewer's thumbnail pane (call on an STA thread): the
+        // shell's, else the picture decoded here, else the file's icon.
+        public static Bitmap ThumbnailFor(string path, int size)
+        {
+            SIZE s = new SIZE();
+            s.cx = s.cy = size;
+            Bitmap b = ShellImage(path, s, SIIGBF_THUMBNAILONLY);
+            if (b == null && Pictures.IsPictureKind(path))
+                try { b = Pictures.Load(path, new Size(size, size)); } catch { }
+            return b ?? ShellImage(path, s, 0);
+        }
+
         static Bitmap LoadPicture(Request r)
         {
             try { return Pictures.Load(r.Path, new Size(r.ThumbSize.cx, r.ThumbSize.cy)); }

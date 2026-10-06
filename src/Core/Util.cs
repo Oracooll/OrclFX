@@ -48,6 +48,23 @@ namespace OrclFileExplorer
             }
         }
 
+        // Replaces the file's contents in one step (a temporary file swapped in), keeping its attributes.
+        public static void ReplaceFileSafelyWithBytes(string path, byte[] data)
+        {
+            string id = Guid.NewGuid().ToString("N").Substring(0, 8), tmp = path + "." + id + ".tmp", bak = path + "." + id + ".bak";
+            File.WriteAllBytes(tmp, data);
+            try { File.Replace(tmp, path, bak, true); }
+            catch
+            {
+                // File.Replace can fail after moving the original aside (antivirus, a network share): put it back.
+                try { if (!File.Exists(path) && File.Exists(bak)) File.Move(bak, path); } catch { }
+                try { if (!File.Exists(path) && File.Exists(tmp)) File.Move(tmp, path); } catch { }
+                try { if (File.Exists(tmp)) File.Delete(tmp); } catch { }
+                throw;
+            }
+            try { File.Delete(bak); } catch { }
+        }
+
         // Makes "New folder" or an empty "New Text Document.txt" in dir, numbered when the name is taken ("New
         // folder (2)"). Returns its path.
         static readonly object newItemLock = new object();

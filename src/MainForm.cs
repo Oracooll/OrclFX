@@ -367,7 +367,18 @@ namespace OrclFileExplorer
                     }
                     else if (ql && stage == 1)
                     {
-                        if (quickLook != null) { string next = a.StepSelection(1); if (next != null) quickLook.ShowFile(next); }
+                        if (quickLook != null) foreach (string step in (Environment.GetEnvironmentVariable("DUALPANE_TEST_SV") ?? "next").Split(','))
+                            switch (step)
+                            {
+                                case "next": quickLook.Step(1); break;
+                                case "turn": quickLook.Turn(true); break;
+                                case "delete": quickLook.DeleteCurrent(); break;
+                                case "info": quickLook.ToggleInfo(); break;
+                                case "thumbs": quickLook.TogglePane(true); break;
+                                case "viewer": quickLook.TogglePane(false); break;
+                                case "full": quickLook.ToggleFullScreen(); break;
+                                case "zoom": quickLook.HandleKey(Keys.D1, IntPtr.Zero, false); break;
+                            }
                         Program.Trace("quick look shows " + (quickLook == null ? "nothing" : quickLook.ShownPath));
                     }
                     else
@@ -997,7 +1008,7 @@ namespace OrclFileExplorer
                 "Double-click a divider\tMake the panes equal width\n" +
                 "Ctrl+H\t\t\tShow / hide hidden files\n" +
                 "Ctrl+E\t\t\tShow / hide file name extensions\n" +
-                "Space\t\t\tQuick Look: a large preview (arrows: next file)\n" +
+                "Space\t\t\tSpace Viewer: a large view and thumbnails (arrows: next file)\n" +
                 "Click the address bar\tCopy the folder's path (double-click: type one)\n" +
                 "Ctrl+F / F3\t\tFind in this folder and its subfolders\n" +
                 "Ctrl+T\t\t\tNew tab\n" +
@@ -1158,8 +1169,8 @@ namespace OrclFileExplorer
             int msg = m.Msg;
             // While Quick Look is open, its keys (arrows, Space, Esc) are its own wherever the focus is: in the file
             // list behind it they would move the selection there instead.
-            if ((msg == 0x100 || msg == 0x104) && quickLook != null && !quickLook.IsDisposed && quickLook.Visible &&
-                quickLook.HandleKey((Keys)(int)m.WParam & Keys.KeyCode, m.HWnd)) return true;
+            if ((msg == 0x100 || msg == 0x104) && quickLook != null && !quickLook.IsDisposed && quickLook.Visible && Form.ActiveForm == quickLook &&
+                quickLook.HandleKey((Keys)(int)m.WParam & Keys.KeyCode, m.HWnd, ((long)m.LParam & 0x40000000) != 0)) return true;
             if (msg == 0x201 || msg == 0x204 || msg == 0x207)
             {
                 foreach (Pane p in Panes) if (Native.Contains(p.Handle, m.HWnd)) { SetActivePane(p); break; }
@@ -1421,6 +1432,11 @@ namespace OrclFileExplorer
                                 if (bar > 0) legacyShortcuts.Add(new KeyValuePair<string, string>(v.Substring(0, bar), v.Substring(bar + 1)));
                                 break;
                             case "theme": if (int.TryParse(v, out n) && n >= 0 && n <= 2) Theme.Mode = n; break;
+                            case "svthumbs": QuickLook.ShowThumbs = v != "0"; break;
+                            case "svviewer": QuickLook.ShowViewer = v != "0"; break;
+                            case "svinfo": QuickLook.ShowInfo = v == "1"; break;
+                            case "svthumbsize": if (int.TryParse(v, out n) && n >= 64 && n <= 512) QuickLook.ThumbSize = n; break;
+                            case "svthumbwidth": if (int.TryParse(v, out n) && n >= 100 && n <= 5000) QuickLook.ThumbWidth = n; break;
                             case "defaultview": if (int.TryParse(v, out n) && n >= 0 && n < 6) { defaultView = n; titleBar.ViewButtons[n].Marked = true; } break;
                             case "activepane": if (int.TryParse(v, out n) && n >= 0 && n < Panes.Length) startPane = n; break;
                             default:
@@ -1504,6 +1520,11 @@ namespace OrclFileExplorer
                 sb.AppendLine("shortcutswidth=" + Shortcuts.WidthSetting);
                 sb.AppendLine("shortcutsort=" + Shortcuts.SortMode);
                 sb.AppendLine("theme=" + Theme.Mode);
+                sb.AppendLine("svthumbs=" + (QuickLook.ShowThumbs ? "1" : "0"));
+                sb.AppendLine("svviewer=" + (QuickLook.ShowViewer ? "1" : "0"));
+                sb.AppendLine("svinfo=" + (QuickLook.ShowInfo ? "1" : "0"));
+                sb.AppendLine("svthumbsize=" + QuickLook.ThumbSize);
+                sb.AppendLine("svthumbwidth=" + QuickLook.ThumbWidth);
                 sb.AppendLine("defaultview=" + defaultView);
                 sb.AppendLine("activepane=" + Array.IndexOf(Panes, ActivePane));
                 for (int i = 0; i < Panes.Length; i++)

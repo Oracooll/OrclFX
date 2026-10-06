@@ -238,6 +238,18 @@ namespace OrclFileExplorer
             return SHFileOperation(ref op) == 0 && !op.fAnyOperationsAborted;
         }
 
+        // Moves a file to the Recycle Bin without asking, but with Windows' warning when it would be deleted for
+        // good instead (a network drive, a full Recycle Bin).
+        public static bool ShellRecycle(IntPtr owner, string path)
+        {
+            SHFILEOPSTRUCT op = new SHFILEOPSTRUCT();
+            op.hwnd = owner;
+            op.wFunc = 0x3;                 // FO_DELETE
+            op.pFrom = path + "\0";
+            op.fFlags = 0x40 | 0x10 | 0x4000; // FOF_ALLOWUNDO | FOF_NOCONFIRMATION | FOF_WANTNUKEWARNING
+            return SHFileOperation(ref op) == 0 && !op.fAnyOperationsAborted;
+        }
+
         public static readonly Guid CLSID_ExplorerBrowser = new Guid("71f96385-ddd6-48d3-a0c1-ae06e8b055fb");
 
         [DllImport("shell32.dll", CharSet = CharSet.Unicode)]

@@ -3,6 +3,27 @@
 Versions are `major.minor.build` with a three-digit build number. Every release bumps the build;
 the minor number changes only for larger milestones.
 
+## 1.1.032
+Space Viewer (Space on a file; formerly Quick Look), with ideas from FastStone Image Viewer:
+- Two panes: the viewer, and a thumbnail pane with every picture of the folder. Their buttons in the viewer's
+  title bar turn each on or off, for viewer only or thumbnails only (also T and V). Ctrl+mouse wheel over the
+  thumbnails makes them bigger or smaller, from 64 up to 512 pixels; click one to show it. The panes, the
+  thumbnail size and the pane width are remembered.
+- Zoom: mouse wheel at the pointer, 1 for 100 % (again: fit), 0 to fit, + and -; drag to move around. The full
+  picture is loaded only when zooming in past the screen-sized copy.
+- Full screen: F or Enter (Esc leaves it).
+- The next and previous pictures are prepared in the background, so stepping with the arrows is instant.
+- Picture details (I): size, megapixels, file size, date taken, camera, lens, focal length, aperture, shutter,
+  ISO, and the zoom.
+- Del moves the picture on screen to the Recycle Bin and shows the next one (Windows warns if it would be deleted
+  for good; holding Del down doesn't delete more, and folders are never deleted from here).
+- While the viewer is open, keys typed in the main window (renaming a file, the address bar) are left alone.
+- Turn left / right ([ and ]) without losing quality: JPEG photos only get a new orientation tag (their picture
+  data isn't touched); ordinary PNG and BMP pictures are turned pixel for pixel. Pictures that re-saving would
+  change (GIF, TIFF, 16-bit or palette PNG, unusual JPEGs) aren't turned; you get a note instead. Holding the key
+  down doesn't repeat it.
+- In thumbnails-only mode the arrows move around the grid.
+
 ## 1.1.031
 - Quick Look keeps the arrow keys (and Space / Esc) to itself while it's open, wherever the keyboard focus is:
   the file list behind it no longer moves on its own, and in a text preview the arrows also step through the
