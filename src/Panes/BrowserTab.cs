@@ -325,6 +325,72 @@ namespace OrclFileExplorer
             return path;
         }
 
+        // File-system paths of the selected items (at most max; items without one, like drives' "This PC" entries
+        // of other kinds, are left out).
+        public List<string> SelectedPaths(int max)
+        {
+            List<string> r = new List<string>();
+            IFolderView v = View<IFolderView>(Native.IID_IFolderView);
+            if (v == null) return r;
+            try
+            {
+                Guid iid = Native.IID_IShellItemArray;
+                object o;
+                if (v.Items(Native.SVGIO_SELECTION, ref iid, out o) != 0) return r;
+                IShellItemArray arr = o as IShellItemArray;
+                uint n;
+                if (arr != null && arr.GetCount(out n) == 0)
+                    for (uint i = 0; i < n && i < max; i++)
+                    {
+                        IShellItem item;
+                        if (arr.GetItemAt(i, out item) != 0) continue;
+                        string p = Native.ItemName(item, Native.SIGDN_FILESYSPATH);
+                        if (p != null) r.Add(p);
+                        Marshal.ReleaseComObject(item);
+                    }
+                if (o != null) Marshal.ReleaseComObject(o);
+            }
+            catch { }
+            finally { Marshal.ReleaseComObject(v); }
+            return r;
+        }
+
+        // Changes whenever the selection probably did (count, anchor or focused item), cheap enough to ask often.
+        public string SelectionKey(int count)
+        {
+            IFolderView v = View<IFolderView>(Native.IID_IFolderView);
+            if (v == null) return null;
+            try
+            {
+                int marked, focused;
+                if (v.GetSelectionMarkedItem(out marked) != 0) marked = -1;
+                if (v.GetFocusedItem(out focused) != 0) focused = -1;
+                return Address + "|" + count + "|" + marked + "|" + focused;
+            }
+            catch { return null; }
+            finally { Marshal.ReleaseComObject(v); }
+        }
+
+        // Selects the item d places after (or before) the focused one, for stepping through files in Quick Look.
+        // The path now selected, or null at either end.
+        public string StepSelection(int d)
+        {
+            IFolderView v = View<IFolderView>(Native.IID_IFolderView);
+            if (v == null) return null;
+            try
+            {
+                int focused, count;
+                if (v.GetFocusedItem(out focused) != 0 || v.ItemCount(Native.SVGIO_ALLVIEW, out count) != 0) return null;
+                int next = focused + d;
+                if (next < 0 || next >= count) return null;
+                // SVSI_SELECT | DESELECTOTHERS | ENSUREVISIBLE | FOCUSED
+                if (v.SelectItem(next, 0x1 | 0x4 | 0x8 | 0x10) != 0) return null;
+            }
+            catch { return null; }
+            finally { Marshal.ReleaseComObject(v); }
+            return SelectedPath();
+        }
+
         // Test hook: selects the item whose path ends with name and runs its default action (like a double-click).
         internal bool TestOpenItem(string name)
         {

@@ -3,6 +3,15 @@
 Versions are `major.minor.build` with a three-digit build number. Every release bumps the build;
 the minor number changes only for larger milestones.
 
+## 1.1.029
+- Size of the selection: the status bar shows "3 selected (1.2 GB)". Selected folders are counted with
+  everything in them, in the background at low priority ("…" while counting; "at least" when something
+  couldn't be counted, such as a folder on a network share or a whole drive).
+- Quick Look: press Space on a file for a large preview window (photos, PDFs, documents, text). The arrow keys
+  step to the next or previous item in the list; Space or Esc closes it. Space still works for typing a name to
+  jump to a file ("my notes").
+- Previews of pictures are sharper on big screens (thumbnails up to 2560 pixels).
+
 ## 1.1.028
 Fixes from an audit of the new features (2 rounds; the last found no major problems):
 - Layouts: switching from the one-pane view could replace a hidden pane's tabs for good, and "Back to the tabs

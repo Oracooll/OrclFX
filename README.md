@@ -27,6 +27,9 @@ a single `orclfx.exe`, no installer package and no admin rights needed.
 - **Address bar**: click a folder of the path to go there, or the arrow after it to pick a subfolder.
   Click empty space in it to copy the folder's path; double-click it (or Ctrl+L) to type an address.
 - **New folder** and **New text file** buttons next to Up create the item and let you type its name.
+- **Quick Look**: press Space on a file for a large preview; the arrow keys step through the folder, Space or
+  Esc closes it.
+- The status bar shows how big the selection is, folders included (counted in the background).
 - Double-click empty space in a file list to go up one level.
 - A tab on an unplugged drive or an offline share keeps its folder: it shows This PC until the folder is back,
   and opens it when you return to the tab.
@@ -81,6 +84,7 @@ a single `orclfx.exe`, no installer package and no admin rights needed.
 | Alt+T / Alt+P / Alt+S | Tree / Preview / Shortcuts pane |
 | Ctrl+H | Show or hide hidden files |
 | Ctrl+E | Show or hide file name extensions |
+| Space | Quick Look (a large preview of the selected file) |
 
 ## Install
 
@@ -163,8 +167,8 @@ deleted. When OneDrive keeps two versions of the list (two computers changed it 
 - Switching between light and dark restarts the window, keeping your tabs and layout, because
   Windows applies some light/dark choices only when an app starts.
 - Only one window runs at a time; launching the app again brings the open window to the front.
-- See [CHANGELOG.md](CHANGELOG.md) for the version history. Versions are `major.minor.build` with a
-  three-digit build (1.1.028).
+- See [CHANGELOG.md](CHANGELOG.md) for the version history, and [IDEAS.md](IDEAS.md) for suggestions kept for later. Versions are `major.minor.build` with a
+  three-digit build (1.1.029).
 
 ## License
 

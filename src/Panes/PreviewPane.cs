@@ -267,8 +267,8 @@ namespace OrclFileExplorer
             {
                 r.Host = host.Handle;
                 r.Rect = HostRect();
-                r.ThumbSize.cx = Math.Max(64, Math.Min(1024, host.ClientSize.Width));
-                r.ThumbSize.cy = Math.Max(64, Math.Min(1024, host.ClientSize.Height));
+                r.ThumbSize.cx = Math.Max(64, Math.Min(2560, host.ClientSize.Width));
+                r.ThumbSize.cy = Math.Max(64, Math.Min(2560, host.ClientSize.Height));
                 r.Back = Native.ColorRef(Theme.Window);
                 r.Text = Native.ColorRef(Theme.Text);
             }

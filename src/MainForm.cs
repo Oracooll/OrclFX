@@ -223,14 +223,14 @@ namespace OrclFileExplorer
                     {
                         ft.Interval = 1000;
                         UpdateStatus();
-                        Program.Trace("find: tab “" + a.Title + "”, view items " + a.Count(Native.SVGIO_ALLVIEW) + ", status: " + statusLeft.Text + " | " + string.Join(" ; ", a.ItemPaths(10).ToArray()));
+                        Program.Trace("find: tab â€œ" + a.Title + "â€, view items " + a.Count(Native.SVGIO_ALLVIEW) + ", status: " + statusLeft.Text + " | " + string.Join(" ; ", a.ItemPaths(10).ToArray()));
                         return;
                     }
                     string open = Environment.GetEnvironmentVariable("DUALPANE_TEST_FIND_OPEN");
                     if (step == 3 && open != null) { ft.Interval = 3000; Program.Trace("find: open " + open + ": " + a.TestOpenItem(open)); return; }
                     if (step == 3) { ft.Interval = 3000; a.GoUp(); return; }
                     ft.Stop();
-                    Program.Trace("find: after " + (Environment.GetEnvironmentVariable("DUALPANE_TEST_FIND_OPEN") != null ? "opening" : "Up") + ": tab “" + a.Title + "”, folder " + a.Folder + ", results " + a.IsFindResults + ", view items " + a.Count(Native.SVGIO_ALLVIEW));
+                    Program.Trace("find: after " + (Environment.GetEnvironmentVariable("DUALPANE_TEST_FIND_OPEN") != null ? "opening" : "Up") + ": tab â€œ" + a.Title + "â€, folder " + a.Folder + ", results " + a.IsFindResults + ", view items " + a.Count(Native.SVGIO_ALLVIEW));
                 };
                 ft.Start();
             }
@@ -344,6 +344,40 @@ namespace OrclFileExplorer
                     if (a.Length > 1) preview.TestSearch(a[1]);
                 };
                 pvt.Start();
+            }
+            // Test hook: DUALPANE_TEST_SELECT=<path>[|<path>...] selects those items of the active tab 3 seconds after
+            // start and logs the status bar 4 seconds later; "ql:" before the first path opens Quick Look on it
+            // instead, steps to the next item, and logs what Quick Look shows.
+            string testSelect = Environment.GetEnvironmentVariable("DUALPANE_TEST_SELECT");
+            if (testSelect != null)
+            {
+                Timer st = new Timer();
+                st.Interval = 3000;
+                int stage = 0;
+                bool ql = testSelect.StartsWith("ql:");
+                string[] items = (ql ? testSelect.Substring(3) : testSelect).Split('|');
+                st.Tick += delegate
+                {
+                    BrowserTab a = ActivePane.ActiveTab;
+                    if (stage == 0)
+                    {
+                        for (int i = 0; i < items.Length; i++) a.SelectPath(items[i], i == 0 ? 0x15u : 0x1u);
+                        if (ql) Program.Trace("quick look opened " + ShowQuickLook(a));
+                        st.Interval = ql ? 2500 : 4000;
+                    }
+                    else if (ql && stage == 1)
+                    {
+                        if (quickLook != null) { string next = a.StepSelection(1); if (next != null) quickLook.ShowFile(next); }
+                        Program.Trace("quick look shows " + (quickLook == null ? "nothing" : quickLook.ShownPath));
+                    }
+                    else
+                    {
+                        st.Stop();
+                        Program.Trace("status: " + statusLeft.Text);
+                    }
+                    stage++;
+                };
+                st.Start();
             }
             // Test hook: DUALPANE_TEST_FINDBOX=1 opens the Find box 3 seconds after start (to look at it).
             if (Environment.GetEnvironmentVariable("DUALPANE_TEST_FINDBOX") == "1")
@@ -604,7 +638,7 @@ namespace OrclFileExplorer
             preview.Clear();
             StateChanged();
             UpdateStatus();
-            MessageBox.Show(this, "Folder sizes were turned off because " + reason + ".\n\nYou can turn them on again from the menu (View options › Folder sizes).",
+            MessageBox.Show(this, "Folder sizes were turned off because " + reason + ".\n\nYou can turn them on again from the menu (View options â€º Folder sizes).",
                 "Folder sizes", MessageBoxButtons.OK, MessageBoxIcon.Information);
         }
 
@@ -963,6 +997,7 @@ namespace OrclFileExplorer
                 "Double-click a divider\tMake the panes equal width\n" +
                 "Ctrl+H\t\t\tShow / hide hidden files\n" +
                 "Ctrl+E\t\t\tShow / hide file name extensions\n" +
+                "Space\t\t\tQuick Look: a large preview (arrows: next file)\n" +
                 "Click the address bar\tCopy the folder's path (double-click: type one)\n" +
                 "Ctrl+F / F3\t\tFind in this folder and its subfolders\n" +
                 "Ctrl+T\t\t\tNew tab\n" +
@@ -978,19 +1013,87 @@ namespace OrclFileExplorer
 
         // ---- status bar
 
+        // The total size of the selected items, counted in the background (folders too) whenever the selection
+        // changes; null when there's nothing to show.
+        SelectionSize selSize;
+        string selKey;
+
+        string SelectionSizeText(BrowserTab t, int sel)
+        {
+            string key = t.SelectionKey(sel);
+            if (key == null) { ForgetSelectionSize(); return null; }
+            key = t.GetHashCode() + "|" + key;
+            if (key != selKey)
+            {
+                ForgetSelectionSize();
+                selKey = key;
+                // Listing a huge selection would hold up the window: no total for it.
+                List<string> paths = sel <= 20000 ? t.SelectedPaths(20000) : null;
+                if (paths != null && paths.Count > 0)
+                    selSize = SelectionSize.Start(paths, delegate(SelectionSize j)
+                    {
+                        try { BeginInvoke((MethodInvoker)delegate { if (j == selSize) UpdateStatus(); }); } catch { }
+                    });
+            }
+            return selSize == null ? null : selSize.Text;
+        }
+
+        void ForgetSelectionSize()
+        {
+            if (selSize != null) selSize.Cancel = true;
+            selSize = null;
+            selKey = null;
+        }
+
+        // ---- Quick Look
+
+        QuickLook quickLook;
+        int typedTick = Environment.TickCount - 100000; // the last letter or digit typed (type-to-select in a list)
+
+        // A large preview of the selected item; false when nothing that can be previewed is selected.
+        bool ShowQuickLook(BrowserTab t)
+        {
+            string path = t.SelectedPath();
+            if (path == null)
+            {
+                List<string> sel = t.SelectedPaths(1);
+                if (sel.Count == 0) return false;
+                path = sel[0];
+            }
+            if (quickLook != null) quickLook.Close();
+            quickLook = new QuickLook(this, t, path);
+            quickLook.Show(this);
+            Program.Trace("quick look: " + path);
+            return true;
+        }
+
+        public void QuickLookClosed(QuickLook q)
+        {
+            if (quickLook != q) return;
+            quickLook = null;
+            BrowserTab t = ActivePane == null ? null : ActivePane.ActiveTab;
+            if (t != null && !IsDisposed) { Activate(); t.Activate(); }
+        }
+
         public void UpdateStatus()
         {
             BrowserTab t = ActivePane == null ? null : ActivePane.ActiveTab;
             if (t == null || !t.Created) return;
             int all = t.Count(Native.SVGIO_ALLVIEW), sel = t.Count(Native.SVGIO_SELECTION);
             string s = t.IsFindResults ? FindStatus(t, all) : all < 0 ? "" : all + (all == 1 ? " item" : " items");
-            if (sel > 0) s += "     " + sel + " selected";
+            if (sel > 0)
+            {
+                s += "     " + sel + " selected";
+                string size = SelectionSizeText(t, sel);
+                if (size != null) s += " (" + size + ")";
+            }
+            else ForgetSelectionSize();
             if (FolderSizes)
             {
                 if (sizeJob != null && sizeJob.Skipped != null)
                     s += "     Folder size: " + sizeJob.Skipped;
                 else if (sizeJob != null)
-                    s += "     Folder size: " + (sizeJob.Errors > 0 ? "at least " : "") + Util.FormatBytes(sizeJob.TotalBytes) + (sizeJob.Finished ? "" : " (calculating…)");
+                    s += "     Folder size: " + (sizeJob.Errors > 0 ? "at least " : "") + Util.FormatBytes(sizeJob.TotalBytes) + (sizeJob.Finished ? "" : " (calculatingâ€¦)");
                 else if (sizeSkip != null)
                     s += "     Folder size: " + sizeSkip;
             }
@@ -1031,7 +1134,7 @@ namespace OrclFileExplorer
                 }
             }
             if (noticeText != null && unchecked(Environment.TickCount - noticeTick) < 6000) s += "     " + noticeText;
-            else if (available != null) s += "     ⬆ Version " + Util.FormatVersion(available.Version) + " is available: menu › Update";
+            else if (available != null) s += "     â¬† Version " + Util.FormatVersion(available.Version) + " is available: menu â€º Update";
             if (stateSaveError != null) s += "     \u26A0 Settings couldn't be saved (" + stateSaveError + "); retrying.";
             if (statusLeft.Text != s) statusLeft.Text = s;
         }
@@ -1082,6 +1185,8 @@ namespace OrclFileExplorer
         {
             bool ctrl = Native.KeyDown(0x11), shift = Native.KeyDown(0x10), alt = Native.KeyDown(0x12);
             if (Form.ActiveForm != this) return false;
+            if (!ctrl && !alt && (key >= Keys.A && key <= Keys.Z || key >= Keys.D0 && key <= Keys.D9 || key >= Keys.NumPad0 && key <= Keys.NumPad9 || key >= Keys.Oem1))
+                typedTick = Environment.TickCount;
             string fc = focus == IntPtr.Zero ? "" : Native.ClassName(focus);
             bool typing = fc == "Edit" || fc.Contains(".EDIT.") || fc.Contains("COMBOBOX") || fc == "ComboBox";
             if (typing)
@@ -1110,6 +1215,8 @@ namespace OrclFileExplorer
             if (ft != null && !renaming && !ctrl && !alt)
             {
                 if (key == Keys.Back) { p.Nav(Native.SBSP_PARENT); return true; }
+                // Space: Quick Look, unless it's part of a name being typed to jump to a file ("my notes").
+                if (key == Keys.Space && !shift && unchecked(Environment.TickCount - typedTick) > 1000 && ShowQuickLook(ft)) return true;
                 if (key == Keys.Tab && !shift)
                 {
                     Pane o = Other(p);
