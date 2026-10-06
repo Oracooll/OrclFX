@@ -317,7 +317,16 @@ namespace OrclFileExplorer
             watchdog.Start();
         }
 
+        // Raised after each preview has been shown (Quick Look takes the keyboard back from preview handlers).
+        public event Action Loaded;
+
         void Delivered(PreviewWorker.Result res)
+        {
+            DeliveredCore(res);
+            if (Loaded != null) Loaded();
+        }
+
+        void DeliveredCore(PreviewWorker.Result res)
         {
             if (res.From != worker || res.Ticket != thumbTicket) { if (res.Thumbnail != null) res.Thumbnail.Dispose(); return; }
             if (res.Handler)

@@ -3,6 +3,12 @@
 Versions are `major.minor.build` with a three-digit build number. Every release bumps the build;
 the minor number changes only for larger milestones.
 
+## 1.1.031
+- Quick Look keeps the arrow keys (and Space / Esc) to itself while it's open, wherever the keyboard focus is:
+  the file list behind it no longer moves on its own, and in a text preview the arrows also step through the
+  files (Page Up / Page Down and the mouse wheel scroll the text). It also takes the keyboard back from
+  Windows' preview handlers (PDF, Office …), which could keep it after loading a file.
+
 ## 1.1.030
 - Picture previews show on the first click. Pictures (JPEG, PNG, BMP, GIF, TIFF) are now decoded by the app
   itself instead of asking Windows for a thumbnail, which often gave the file's icon until you came back to

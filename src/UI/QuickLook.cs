@@ -1,5 +1,7 @@
 // Orcl File Explorer: Quick Look, a large preview window for the selected file (Space in a file list). Space or Esc
-// closes it; the arrow keys step to the next or previous item in the list.
+// closes it; the arrow keys step to the next or previous item in the list. While it's open it gets those keys
+// wherever the keyboard focus is in the app (see MainForm.FilterMessage), so the file list behind it never moves
+// on its own.
 using System;
 using System.Drawing;
 using System.IO;
@@ -12,6 +14,7 @@ namespace OrclFileExplorer
         readonly MainForm main;
         readonly BrowserTab tab;
         readonly PreviewPane preview = new PreviewPane();
+        readonly Timer refocus = new Timer();
         string path;
 
         public QuickLook(MainForm main, BrowserTab tab, string path)
@@ -35,7 +38,12 @@ namespace OrclFileExplorer
                 int dark = Theme.Dark ? 1 : 0;
                 Native.DwmSetWindowAttribute(Handle, 20, ref dark, 4);
             };
-            FormClosing += delegate { preview.Shutdown(); };
+            // Windows' preview handlers (PDF, Office …) run in another process and may take the keyboard focus
+            // when they load, and keys sent there never reach this app: take it back shortly after each file.
+            refocus.Interval = 400;
+            refocus.Tick += delegate { refocus.Stop(); TakeFocus(); };
+            preview.Loaded += delegate { TakeFocus(); refocus.Stop(); refocus.Start(); };
+            FormClosing += delegate { refocus.Stop(); preview.Shutdown(); };
             this.path = path;
             Shown += delegate { ShowFile(this.path); }; // once the window has its size
         }
@@ -47,30 +55,44 @@ namespace OrclFileExplorer
             path = p;
             Text = Path.GetFileName(p.TrimEnd('\\')) + "  —  Quick Look (Space or Esc closes, arrow keys: next / previous)";
             preview.Show(p);
+            Program.Trace("quick look shows " + p);
         }
 
-        // Handled before any control sees the key (arrow keys would otherwise move the focus between controls).
+        void TakeFocus()
+        {
+            if (IsDisposed || !Visible || Form.ActiveForm != this) return; // never from another app
+            Native.SetFocus(Handle);
+        }
+
+        // A key pressed anywhere in the app while Quick Look is open (target: the window it was sent to). True when
+        // Quick Look used it: arrows step through the files, Space and Esc close. Typing in the preview's Search box
+        // is left alone.
+        public bool HandleKey(Keys key, IntPtr target)
+        {
+            if ((Control.ModifierKeys & (Keys.Control | Keys.Alt)) != 0) return false;
+            TextBox box = Control.FromHandle(target) as TextBox;
+            if (box != null && !box.ReadOnly && box.FindForm() == this) return false;
+            bool shift = (Control.ModifierKeys & Keys.Shift) != 0;
+            if (key == Keys.Escape || key == Keys.Space && !shift) { Close(); return true; }
+            int step = key == Keys.Right || key == Keys.Down ? 1 : key == Keys.Left || key == Keys.Up ? -1 : 0;
+            if (step == 0) return false;
+            string next = tab.Created ? tab.StepSelection(step) : null;
+            if (next != null) ShowFile(next);
+            else System.Media.SystemSounds.Beep.Play();
+            return true;
+        }
+
         protected override bool ProcessCmdKey(ref Message msg, Keys keyData)
         {
-            // Keys typed into the preview's own Search box (or anything else editable) are left alone.
-            TextBox box = ActiveControl as TextBox;
-            if (box != null && !box.ReadOnly) return base.ProcessCmdKey(ref msg, keyData);
-            if (keyData == Keys.Escape || keyData == Keys.Space) { Close(); return true; }
-            int step = keyData == Keys.Right || keyData == Keys.Down ? 1 : keyData == Keys.Left || keyData == Keys.Up ? -1 : 0;
-            // In a text preview the arrows keep moving through the text.
-            if (step != 0 && box == null)
-            {
-                string next = tab.Created ? tab.StepSelection(step) : null;
-                if (next != null) ShowFile(next);
-                else System.Media.SystemSounds.Beep.Play();
-                return true;
-            }
+            // Normally MainForm's message filter has handled these already; this is the fallback.
+            if ((keyData & (Keys.Control | Keys.Alt)) == 0 && HandleKey(keyData & Keys.KeyCode, msg.HWnd)) return true;
             return base.ProcessCmdKey(ref msg, keyData);
         }
 
         protected override void OnFormClosed(FormClosedEventArgs e)
         {
             base.OnFormClosed(e);
+            refocus.Dispose();
             preview.Dispose();
             main.QuickLookClosed(this);
         }

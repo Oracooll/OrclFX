@@ -1156,6 +1156,10 @@ namespace OrclFileExplorer
         bool FilterMessage(ref Message m)
         {
             int msg = m.Msg;
+            // While Quick Look is open, its keys (arrows, Space, Esc) are its own wherever the focus is: in the file
+            // list behind it they would move the selection there instead.
+            if ((msg == 0x100 || msg == 0x104) && quickLook != null && !quickLook.IsDisposed && quickLook.Visible &&
+                quickLook.HandleKey((Keys)(int)m.WParam & Keys.KeyCode, m.HWnd)) return true;
             if (msg == 0x201 || msg == 0x204 || msg == 0x207)
             {
                 foreach (Pane p in Panes) if (Native.Contains(p.Handle, m.HWnd)) { SetActivePane(p); break; }
