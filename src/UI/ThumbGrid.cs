@@ -120,13 +120,17 @@ namespace OrclFileExplorer
         }
 
         // The item d places away in the grid (d = ±1 for left/right, ±Columns for up/down); null at the ends.
-        public string Neighbour(string from, int d)
+        // clamp: stop at the first or last item (Page Up / Page Down) instead of null.
+        public string Neighbour(string from, int d, bool clamp)
         {
             int i = from == null ? -1 : items.FindIndex(delegate(string p) { return string.Equals(p, from, StringComparison.OrdinalIgnoreCase); });
             if (i < 0) return items.Count > 0 ? items[0] : null;
             int n = i + d;
-            return n >= 0 && n < items.Count ? items[n] : null;
+            if (clamp) n = Math.Max(0, Math.Min(items.Count - 1, n));
+            return n >= 0 && n < items.Count && n != i ? items[n] : null;
         }
+
+        public int VisibleRows { get { return Math.Max(1, ClientSize.Height / CellH); } }
 
         // ---- layout
 

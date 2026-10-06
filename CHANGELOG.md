@@ -3,6 +3,11 @@
 Versions are `major.minor.build` with a three-digit build number. Every release bumps the build;
 the minor number changes only for larger milestones.
 
+## 1.1.034
+- Space Viewer: the thumbnail pane is on the left. The viewer keeps the keyboard: clicking a thumbnail or stepping
+  through pictures no longer lets the file list behind it take the keys. Page Up / Page Down move a screenful of
+  thumbnails in thumbnails-only mode (with the viewer: previous / next picture).
+
 ## 1.1.033
 Fixes from an audit loop (2 rounds; the last found no major problems):
 - Space Viewer: zooming to 100 % after stepping back through several pictures could stay blurry (the full

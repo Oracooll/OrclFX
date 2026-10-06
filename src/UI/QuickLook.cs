@@ -1,5 +1,5 @@
-// Orcl File Explorer: the Space Viewer (Space in a file list): a large view of the selected file next to a pane with
-// thumbnails of every picture in the folder. Either pane can be turned off from the title bar (viewer only, or
+// Orcl File Explorer: the Space Viewer (Space in a file list): a large view of the selected file, with a pane on its
+// left holding thumbnails of every picture in the folder. Either pane can be turned off from the title bar (viewer only, or
 // thumbnails only). Pictures can be zoomed (wheel, 1 = 100 %), moved, shown full screen (F), turned without losing
 // quality ([ and ]), deleted to the Recycle Bin (Del) and described (I). Arrows step through the folder; Space or
 // Esc closes. While it's open it gets those keys wherever the keyboard focus is in the app (MainForm.FilterMessage).
@@ -66,7 +66,7 @@ namespace OrclFileExplorer
             thumbs.BackColor = Theme.Window;
             thumbs.Font = Font;
             thumbs.ThumbSize = ThumbSize;
-            thumbs.ItemClicked += delegate(string p) { Go(p); };
+            thumbs.ItemClicked += delegate(string p) { TakeFocus(); Go(p); };
             thumbs.ThumbSizeChanged += delegate(int s) { ThumbSize = s; main.StateChanged(); };
             splitter.Width = Native.Px(5);
             splitter.BackColor = Theme.Border;
@@ -76,7 +76,7 @@ namespace OrclFileExplorer
             splitter.MouseMove += delegate(object s, MouseEventArgs e)
             {
                 if (!splitter.Capture) return;
-                thumbs.Width = Math.Max(Native.Px(120), Math.Min(body.Width - Native.Px(200), startW - (Cursor.Position.X - dragX)));
+                thumbs.Width = Math.Max(Native.Px(120), Math.Min(body.Width - Native.Px(200), startW + (Cursor.Position.X - dragX)));
             };
             splitter.MouseUp += delegate { splitter.Capture = false; ThumbWidth = (int)Math.Round(thumbs.Width * 96.0 / Native.Px(96)); main.StateChanged(); };
             body.Dock = DockStyle.Fill;
@@ -131,9 +131,9 @@ namespace OrclFileExplorer
             thumbs.Visible = ShowThumbs;
             viewerHost.Visible = ShowViewer;
             splitter.Visible = ShowThumbs && ShowViewer;
-            thumbs.Dock = ShowViewer ? DockStyle.Right : DockStyle.Fill;
+            thumbs.Dock = ShowViewer ? DockStyle.Left : DockStyle.Fill;
             FitThumbs();
-            splitter.Dock = DockStyle.Right;
+            splitter.Dock = DockStyle.Left;
             viewerHost.Dock = DockStyle.Fill;
             body.ResumeLayout(true);
             bar.ThumbsButton.Checked = ShowThumbs;
@@ -245,16 +245,25 @@ namespace OrclFileExplorer
             if (p == null) { System.Media.SystemSounds.Beep.Play(); return; }
             // Only while the list still shows this file's folder (another folder may have a file of the same name).
             if (tab.Created && !tab.IsFindResults && Util.SameFolder(Path.GetDirectoryName(p), tab.Address))
+            {
+                bool mine = Form.ActiveForm == this;
                 tab.SelectPath(p, 0x1 | 0x4 | 0x8 | 0x10);
+                // Selecting in the list can pull the keyboard to the main window: the viewer keeps it.
+                if (mine && Form.ActiveForm != this) Activate();
+                if (mine) TakeFocus();
+            }
             ShowFile(p);
         }
 
-        public void Step(int d)
+        public void Step(int d) { Step(d, false); }
+
+        // page: Page Up / Page Down, which stop at the first or last item instead of beeping.
+        void Step(int d, bool page)
         {
             if (!ShowViewer)
             {
                 // Thumbnails only: the arrows move around the grid.
-                Go(thumbs.Neighbour(Pictures.IsImageFile(path) ? path : null, d));
+                Go(thumbs.Neighbour(Pictures.IsImageFile(path) ? path : null, d, page));
                 return;
             }
             int i = files == null ? -1 : files.FindIndex(Same(path));
@@ -371,6 +380,8 @@ namespace OrclFileExplorer
                 case Keys.Left: Step(-1); return true;
                 case Keys.Down: Step(ShowViewer ? 1 : thumbs.Columns); return true;
                 case Keys.Up: Step(ShowViewer ? -1 : -thumbs.Columns); return true;
+                case Keys.PageDown: if (ShowViewer) Step(1); else Step(thumbs.Columns * thumbs.VisibleRows, true); return true;
+                case Keys.PageUp: if (ShowViewer) Step(-1); else Step(-thumbs.Columns * thumbs.VisibleRows, true); return true;
                 case Keys.Home:
                 case Keys.End:
                     {
@@ -526,7 +537,7 @@ namespace OrclFileExplorer
                 }
             }
 
-            // Window pictograms: viewer = a frame mostly filled; thumbnails = a frame with a column of small squares.
+            // Window pictograms: thumbnails = a column of small squares at the left; viewer = the rest filled.
             static void DrawPane(Graphics g, Rectangle r, Color c, bool thumbsPane)
             {
                 using (Pen p = new Pen(c))
@@ -539,11 +550,11 @@ namespace OrclFileExplorer
                         int s = Math.Max(2, (col - 3) / 2);
                         for (int y = r.Y + 2; y + s <= r.Bottom - 2; y += s + 1)
                         {
-                            g.FillRectangle(b, r.Right - col, y, s, s);
-                            g.FillRectangle(b, r.Right - col + s + 1, y, s, s);
+                            g.FillRectangle(b, r.X + 2, y, s, s);
+                            g.FillRectangle(b, r.X + 3 + s, y, s, s);
                         }
                     }
-                    else g.FillRectangle(b, r.X + 2, r.Y + 2, r.Width - col - 3, r.Height - 4);
+                    else g.FillRectangle(b, r.X + col + 1, r.Y + 2, r.Width - col - 3, r.Height - 4);
                 }
             }
 
