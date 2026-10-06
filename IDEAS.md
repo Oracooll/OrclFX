@@ -37,3 +37,11 @@ planned. When one gets built, move it to the CHANGELOG and delete it here.
   (stops "Are you sure you want to open this file?" and Office's Protected View for files you trust).
 - **Git status for code folders**: the branch and the number of changed files in the status bar for a git
   repository folder.
+
+## Proposed 2026-10-06, Space Viewer (ideas from FastStone Image Viewer)
+- **Animated GIFs play** in the viewer instead of showing their first frame.
+- **Slideshow** (S) through the folder with a set interval; any key stops it.
+- **Compare**: 2-4 selected pictures side by side, zooming and panning together.
+- **Open in editor** (E) with the default picture editor, and **Set as wallpaper**.
+- Left out as too heavy for a quick viewer: crop / resize / colour and red-eye editing, drawing, batch convert or
+  rename, histogram, magnifier lens, printing, e-mail.
