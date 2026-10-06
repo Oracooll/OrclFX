@@ -44,6 +44,15 @@ namespace OrclFileExplorer
             return true;
         }
 
+        // "pane<i>.tabcolor": the colour label of the tab saved on the line before.
+        public static bool TryParseTabColorKey(string key, out int pane)
+        {
+            pane = -1;
+            if (key == null || key.Length != 14 || !key.StartsWith("pane") || !key.EndsWith(".tabcolor") || key[4] < '0' || key[4] > '3') return false;
+            pane = key[4] - '0';
+            return true;
+        }
+
         // A tab is saved as "L|folder" (locked) or "U|folder".
         public static string FormatTab(bool locked, string folder) { return (locked ? "L|" : "U|") + folder; }
 

@@ -3,6 +3,15 @@
 Versions are `major.minor.build` with a three-digit build number. Every release bumps the build;
 the minor number changes only for larger milestones.
 
+## 1.1.026
+- Layouts: save the panes side by side, their widths and their tabs under a name (☰ › Layouts › Save these
+  panes and tabs as a layout…) and switch between them from the same menu. Layouts are shared between your
+  computers through OneDrive, like the shortcuts. After a switch, "Back to the tabs before …" undoes it.
+- Open terminal here (Ctrl+Alt+T, or the menu / right-click a tab): Windows Terminal, or PowerShell where
+  Windows Terminal isn't installed, opens in the tab's folder.
+- Tab colours: right-click a tab › Colour to tint it red, orange, yellow, green, blue or purple. Colours are
+  remembered with the tabs and saved in layouts.
+
 ## 1.1.025
 Fixes from a second audit loop (5 rounds; the last found no major problems):
 - A tab on a drive that isn't plugged in or a network share that is offline keeps its folder: it shows This PC

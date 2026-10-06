@@ -93,6 +93,14 @@ namespace OrclFileExplorer
                     if (i + 1 != active && i != hover)
                         using (Pen p = new Pen(Theme.Border)) g.DrawLine(p, r.Right - 1, Native.Px(10), r.Right - 1, Height - Native.Px(7));
                 }
+                if (t.Color != 0)
+                {
+                    // A colour label: a light tint of the tab and a bar along its bottom edge.
+                    Color c = Theme.TabColor(t.Color);
+                    Rectangle inner = new Rectangle(body.X + 1, body.Y + (isActive ? Native.Px(2) : 0), body.Width - 2, body.Height - (isActive ? Native.Px(2) : 0));
+                    using (SolidBrush b = new SolidBrush(Color.FromArgb(Theme.Dark ? 48 : 38, c))) g.FillRectangle(b, inner);
+                    using (SolidBrush b = new SolidBrush(c)) g.FillRectangle(b, body.X + 1, Height - Native.Px(3), body.Width - 2, Native.Px(3));
+                }
                 Rectangle ir = new Rectangle(r.X + pad, top + (Height - top - iconSize) / 2, iconSize, iconSize);
                 if (t.Locked)
                     TextRenderer.DrawText(g, "", Theme.IconFont, ir, Theme.Lock, TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPadding);

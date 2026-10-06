@@ -19,6 +19,11 @@ a single `orclfx.exe`, no installer package and no admin rights needed.
   locked tabs; you can still drag tabs anywhere).
 - The active pane, the one you used last, is framed in your accent colour. The first click on an
   inactive pane only activates it.
+- Tab colours (right-click a tab › Colour) tell similar tabs apart.
+- **Layouts** (☰ › Layouts): save the panes, their widths and their tabs under a name, such as Work or
+  Photos, and switch between them. They're shared between your computers through OneDrive, and a switch can
+  be undone from the same menu.
+- **Open terminal here** (Ctrl+Alt+T): Windows Terminal (or PowerShell) in the tab's folder.
 - Double-click empty space in a file list to go up one level.
 - A tab on an unplugged drive or an offline share keeps its folder: it shows This PC until the folder is back,
   and opens it when you return to the tab.
@@ -68,6 +73,7 @@ a single `orclfx.exe`, no installer package and no admin rights needed.
 | Ctrl+T / Ctrl+W | New tab / close tab (middle-click a tab also closes it) |
 | Ctrl+Tab / Ctrl+Shift+Tab | Next / previous tab |
 | Ctrl+L, Alt+D, F4 | Edit the address |
+| Ctrl+Alt+T | Open a terminal in this folder |
 | Alt+1 … Alt+4 | One to four panes |
 | Alt+T / Alt+P / Alt+S | Tree / Preview / Shortcuts pane |
 | Ctrl+H | Show or hide hidden files |
@@ -136,6 +142,7 @@ the tests on every push.
 |---|---|
 | Tabs, layout and settings (this computer only) | `%APPDATA%\OrclFX\state.txt` (with a `.bak` copy) |
 | Shortcuts list (shared by your computers) | `Documents\OrclFX\shortcuts.txt` in your OneDrive (see below) |
+| Saved layouts (shared by your computers) | `layouts.txt` in the same folder |
 | Error log | `%APPDATA%\OrclFX\errors.log` |
 
 The shared folder is `Documents\OrclFX` when Documents is backed up to OneDrive, or
@@ -153,7 +160,7 @@ deleted. When OneDrive keeps two versions of the list (two computers changed it 
   Windows applies some light/dark choices only when an app starts.
 - Only one window runs at a time; launching the app again brings the open window to the front.
 - See [CHANGELOG.md](CHANGELOG.md) for the version history. Versions are `major.minor.build` with a
-  three-digit build (1.1.025).
+  three-digit build (1.1.026).
 
 ## License
 

@@ -25,6 +25,7 @@ namespace OrclFileExplorer
         public string Folder, Title, Address, LockedFolder;
         public Icon Icon;
         public bool Locked;
+        public int Color;   // colour label: 0 = none, else Theme.TabColor(Color)
 
         internal BrowserTab(Pane pane, string folder, bool locked)
         {

@@ -288,6 +288,37 @@ namespace OrclFileExplorer
                 rt.IsBackground = true;
                 rt.Start();
             }
+            // Test hook: DUALPANE_TEST_LAYOUT=<name> switches to that saved layout 3 seconds after start (or, with
+            // "save:<name>", saves the panes and tabs as it), then logs every shown pane's tabs; "back" undoes a switch.
+            string testLayout = Environment.GetEnvironmentVariable("DUALPANE_TEST_LAYOUT");
+            if (testLayout != null)
+            {
+                Timer lt = new Timer();
+                lt.Interval = 3000;
+                lt.Tick += delegate
+                {
+                    lt.Stop();
+                    foreach (string step in testLayout.Split(';'))
+                    {
+                        if (step.StartsWith("save:")) LayoutFile.Save(AppPaths.LayoutsFile, CaptureLayout(step.Substring(5)));
+                        else if (step == "back") { if (beforeSwitch != null) ApplyLayout(beforeSwitch, "back"); }
+                        else
+                        {
+                            Layout l = LayoutFile.Find(LayoutFile.Read(AppPaths.LayoutsFile), step);
+                            if (l != null) ApplyLayout(l, l.Name); else Program.Trace("layout: no layout " + step);
+                        }
+                        List<string> panes = new List<string>();
+                        foreach (Pane vp in VisiblePanes())
+                        {
+                            List<string> row = new List<string>();
+                            foreach (BrowserTab x in vp.Tabs) row.Add((x.Locked ? "L:" : "U:") + x.SavedFolder + (x.Color != 0 ? " c" + x.Color : "") + (x == vp.ActiveTab ? "*" : ""));
+                            panes.Add((vp == ActivePane ? "[active] " : "") + string.Join(" | ", row.ToArray()));
+                        }
+                        Program.Trace("layout after " + step + ": " + string.Join("  ||  ", panes.ToArray()));
+                    }
+                };
+                lt.Start();
+            }
             // Test hook: DUALPANE_TEST_FINDBOX=1 opens the Find box 3 seconds after start (to look at it).
             if (Environment.GetEnvironmentVariable("DUALPANE_TEST_FINDBOX") == "1")
             {
@@ -902,7 +933,8 @@ namespace OrclFileExplorer
                 "Ctrl+W / middle-click tab\tClose tab\n" +
                 "Ctrl+Tab / Ctrl+Shift+Tab\tNext / previous tab\n" +
                 "Ctrl+L / Alt+D / F4\tEdit address\n" +
-                "Right-click a tab\t\tLock, duplicate, open in other pane\n" +
+                "Ctrl+Alt+T\t\tOpen a terminal in this folder\n" +
+                "Right-click a tab\t\tLock, colour, duplicate, open in other pane\n" +
                 "Drag a tab\t\tReorder tabs\n\n" +
                 "Locked tabs always stay on their folder. Opening a folder from a locked tab opens it in a new tab.",
                 "Keyboard shortcuts", MessageBoxButtons.OK, MessageBoxIcon.Information);
@@ -1024,6 +1056,7 @@ namespace OrclFileExplorer
             Pane p = ActivePane;
             BrowserTab t = p.ActiveTab;
             if (ctrl && !alt && !shift && key == Keys.F || !ctrl && !alt && !shift && key == Keys.F3) { ShowFind(); return true; }
+            if (ctrl && alt && !shift && key == Keys.T) { OpenTerminal(t); return true; }
             if (ctrl && !alt && key == Keys.T) { p.NewTab(); return true; }
             if (ctrl && !alt && key == Keys.W) { if (t != null) p.CloseTab(t); return true; }
             if (ctrl && !alt && key == Keys.Tab) { p.CycleTab(shift ? -1 : 1); return true; }
@@ -1174,6 +1207,7 @@ namespace OrclFileExplorer
         void LoadState()
         {
             List<string>[] tabs = { new List<string>(), new List<string>(), new List<string>(), new List<string>() };
+            List<int>[] colors = { new List<int>(), new List<int>(), new List<int>(), new List<int>() }; // per tab line
             List<KeyValuePair<string, string>> legacyShortcuts = new List<KeyValuePair<string, string>>();
             int[] sel = { 0, 0, 0, 0 };
             try
@@ -1243,9 +1277,13 @@ namespace OrclFileExplorer
                             case "activepane": if (int.TryParse(v, out n) && n >= 0 && n < Panes.Length) startPane = n; break;
                             default:
                                 int pi; bool isTab;
-                                if (SettingsFile.TryParsePaneKey(k, out pi, out isTab))
+                                if (SettingsFile.TryParseTabColorKey(k, out pi))
                                 {
-                                    if (isTab) tabs[pi].Add(v);
+                                    if (colors[pi].Count > 0 && int.TryParse(v, out n)) colors[pi][colors[pi].Count - 1] = LayoutFile.ClampColor(n);
+                                }
+                                else if (SettingsFile.TryParsePaneKey(k, out pi, out isTab))
+                                {
+                                    if (isTab) { tabs[pi].Add(v); colors[pi].Add(0); }
                                     else int.TryParse(v, out sel[pi]);
                                 }
                                 break;
@@ -1266,10 +1304,11 @@ namespace OrclFileExplorer
                 Directory.Exists(desktop) ? desktop : Native.ThisPC, Directory.Exists(documents) ? documents : Native.ThisPC };
             for (int i = 0; i < Panes.Length; i++)
             {
-                foreach (string s in tabs[i])
+                for (int j = 0; j < tabs[i].Count; j++)
                 {
                     bool locked; string folder;
-                    if (SettingsFile.TryParseTab(s, out locked, out folder) && folder.Trim().Length > 0) Panes[i].AddTab(folder, locked, false, true);
+                    if (SettingsFile.TryParseTab(tabs[i][j], out locked, out folder) && folder.Trim().Length > 0)
+                        Panes[i].AddTab(folder, locked, false, true).Color = colors[i][j];
                 }
                 // A pane whose saved tabs were all unusable (or that had none) still gets one.
                 if (Panes[i].Tabs.Count == 0) Panes[i].AddTab(defaults[i], false, false, true);
@@ -1323,7 +1362,10 @@ namespace OrclFileExplorer
                 {
                     sb.AppendLine("pane" + i + ".active=" + Panes[i].ActiveIndex);
                     foreach (BrowserTab t in Panes[i].Tabs)
+                    {
                         sb.AppendLine("pane" + i + ".tab=" + SettingsFile.FormatTab(t.Locked, t.SavedFolder));
+                        if (t.Color != 0) sb.AppendLine("pane" + i + ".tabcolor=" + t.Color);
+                    }
                 }
                 // Shortcuts that couldn't be moved to the shared file yet stay here so they aren't lost.
                 if (Shortcuts.PendingLegacy != null)

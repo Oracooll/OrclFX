@@ -31,6 +31,28 @@ namespace OrclFileExplorer
 
         static Color C(int rgb) { return Color.FromArgb((rgb >> 16) & 255, (rgb >> 8) & 255, rgb & 255); }
 
+        // Tab colour labels (1-6; 0 = none), the same in both themes.
+        public static readonly string[] TabColorNames = { "None", "Red", "Orange", "Yellow", "Green", "Blue", "Purple" };
+        static readonly int[] tabColors = { 0, 0xe74856, 0xf7630c, 0xffb900, 0x16c60c, 0x0078d4, 0x8764b8 };
+        public static Color TabColor(int i) { return C(tabColors[i >= 1 && i < tabColors.Length ? i : 0]); }
+
+        // A small square of the colour, for the menu (made once, kept for the session).
+        static readonly Bitmap[] swatches = new Bitmap[7];
+        public static Image TabColorSwatch(int i)
+        {
+            if (i < 1 || i >= swatches.Length) return null;
+            if (swatches[i] == null)
+            {
+                int s = Native.Px(12);
+                Bitmap b = new Bitmap(s, s);
+                using (Graphics g = Graphics.FromImage(b))
+                using (SolidBrush br = new SolidBrush(TabColor(i)))
+                    g.FillRectangle(br, 0, 0, s, s);
+                swatches[i] = b;
+            }
+            return swatches[i];
+        }
+
         public static bool WindowsPrefersDark()
         {
             try

@@ -107,6 +107,27 @@ namespace OrclFileExplorer
             return t;
         }
 
+        // Replaces all tabs (locked ones too) with these, showing tab sel. Used to switch to a saved layout.
+        public void ReplaceTabs(List<TabSpec> specs, int sel)
+        {
+            List<BrowserTab> old = new List<BrowserTab>(Tabs);
+            foreach (TabSpec s in specs) AddTab(s.Folder, s.Locked, false, true).Color = LayoutFile.ClampColor(s.Color);
+            if (Tabs.Count == old.Count) return; // nothing to show instead: keep the tabs
+            BrowserTab cur = ActiveTab;
+            active = -1;
+            foreach (BrowserTab t in old)
+            {
+                Tabs.Remove(t);
+                t.Destroy();
+                content.Controls.Remove(t.Host);
+                t.Host.Dispose();
+                if (t.Icon != null) { t.Icon.Dispose(); t.Icon = null; }
+            }
+            Select(Math.Max(0, Math.Min(sel, Tabs.Count - 1)));
+            strip.Invalidate();
+            Main.StateChanged();
+        }
+
         public void NewTab()
         {
             BrowserTab t = ActiveTab;
@@ -241,6 +262,17 @@ namespace OrclFileExplorer
                 m.Items.Add(Main.PaneCount > 2 ? "Open in next pane" : "Open in other pane", null, delegate { Main.Other(this).AddTab(tab.KeptFolder, false, true); });
                 ToolStripItem add = m.Items.Add("Add to Shortcuts", null, delegate { Main.Shortcuts.Add(tab.Address, tab.Title); });
                 add.Enabled = Util.IsNetworkPath(tab.Address) ? Path.IsPathRooted(tab.Address) : Directory.Exists(tab.Address);
+                ToolStripMenuItem colour = new ToolStripMenuItem("Colour");
+                colour.DropDown.Renderer = m.Renderer;
+                for (int i = 0; i < Theme.TabColorNames.Length; i++)
+                {
+                    int c = i;
+                    ToolStripMenuItem it = new ToolStripMenuItem(Theme.TabColorNames[i], Theme.TabColorSwatch(i), delegate { Main.SetTabColor(tab, c); });
+                    it.Checked = tab.Color == i;
+                    colour.DropDownItems.Add(it);
+                }
+                m.Items.Add(colour);
+                AddItem(m.Items, "Open terminal here", "Ctrl+Alt+T", delegate { Main.OpenTerminal(tab); });
                 m.Items.Add(new ToolStripSeparator());
                 ToolStripItem close = m.Items.Add("Close tab", null, delegate { CloseTab(tab); });
                 close.Enabled = !tab.Locked && Tabs.Count > 1;
@@ -264,6 +296,8 @@ namespace OrclFileExplorer
             BrowserTab t = ActiveTab;
             AddItem(m.Items, "New tab", "Ctrl+T", delegate { NewTab(); });
             if (t != null) AddItem(m.Items, t.Locked ? "Unlock this tab" : "Lock this tab to this folder", null, delegate { ToggleLock(t); });
+            if (t != null) AddItem(m.Items, "Open terminal here", "Ctrl+Alt+T", delegate { Main.OpenTerminal(t); });
+            m.Items.Add(Main.LayoutsMenu(m.Renderer));
             m.Items.Add(new ToolStripSeparator());
 
             ToolStripMenuItem tree = AddItem(m.Items, "Tree pane", "Alt+T", delegate { Main.SetShowTree(!Main.ShowTree); });
