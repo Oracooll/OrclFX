@@ -128,6 +128,12 @@ namespace OrclFileExplorer
 
         void ShowText(string text, string note)
         {
+            // Very long lines (minified .js or .json) are slow to draw unwrapped: wrap those files.
+            int longest = 0, start = 0;
+            for (int i = 0; i <= text.Length; i++)
+                if (i == text.Length || text[i] == '\n') { longest = Math.Max(longest, i - start); start = i + 1; }
+            bool wrap = longest > 5000;
+            if (textBox.WordWrap != wrap) { textBox.WordWrap = wrap; textBox.ScrollBars = wrap ? ScrollBars.Vertical : ScrollBars.Both; }
             textBox.Text = text;
             textBox.Select(0, 0);
             header.Text = Path.GetFileName(current) + "  ·  " + note;

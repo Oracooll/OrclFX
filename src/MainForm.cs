@@ -301,7 +301,7 @@ namespace OrclFileExplorer
                     foreach (string step in testLayout.Split(';'))
                     {
                         if (step.StartsWith("save:")) LayoutFile.Save(AppPaths.LayoutsFile, CaptureLayout(step.Substring(5)));
-                        else if (step == "back") { if (beforeSwitch != null) ApplyLayout(beforeSwitch, "back"); }
+                        else if (step == "back") SwitchBack();
                         else
                         {
                             Layout l = LayoutFile.Find(LayoutFile.Read(AppPaths.LayoutsFile), step);

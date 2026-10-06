@@ -372,36 +372,50 @@ namespace OrclFileExplorer
 
         // Creates "New folder" or "New Text Document.txt" (numbered if taken) in this tab's folder and starts
         // renaming it in the view. The path created, or an exception.
-        public string CreateNew(bool folder)
+        // The file work runs in the background (a slow or offline share mustn't freeze the window); failed gets
+        // the reason if it fails.
+        public void CreateNew(bool folder, Action<string> failed)
         {
             string dir = Address;
-            string name = folder ? "New folder" : "New Text Document", ext = folder ? "" : ".txt", path = null;
-            for (int i = 1; i < 1000; i++)
+            System.Threading.Thread th = new System.Threading.Thread(delegate()
             {
-                string p = Path.Combine(dir, name + (i == 1 ? "" : " (" + i + ")") + ext);
-                if (!File.Exists(p) && !Directory.Exists(p)) { path = p; break; }
-            }
-            if (path == null) throw new IOException("too many new items already");
-            if (folder) Directory.CreateDirectory(path);
-            else using (new FileStream(path, FileMode.CreateNew)) { }
-            Activate();
-            StartRename(path);
-            return path;
+                string path = null, error = null;
+                try { path = Util.CreateNewItem(dir, folder); }
+                catch (Exception ex) { error = ex.Message; }
+                try
+                {
+                    Pane.BeginInvoke((MethodInvoker)delegate
+                    {
+                        if (error != null) { failed(error); return; }
+                        // Closed, moved on or no longer shown: no rename (keys would go to a box the user can't see).
+                        if (!Alive || !Util.SameFolder(Address, dir) || Pane.ActiveTab != this) return;
+                        Activate();
+                        StartRename(path, dir);
+                    });
+                }
+                catch { }
+            });
+            th.IsBackground = true;
+            th.Start();
         }
 
-        // The view lists a new item a moment after it's created: try for a few seconds to select it for renaming.
-        void StartRename(string path)
+        bool Alive { get { return browser != null && !Host.IsDisposed; } }
+
+        // The view lists a new item a moment after it's created: try for a few seconds to select it for renaming,
+        // as long as the tab still shows the folder it was made in (another folder may have an item of that name).
+        void StartRename(string path, string dir)
         {
             int tries = 0;
             Timer timer = new Timer();
             timer.Interval = 100;
             timer.Tick += delegate
             {
-                bool done = ++tries > 40 || browser == null || SelectForRename(path);
-                if (!done) return;
+                bool gone = !Alive || !Util.SameFolder(Address, dir) || ++tries > 40;
+                bool renaming = !gone && SelectForRename(path);
+                if (!gone && !renaming) return;
                 timer.Stop();
                 timer.Dispose();
-                Program.Trace("new item " + Path.GetFileName(path) + ": renaming " + (ViewWindow() != IntPtr.Zero && Native.FindChild(ViewWindow(), "Edit") != IntPtr.Zero));
+                Program.Trace("new item " + Path.GetFileName(path) + ": renaming " + renaming);
             };
             timer.Start();
         }

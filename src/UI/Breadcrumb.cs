@@ -21,6 +21,7 @@ namespace OrclFileExplorer
         int hoverText = -1, hoverArrow = -1;
         bool hoverMore;
         readonly ToolTip tip = new ToolTip();
+        int openedAt = Environment.TickCount - 100000; // when a click last opened a folder
 
         public Breadcrumb(Pane p)
         {
@@ -39,6 +40,13 @@ namespace OrclFileExplorer
             this.address = address;
             this.title = title;
             parts = PathParts.Split(address);
+            // The old hit areas no longer match: nothing is clickable until the next paint lays the parts out.
+            textRects.Clear();
+            arrowRects.Clear();
+            moreRect = Rectangle.Empty;
+            firstShown = 0;
+            hoverText = hoverArrow = -1;
+            hoverMore = false;
             Invalidate();
         }
 
@@ -144,10 +152,12 @@ namespace OrclFileExplorer
                 return;
             }
             if (e.Button != MouseButtons.Left || !ClientRectangle.Contains(e.Location)) return;
+            // The second click of a double-click on a folder (which already opened it) does nothing more.
+            if (unchecked(Environment.TickCount - openedAt) < SystemInformation.DoubleClickTime) return;
             if (!moreRect.IsEmpty && moreRect.Contains(e.Location)) { ShowHidden(); return; }
             for (int i = firstShown; i < textRects.Count; i++)
             {
-                if (textRects[i].Contains(e.Location)) { pane.GoTo(parts[i].Value, (ModifierKeys & Keys.Control) != 0); return; }
+                if (textRects[i].Contains(e.Location)) { openedAt = Environment.TickCount; pane.GoTo(parts[i].Value, (ModifierKeys & Keys.Control) != 0); return; }
                 if (arrowRects[i].Contains(e.Location)) { ShowChildren(i); return; }
             }
             CopyAddress(e.Location);
@@ -156,7 +166,7 @@ namespace OrclFileExplorer
         protected override void OnMouseDoubleClick(MouseEventArgs e)
         {
             base.OnMouseDoubleClick(e);
-            if (e.Button != MouseButtons.Left) return;
+            if (e.Button != MouseButtons.Left || unchecked(Environment.TickCount - openedAt) < SystemInformation.DoubleClickTime) return;
             for (int i = firstShown; i < textRects.Count; i++) if (textRects[i].Contains(e.Location) || arrowRects[i].Contains(e.Location)) return;
             if (moreRect.Contains(e.Location)) return;
             pane.FocusAddress();

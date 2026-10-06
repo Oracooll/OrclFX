@@ -48,6 +48,31 @@ namespace OrclFileExplorer
             }
         }
 
+        // Makes "New folder" or an empty "New Text Document.txt" in dir, numbered when the name is taken ("New
+        // folder (2)"). Returns its path.
+        static readonly object newItemLock = new object();
+
+        public static string CreateNewItem(string dir, bool folder)
+        {
+            lock (newItemLock) return CreateNewItemLocked(dir, folder); // two quick clicks get two items
+        }
+
+        static string CreateNewItemLocked(string dir, bool folder)
+        {
+            string name = folder ? "New folder" : "New Text Document", ext = folder ? "" : ".txt";
+            for (int i = 1; i < 1000; i++)
+            {
+                string p = Path.Combine(dir, name + (i == 1 ? "" : " (" + i + ")") + ext);
+                if (File.Exists(p) || Directory.Exists(p)) continue;
+                if (folder) Directory.CreateDirectory(p);
+                else
+                    try { using (new FileStream(p, FileMode.CreateNew)) { } }
+                    catch (IOException) { if (File.Exists(p)) continue; throw; } // made by someone else just now
+                return p;
+            }
+            throw new IOException("there are too many new items already");
+        }
+
         public static bool SameFolder(string a, string b)
         {
             return a != null && b != null && string.Equals(a.TrimEnd('\\'), b.TrimEnd('\\'), StringComparison.OrdinalIgnoreCase);

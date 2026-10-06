@@ -67,6 +67,8 @@ namespace OrclFileExplorer
             addr.GotFocus += delegate { crumbs.Visible = false; };
             addr.LostFocus += delegate
             {
+                // Switching to another app (or a dialog) keeps a half-typed address for when the user comes back.
+                if (Form.ActiveForm != Main) return;
                 BrowserTab t = ActiveTab;
                 if (t != null) addr.Text = t.Address;
                 crumbs.Visible = true;
@@ -187,6 +189,7 @@ namespace OrclFileExplorer
         void ShowAddress(BrowserTab t)
         {
             if (!addr.Focused) addr.Text = t.Address;
+            crumbs.Visible = !addr.Focused; // also after typing was left for another window
             crumbs.SetPath(t.IsFindResults ? "" : t.Address, t.Title);
         }
 

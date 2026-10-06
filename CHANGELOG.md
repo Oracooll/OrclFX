@@ -3,6 +3,19 @@
 Versions are `major.minor.build` with a three-digit build number. Every release bumps the build;
 the minor number changes only for larger milestones.
 
+## 1.1.028
+Fixes from an audit of the new features (2 rounds; the last found no major problems):
+- Layouts: switching from the one-pane view could replace a hidden pane's tabs for good, and "Back to the tabs
+  before …" brought back the wrong ones. Going back now restores every pane exactly, and leaves panes the
+  switch didn't touch alone.
+- New folder / New text file: the item is made in the background (an offline share no longer freezes the
+  window); renaming no longer starts on a same-named item in another folder you moved to meanwhile, in a tab
+  you've left, or after the tab was closed (which showed an error); two quick clicks make two items.
+- Open terminal here works for folders with ";" in their name (Windows Terminal split the path there).
+- Text preview: files with very long lines (minified .js / .json) are wrapped, so they don't make the preview slow.
+- Address bar: a half-typed address survives switching to another window; double-clicking a folder in the path
+  opens it without also copying the address.
+
 ## 1.1.027
 - Clickable address bar: each folder of the path is a button (Ctrl+click or middle-click opens it in a new
   tab), and the arrow after it lists its subfolders to jump to. Folders that don't fit are under «.

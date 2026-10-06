@@ -13,8 +13,25 @@ namespace OrclFileExplorer
     partial class MainForm
     {
         // The panes and tabs before the last layout switch, so the switch can be undone (this session only).
+        // It holds all four panes (shown or not), with how many were shown.
         Layout beforeSwitch;
+        int beforeShown, beforeTouched;   // panes shown before, panes the switch changed
         string beforeSwitchName;
+
+        // Every pane (also the hidden ones, which keep their tabs) for undoing a switch.
+        Layout CaptureAll()
+        {
+            Layout l = new Layout();
+            l.PaneCount = Panes.Length;
+            l.ActivePane = Math.Max(0, Array.IndexOf(Panes, ActivePane));
+            for (int i = 0; i < Panes.Length; i++)
+            {
+                l.Weights[i] = row.Weights[i];
+                l.ActiveTab[i] = Panes[i].ActiveIndex;
+                foreach (BrowserTab t in Panes[i].Tabs) l.Tabs[i].Add(new TabSpec(t.SavedFolder, t.Locked, t.Color));
+            }
+            return l;
+        }
 
         // The panes on screen, their widths and their tabs, as a layout.
         Layout CaptureLayout(string name)
@@ -36,15 +53,35 @@ namespace OrclFileExplorer
         // Replaces the panes on screen and their tabs with the layout's (panes not in it keep their tabs).
         void ApplyLayout(Layout l, string undoLabel)
         {
-            beforeSwitch = CaptureLayout("");
+            beforeSwitch = CaptureAll();
+            beforeShown = PaneCount;
+            beforeTouched = l.PaneCount;
             beforeSwitchName = undoLabel;
-            for (int i = 0; i < l.PaneCount; i++)
+            Put(l, l.PaneCount, l.PaneCount);
+        }
+
+        // Undoes the last switch (and makes that undoable in turn).
+        void SwitchBack()
+        {
+            if (beforeSwitch == null) return;
+            Layout back = beforeSwitch;
+            int shown = beforeShown, touched = Math.Max(beforeTouched, beforeShown);
+            beforeSwitch = CaptureAll();
+            beforeShown = PaneCount;
+            beforeTouched = touched;
+            Put(back, touched, shown); // only the panes the switch changed: the others keep their history
+        }
+
+        // The layout's first count panes go into panes 0..count-1; shown: how many panes are shown afterwards.
+        void Put(Layout l, int count, int shown)
+        {
+            for (int i = 0; i < count && i < l.PaneCount; i++)
             {
                 row.Weights[i] = l.Weights[i];
                 Panes[i].ReplaceTabs(l.Tabs[i], l.ActiveTab[i]);
             }
-            ActivePane = Panes[Math.Min(l.ActivePane, l.PaneCount - 1)];
-            SetPaneCount(l.PaneCount);
+            ActivePane = Panes[Math.Max(0, Math.Min(l.ActivePane, l.PaneCount - 1))];
+            SetPaneCount(shown);
             row.PerformLayout();
             foreach (Pane p in Panes) p.ApplyActiveLook();
         }
@@ -88,8 +125,7 @@ namespace OrclFileExplorer
             if (beforeSwitch != null)
                 menu.DropDownItems.Add("Back to the tabs before “" + beforeSwitchName + "”", null, delegate
                 {
-                    Layout back = beforeSwitch;
-                    ApplyLayout(back, "going back");
+                    SwitchBack();
                     Notice("Back to the tabs you had before.");
                 });
             return menu;
@@ -162,8 +198,7 @@ namespace OrclFileExplorer
                 Notice("New " + (folder ? "folders" : "files") + " can be made in a folder on a disk or network share" + (t != null ? " (" + t.Title + " isn't one)." : "."));
                 return;
             }
-            try { t.CreateNew(folder); }
-            catch (Exception ex) { Notice("\u26A0 Couldn't create a new " + (folder ? "folder" : "text file") + " here: " + ex.Message); }
+            t.CreateNew(folder, delegate(string error) { Notice("\u26A0 Couldn't create a new " + (folder ? "folder" : "text file") + " here: " + error); });
         }
 
         // ---- terminal
@@ -185,8 +220,9 @@ namespace OrclFileExplorer
                 string wt = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), @"Microsoft\WindowsApps\wt.exe");
                 ProcessStartInfo psi;
                 if (File.Exists(wt))
-                    // "C:\" would end the quoted argument with \" : "C:\." is the same folder.
-                    psi = new ProcessStartInfo(wt, "-d \"" + (dir.EndsWith("\\") ? dir + "." : dir) + "\"");
+                    // "C:\" would end the quoted argument with \" : "C:\." is the same folder. Windows Terminal
+                    // splits its command line at ";" even inside quotes, unless written "\;".
+                    psi = new ProcessStartInfo(wt, "-d \"" + (dir.EndsWith("\\") ? dir + "." : dir).Replace(";", "\\;") + "\"");
                 else
                 {
                     psi = new ProcessStartInfo("powershell.exe");
