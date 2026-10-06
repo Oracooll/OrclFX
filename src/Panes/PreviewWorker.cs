@@ -30,6 +30,7 @@ namespace OrclFileExplorer
             public int Ticket;
             public bool Handler;       // a preview handler is showing the file
             public Bitmap Thumbnail;   // otherwise the thumbnail, or null
+            public string Text, TextNote; // or the file as text (see TextPreview), with a description
         }
 
         readonly object gate = new object();
@@ -117,11 +118,21 @@ namespace OrclFileExplorer
             Result res = new Result();
             res.From = this;
             res.Ticket = r.Ticket;
-            if (!Directory.Exists(r.Path) && TryHandler(r)) res.Handler = true;
+            bool isFile = !Directory.Exists(r.Path);
+            // Plain text first (searchable, follows the theme); other files as text only when no handler shows them.
+            if (isFile && TextPreview.IsPlainTextKind(r.Path) && ReadText(r, res)) { }
+            else if (isFile && TryHandler(r)) res.Handler = true;
             else if (Superseded()) return;
+            else if (isFile && ReadText(r, res)) { }
             else res.Thumbnail = Thumbnail(r.Path, r.ThumbSize);
             if (abandoned) { if (res.Thumbnail != null) res.Thumbnail.Dispose(); return; }
             done(res);
+        }
+
+        static bool ReadText(Request r, Result res)
+        {
+            try { return TextPreview.TryRead(r.Path, out res.Text, out res.TextNote); }
+            catch { return false; }
         }
 
         bool TryHandler(Request r)

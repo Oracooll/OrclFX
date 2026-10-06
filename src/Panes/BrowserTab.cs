@@ -370,6 +370,66 @@ namespace OrclFileExplorer
             return io == null ? 1 : io.TranslateAcceleratorIO(ref msg);
         }
 
+        // Creates "New folder" or "New Text Document.txt" (numbered if taken) in this tab's folder and starts
+        // renaming it in the view. The path created, or an exception.
+        public string CreateNew(bool folder)
+        {
+            string dir = Address;
+            string name = folder ? "New folder" : "New Text Document", ext = folder ? "" : ".txt", path = null;
+            for (int i = 1; i < 1000; i++)
+            {
+                string p = Path.Combine(dir, name + (i == 1 ? "" : " (" + i + ")") + ext);
+                if (!File.Exists(p) && !Directory.Exists(p)) { path = p; break; }
+            }
+            if (path == null) throw new IOException("too many new items already");
+            if (folder) Directory.CreateDirectory(path);
+            else using (new FileStream(path, FileMode.CreateNew)) { }
+            Activate();
+            StartRename(path);
+            return path;
+        }
+
+        // The view lists a new item a moment after it's created: try for a few seconds to select it for renaming.
+        void StartRename(string path)
+        {
+            int tries = 0;
+            Timer timer = new Timer();
+            timer.Interval = 100;
+            timer.Tick += delegate
+            {
+                bool done = ++tries > 40 || browser == null || SelectForRename(path);
+                if (!done) return;
+                timer.Stop();
+                timer.Dispose();
+                Program.Trace("new item " + Path.GetFileName(path) + ": renaming " + (ViewWindow() != IntPtr.Zero && Native.FindChild(ViewWindow(), "Edit") != IntPtr.Zero));
+            };
+            timer.Start();
+        }
+
+        bool SelectForRename(string path)
+        {
+            // SVSI_EDIT (select + rename) | DESELECTOTHERS | ENSUREVISIBLE | FOCUSED
+            if (!SelectPath(path, 0x3 | 0x4 | 0x8 | 0x10)) return false;
+            IntPtr view = ViewWindow();
+            return view != IntPtr.Zero && Native.FindChild(view, "Edit") != IntPtr.Zero; // the rename box is open
+        }
+
+        // Selects an item of this folder in the view (SVSI_* flags).
+        public bool SelectPath(string path, uint flags)
+        {
+            IntPtr pidl = Native.ParsePath(path);
+            if (pidl == IntPtr.Zero) return false;
+            try
+            {
+                IShellView v = View<IShellView>(new Guid("000214E3-0000-0000-C000-000000000046"));
+                if (v == null) return false;
+                try { return v.SelectItem(Native.ILFindLastID(pidl), flags) == 0; }
+                finally { Marshal.ReleaseComObject(v); }
+            }
+            catch { return false; }
+            finally { Marshal.FreeCoTaskMem(pidl); }
+        }
+
         public void Activate()
         {
             if (Host.IsDisposed || browser == null) return;

@@ -24,7 +24,8 @@ namespace OrclFileExplorer
         readonly Panel addrBar = new Panel(), addrBorder = new Panel(), addrInner = new Panel(), content = new Panel();
         readonly Panel spacerL = new Panel(), spacerR = new Panel();
         readonly TextBox addr = new TextBox();
-        readonly GlyphButton back, fwd, up, menuBtn;
+        readonly GlyphButton back, fwd, up, newFolderBtn, newFileBtn, menuBtn;
+        readonly Breadcrumb crumbs;
 
         public Pane(MainForm main)
         {
@@ -42,6 +43,10 @@ namespace OrclFileExplorer
             fwd.Click += delegate { Nav(Native.SBSP_NAVIGATEFORWARD); };
             up.Click += delegate { Nav(Native.SBSP_PARENT); };
             menuBtn.Click += delegate { ShowMainMenu(); };
+            newFolderBtn = new GlyphButton("\uE8F4", "New folder (Ctrl+Shift+N)", DockStyle.Left);
+            newFileBtn = new GlyphButton("\uE8A5", "New text file", DockStyle.Left);
+            newFolderBtn.Click += delegate { Main.CreateNew(this, true); };
+            newFileBtn.Click += delegate { Main.CreateNew(this, false); };
 
             addrBar.Dock = DockStyle.Top;
             addrBar.Height = Native.Px(38);
@@ -54,6 +59,18 @@ namespace OrclFileExplorer
             addr.BorderStyle = BorderStyle.None;
             addr.KeyDown += AddrKeyDown;
             addrInner.Controls.Add(addr);
+            // The clickable path covers the text box except while an address is being typed.
+            crumbs = new Breadcrumb(this);
+            crumbs.Dock = DockStyle.Fill;
+            addrInner.Controls.Add(crumbs);
+            crumbs.BringToFront();
+            addr.GotFocus += delegate { crumbs.Visible = false; };
+            addr.LostFocus += delegate
+            {
+                BrowserTab t = ActiveTab;
+                if (t != null) addr.Text = t.Address;
+                crumbs.Visible = true;
+            };
             addrInner.Resize += delegate { addr.SetBounds(Native.Px(8), (addrInner.Height - addr.Height) / 2, Math.Max(10, addrInner.Width - Native.Px(16)), addr.Height); };
             addrBorder.Controls.Add(addrInner);
             // Dock order: the last control added docks first.
@@ -61,6 +78,8 @@ namespace OrclFileExplorer
             addrBar.Controls.Add(spacerR);
             addrBar.Controls.Add(menuBtn);
             addrBar.Controls.Add(spacerL);
+            addrBar.Controls.Add(newFileBtn);
+            addrBar.Controls.Add(newFolderBtn);
             addrBar.Controls.Add(up);
             addrBar.Controls.Add(fwd);
             addrBar.Controls.Add(back);
@@ -77,10 +96,10 @@ namespace OrclFileExplorer
         public void ApplyTheme()
         {
             addrBar.BackColor = spacerL.BackColor = spacerR.BackColor = content.BackColor = Theme.Window;
-            addrInner.BackColor = addr.BackColor = Theme.Input;
+            addrInner.BackColor = addr.BackColor = crumbs.BackColor = Theme.Input;
             foreach (BrowserTab t in Tabs) t.Host.BackColor = Theme.Window;
             ApplyActiveLook();
-            back.Invalidate(); fwd.Invalidate(); up.Invalidate(); menuBtn.Invalidate();
+            back.Invalidate(); fwd.Invalidate(); up.Invalidate(); newFolderBtn.Invalidate(); newFileBtn.Invalidate(); menuBtn.Invalidate();
         }
 
         public void ApplyActiveLook()
@@ -91,6 +110,7 @@ namespace OrclFileExplorer
             BackColor = on ? Theme.Accent : Theme.Window;
             addrBorder.BackColor = on ? Theme.Accent : Theme.Border;
             addr.ForeColor = on ? Theme.Text : Theme.TextDim;
+            crumbs.Invalidate();
             strip.Invalidate();
         }
 
@@ -159,9 +179,24 @@ namespace OrclFileExplorer
             t.Host.BringToFront();
             t.EnsureCreated();
             t.Resize();
-            addr.Text = t.Address;
+            ShowAddress(t);
             Main.UpdateStatus();
             if (IsActivePane) Main.ActiveFolderChanged();
+        }
+
+        void ShowAddress(BrowserTab t)
+        {
+            if (!addr.Focused) addr.Text = t.Address;
+            crumbs.SetPath(t.IsFindResults ? "" : t.Address, t.Title);
+        }
+
+        // Opens a folder from the address bar in this tab, or in a new tab.
+        public void GoTo(string path, bool newTab)
+        {
+            BrowserTab t = ActiveTab;
+            if (newTab || t == null) { AddTab(path, false, true); return; }
+            if (!t.Navigate(path)) { SystemSounds.Beep.Play(); return; }
+            t.Activate();
         }
 
         public void CloseTab(BrowserTab t)
@@ -217,7 +252,7 @@ namespace OrclFileExplorer
             Main.ApplyDefaultView(t); // a default view chosen in the title bar always wins
             if (t == ActiveTab)
             {
-                if (!addr.Focused) addr.Text = t.Address;
+                ShowAddress(t);
                 Main.UpdateStatus();
                 if (IsActivePane) Main.ActiveFolderChanged();
             }
@@ -331,6 +366,8 @@ namespace OrclFileExplorer
             ToolStripMenuItem view = new ToolStripMenuItem("View options");
             ToolStripMenuItem hidden = AddItem(view.DropDownItems, "Show hidden files", "Ctrl+H", delegate { Main.ToggleHidden(); });
             hidden.Checked = Native.GetShowHidden();
+            ToolStripMenuItem exts = AddItem(view.DropDownItems, "Show file name extensions", "Ctrl+E", delegate { Main.ToggleExtensions(); });
+            exts.Checked = Native.GetShowExtensions();
             ToolStripMenuItem fit = AddItem(view.DropDownItems, "Auto-fit Name column", null, delegate { Main.SetAutoFit(!Main.AutoFit); });
             fit.Checked = Main.AutoFit;
             ToolStripMenuItem natural = AddItem(view.DropDownItems, "Natural number sorting (2 before 10)", null, delegate { Main.ToggleNaturalSort(); });

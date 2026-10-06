@@ -20,13 +20,13 @@ namespace OrclFileExplorer
         public static int Mode;          // 0 = match Windows, 1 = light, 2 = dark
         public static bool Dark;
         public static Color Window, Bar, TabHover, Text, TextDim, Border, Hover, Input, Menu, Accent, Lock;
-        public static readonly Font IconFont = MakeIconFont();
+        public static readonly Font IconFont = MakeIconFont(10f), SmallIconFont = MakeIconFont(7f);
 
-        static Font MakeIconFont()
+        static Font MakeIconFont(float size)
         {
-            Font f = new Font("Segoe Fluent Icons", 10f);
+            Font f = new Font("Segoe Fluent Icons", size);
             if (f.Name == "Segoe Fluent Icons") return f;
-            return new Font("Segoe MDL2 Assets", 10f);
+            return new Font("Segoe MDL2 Assets", size);
         }
 
         static Color C(int rgb) { return Color.FromArgb((rgb >> 16) & 255, (rgb >> 8) & 255, rgb & 255); }

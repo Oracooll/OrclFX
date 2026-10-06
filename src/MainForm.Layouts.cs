@@ -148,6 +148,24 @@ namespace OrclFileExplorer
             StateChanged();
         }
 
+        // ---- new folder / text file
+
+        public void CreateNew(Pane p, bool folder)
+        {
+            BrowserTab t = p.ActiveTab;
+            string dir = t == null ? null : t.Address;
+            bool usable = t != null && t.Created && !t.IsFindResults && PathParts.Split(dir).Count > 0 &&
+                (Util.IsNetworkPath(dir) || Directory.Exists(dir));
+            if (!usable)
+            {
+                SystemSounds.Beep.Play();
+                Notice("New " + (folder ? "folders" : "files") + " can be made in a folder on a disk or network share" + (t != null ? " (" + t.Title + " isn't one)." : "."));
+                return;
+            }
+            try { t.CreateNew(folder); }
+            catch (Exception ex) { Notice("\u26A0 Couldn't create a new " + (folder ? "folder" : "text file") + " here: " + ex.Message); }
+        }
+
         // ---- terminal
 
         // Opens Windows Terminal (or PowerShell, without it) in the tab's folder.

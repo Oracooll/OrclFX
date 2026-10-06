@@ -21,6 +21,12 @@ namespace OrclFileExplorer
         readonly Panel host = new Panel();
         readonly PictureBox picture = new PictureBox();
         readonly ListView sizes = new ListView();
+        // Text and code: the file as text, with a search box above it.
+        readonly Panel textPanel = new Panel(), findRow = new Panel();
+        readonly TextBox textBox = new TextBox(), findText = new TextBox();
+        readonly Label findLabel = new Label(), findCount = new Label();
+        List<int> hits = new List<int>();
+        int hit = -1;
         string current = "";
         // The preview work runs on a PreviewWorker thread. A worker stuck on one file is abandoned (it exits
         // once its call returns) and a fresh one takes over; abandoned ones still running are counted.
@@ -60,6 +66,8 @@ namespace OrclFileExplorer
             sizes.Columns.Add("Files", Native.Px(70), HorizontalAlignment.Right);
             sizes.Visible = false;
             sizes.HandleCreated += delegate { ThemeSizes(); };
+            BuildTextView();
+            host.Controls.Add(textPanel);
             host.Controls.Add(sizes);
             host.Controls.Add(picture);
             host.Controls.Add(message);
@@ -67,6 +75,122 @@ namespace OrclFileExplorer
             Controls.Add(header);
             watchdog.Interval = 1000;
             watchdog.Tick += delegate { CheckWorker(); };
+        }
+
+        void BuildTextView()
+        {
+            textPanel.Dock = DockStyle.Fill;
+            textPanel.Visible = false;
+            textBox.Dock = DockStyle.Fill;
+            textBox.Multiline = true;
+            textBox.ReadOnly = true;
+            textBox.WordWrap = false;
+            textBox.ScrollBars = ScrollBars.Both;
+            textBox.BorderStyle = BorderStyle.None;
+            textBox.HideSelection = false;
+            textBox.MaxLength = 0;
+            textBox.Font = new Font("Consolas", 9.75f);
+            textBox.HandleCreated += delegate { ThemeText(); };
+            textBox.KeyDown += delegate(object s, KeyEventArgs e)
+            {
+                if (e.Control && e.KeyCode == Keys.F) { e.SuppressKeyPress = true; findText.Focus(); findText.SelectAll(); }
+                else if (e.KeyCode == Keys.F3) { e.SuppressKeyPress = true; Step(e.Shift ? -1 : 1); }
+            };
+            findRow.Dock = DockStyle.Top;
+            findRow.Height = Native.Px(32);
+            findRow.Padding = new Padding(Native.Px(8), Native.Px(5), Native.Px(8), Native.Px(5));
+            findLabel.Text = "Search";
+            findLabel.Dock = DockStyle.Left;
+            findLabel.Width = Native.Px(52);
+            findLabel.TextAlign = ContentAlignment.MiddleLeft;
+            findCount.Dock = DockStyle.Right;
+            findCount.Width = Native.Px(84);
+            findCount.TextAlign = ContentAlignment.MiddleRight;
+            findText.Dock = DockStyle.Fill;
+            findText.BorderStyle = BorderStyle.FixedSingle;
+            findText.TextChanged += delegate { Search(); };
+            findText.KeyDown += delegate(object s, KeyEventArgs e)
+            {
+                if (e.KeyCode == Keys.Enter || e.KeyCode == Keys.F3) { e.SuppressKeyPress = true; Step(e.Shift ? -1 : 1); }
+                else if (e.KeyCode == Keys.Escape) { e.SuppressKeyPress = true; findText.Text = ""; textBox.Focus(); }
+            };
+            findRow.Controls.Add(findText);
+            findRow.Controls.Add(findCount);
+            findRow.Controls.Add(findLabel);
+            textPanel.Controls.Add(textBox);
+            textPanel.Controls.Add(findRow);
+        }
+
+        void ThemeText()
+        {
+            Native.SetWindowTheme(textBox.Handle, Theme.Dark ? "DarkMode_Explorer" : "Explorer", null);
+        }
+
+        void ShowText(string text, string note)
+        {
+            textBox.Text = text;
+            textBox.Select(0, 0);
+            header.Text = Path.GetFileName(current) + "  ·  " + note;
+            message.Visible = picture.Visible = false;
+            textPanel.Visible = true;
+            textPanel.BringToFront();
+            Search(); // the search term stays from file to file
+        }
+
+        // Finds every match of the search box's text; the first one at or after the caret is selected.
+        void Search()
+        {
+            hits = TextPreview.FindAll(textBox.Text, findText.Text);
+            hit = -1;
+            if (hits.Count > 0)
+            {
+                hit = 0;
+                int caret = textBox.SelectionStart;
+                for (int i = 0; i < hits.Count; i++) if (hits[i] >= caret) { hit = i; break; }
+                ShowHit();
+            }
+            UpdateCount();
+        }
+
+        void Step(int d)
+        {
+            if (hits.Count == 0) { if (findText.Text.Length > 0) SystemSounds.Beep.Play(); return; }
+            hit = (hit + d + hits.Count) % hits.Count;
+            ShowHit();
+            UpdateCount();
+        }
+
+        void ShowHit()
+        {
+            // Scroll to the match's line from its start (so lines stay readable from the left edge), then sideways
+            // only if the match itself is out of sight.
+            int at = hits[hit], len = findText.Text.Length;
+            int lineStart = textBox.GetFirstCharIndexFromLine(textBox.GetLineFromCharIndex(at));
+            textBox.Select(Math.Max(0, lineStart), 0);
+            textBox.ScrollToCaret();
+            textBox.Select(at, len);
+            int end = Math.Min(textBox.TextLength - 1, at + len);
+            if (end >= 0 && textBox.GetPositionFromCharIndex(end).X > textBox.ClientSize.Width - Native.Px(20)) textBox.ScrollToCaret();
+        }
+
+        // Test hook: searches once the preview has loaded, and traces what is shown.
+        public void TestSearch(string what)
+        {
+            Timer t = new Timer();
+            t.Interval = 2500;
+            t.Tick += delegate
+            {
+                t.Stop();
+                findText.Text = what;
+                Program.Trace("preview: header “" + header.Text + "”, text shown " + textPanel.Visible + ", " + textBox.TextLength + " chars, search: " + findCount.Text +
+                    ", selected “" + textBox.SelectedText + "” at " + textBox.SelectionStart);
+            };
+            t.Start();
+        }
+
+        void UpdateCount()
+        {
+            findCount.Text = findText.Text.Length == 0 ? "" : hits.Count == 0 ? "no match" : (hit + 1).ToString("N0") + " of " + hits.Count.ToString("N0");
         }
 
         public void ApplyTheme()
@@ -77,6 +201,13 @@ namespace OrclFileExplorer
             message.ForeColor = Theme.TextDim;
             sizes.ForeColor = Theme.Text;
             if (sizes.IsHandleCreated) ThemeSizes();
+            textPanel.BackColor = findRow.BackColor = findLabel.BackColor = findCount.BackColor = Theme.Bar;
+            findLabel.ForeColor = findCount.ForeColor = Theme.TextDim;
+            textBox.BackColor = Theme.Window;
+            textBox.ForeColor = Theme.Text;
+            findText.BackColor = Theme.Input;
+            findText.ForeColor = Theme.Text;
+            if (textBox.IsHandleCreated) ThemeText();
             string again = current;
             current = "";
             if (Visible) Show(again);
@@ -162,6 +293,7 @@ namespace OrclFileExplorer
                 Layout2();
                 return;
             }
+            if (res.Text != null) { ShowText(res.Text, res.TextNote); return; }
             if (res.Thumbnail == null) { ShowMessage("No preview available"); return; }
             Image old = picture.Image;
             picture.Image = res.Thumbnail;
@@ -197,21 +329,30 @@ namespace OrclFileExplorer
         void ShowMessage(string text)
         {
             picture.Visible = false;
+            HideText();
             message.Text = text;
             message.Visible = true;
         }
 
         // Hides what's shown for the previous selection: the picture, and any preview handler window
         // (the handler itself is unloaded by the worker, which may take a moment).
+        void HideText()
+        {
+            if (!textPanel.Visible) return;
+            textPanel.Visible = false;
+            textBox.Text = ""; // a big file's text isn't kept around
+        }
+
         void ClearShown()
         {
             showingHandler = false;
+            HideText();
             Image old = picture.Image;
             picture.Image = null;
             if (old != null) old.Dispose();
             if (!host.IsHandleCreated) return;
             for (IntPtr h = Native.GetWindow(host.Handle, 5 /* GW_CHILD */); h != IntPtr.Zero; h = Native.GetWindow(h, 2 /* GW_HWNDNEXT */))
-                if (h != picture.Handle && h != message.Handle && h != sizes.Handle) Native.ShowWindowAsync(h, 0); // a hung handler can't block
+                if (h != picture.Handle && h != message.Handle && h != sizes.Handle && h != textPanel.Handle) Native.ShowWindowAsync(h, 0); // a hung handler can't block
         }
 
         // Image.FromHbitmap drops the alpha channel; keep it when the shell returns a transparent image.
@@ -254,7 +395,7 @@ namespace OrclFileExplorer
             {
                 // The handler is stuck: ask its window to close without waiting for it, so closing can't hang on it.
                 for (IntPtr h = Native.GetWindow(host.Handle, 5 /* GW_CHILD */); h != IntPtr.Zero; h = Native.GetWindow(h, 2 /* GW_HWNDNEXT */))
-                    if (h != picture.Handle && h != message.Handle && h != sizes.Handle) { Native.ShowWindowAsync(h, 0); Native.PostMessage(h, 0x10 /* WM_CLOSE */, IntPtr.Zero, IntPtr.Zero); }
+                    if (h != picture.Handle && h != message.Handle && h != sizes.Handle && h != textPanel.Handle) { Native.ShowWindowAsync(h, 0); Native.PostMessage(h, 0x10 /* WM_CLOSE */, IntPtr.Zero, IntPtr.Zero); }
             }
             worker = null;
         }
@@ -273,6 +414,7 @@ namespace OrclFileExplorer
                 shownJob = job;
                 current = job.Root;
                 picture.Visible = message.Visible = false;
+                HideText();
                 sizes.Visible = true;
             }
             long total = job.TotalBytes;

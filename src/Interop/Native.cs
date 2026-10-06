@@ -107,6 +107,35 @@ namespace OrclFileExplorer
             finally { Marshal.FreeHGlobal(p); }
         }
 
+        // "Show file name extensions" (SSF_SHOWEXTENSIONS; File Explorer's setting too).
+        public static bool GetShowExtensions()
+        {
+            IntPtr p = Marshal.AllocHGlobal(64);
+            try
+            {
+                for (int i = 0; i < 64; i += 4) Marshal.WriteInt32(p, i, 0);
+                SHGetSetSettings(p, 0x2, false);
+                return (Marshal.ReadInt32(p) & 2) != 0;
+            }
+            finally { Marshal.FreeHGlobal(p); }
+        }
+
+        public static void SetShowExtensions(bool on)
+        {
+            IntPtr p = Marshal.AllocHGlobal(64);
+            try
+            {
+                for (int i = 0; i < 64; i += 4) Marshal.WriteInt32(p, i, 0);
+                Marshal.WriteInt32(p, on ? 2 : 0);
+                SHGetSetSettings(p, 0x2, true);
+            }
+            finally { Marshal.FreeHGlobal(p); }
+            IntPtr r;
+            SendMessageTimeout((IntPtr)0xFFFF, 0x1A, IntPtr.Zero, "ShellState", 0x2 /* SMTO_ABORTIFHUNG */, 1000, out r);
+        }
+
+        [DllImport("shell32.dll")] public static extern IntPtr ILFindLastID(IntPtr pidl);
+
         public static void SetShowHidden(bool on)
         {
             IntPtr p = Marshal.AllocHGlobal(64);

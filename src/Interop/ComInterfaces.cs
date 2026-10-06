@@ -161,6 +161,12 @@ namespace OrclFileExplorer
         [PreserveSig] int EnableModeless([MarshalAs(UnmanagedType.Bool)] bool fEnable);
         [PreserveSig] int UIActivate(uint uState);
         [PreserveSig] int Refresh();
+        [PreserveSig] int CreateViewWindow(IntPtr psvPrevious, IntPtr pfs, IntPtr psb, IntPtr prcView, out IntPtr phWnd);
+        [PreserveSig] int DestroyViewWindow();
+        [PreserveSig] int GetCurrentInfo(IntPtr pfs);
+        [PreserveSig] int AddPropertySheetPages(uint dwReserved, IntPtr pfn, IntPtr lparam);
+        [PreserveSig] int SaveViewState();
+        [PreserveSig] int SelectItem(IntPtr pidlItem, uint uFlags);
     }
 
     [ComImport, Guid("e693cf68-d967-4112-8763-99172aee5e5a"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]

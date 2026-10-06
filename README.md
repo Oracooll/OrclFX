@@ -24,6 +24,9 @@ a single `orclfx.exe`, no installer package and no admin rights needed.
   Photos, and switch between them. They're shared between your computers through OneDrive, and a switch can
   be undone from the same menu.
 - **Open terminal here** (Ctrl+Alt+T): Windows Terminal (or PowerShell) in the tab's folder.
+- **Address bar**: click a folder of the path to go there, or the arrow after it to pick a subfolder.
+  Click empty space in it to copy the folder's path; double-click it (or Ctrl+L) to type an address.
+- **New folder** and **New text file** buttons next to Up create the item and let you type its name.
 - Double-click empty space in a file list to go up one level.
 - A tab on an unplugged drive or an offline share keeps its folder: it shows This PC until the folder is back,
   and opens it when you return to the tab.
@@ -33,7 +36,7 @@ a single `orclfx.exe`, no installer package and no admin rights needed.
 **Side panes** (title bar or Alt+T / Alt+P / Alt+S)
 - **Tree**: one folder tree that follows the active pane.
 - **Preview**: previews the active pane's selected file with the Windows preview handlers
-  (PDF, Office, images, text …). Handlers run outside the app, as in File Explorer; files without an out-of-process handler show a thumbnail.
+  (PDF, Office, images …). Text and code files are shown as text with a Search box. Handlers run outside the app, as in File Explorer; files without an out-of-process handler show a thumbnail.
 - **Shortcuts**: a strip of favourite folders. Drop folders onto it, double-click to open
   (Ctrl+double-click or middle-click for a new tab), F2 renames the real folder, sort icons on its
   header. The list is stored in your OneDrive (Documents\OrclFX), so all your computers share it; shortcuts to folders
@@ -58,7 +61,7 @@ a single `orclfx.exe`, no installer package and no admin rights needed.
   in ☰ › View mode. Right-click a view button to make it the default for every folder you open (a green
   tick marks it); right-click it again to go back to each folder's own remembered view.
 - Light, dark or match-Windows theme from the title bar.
-- ☰ › View options: show hidden files (Ctrl+H), auto-fit the Name column, natural number sorting,
+- ☰ › View options: show hidden files (Ctrl+H), file name extensions (Ctrl+E), auto-fit the Name column, natural number sorting,
   and folder sizes. Folder sizes are calculated in the background at low priority, skip network
   drives, never download OneDrive files, and turn themselves off if a scan gets out of hand.
 
@@ -77,6 +80,7 @@ a single `orclfx.exe`, no installer package and no admin rights needed.
 | Alt+1 … Alt+4 | One to four panes |
 | Alt+T / Alt+P / Alt+S | Tree / Preview / Shortcuts pane |
 | Ctrl+H | Show or hide hidden files |
+| Ctrl+E | Show or hide file name extensions |
 
 ## Install
 
@@ -160,7 +164,7 @@ deleted. When OneDrive keeps two versions of the list (two computers changed it 
   Windows applies some light/dark choices only when an app starts.
 - Only one window runs at a time; launching the app again brings the open window to the front.
 - See [CHANGELOG.md](CHANGELOG.md) for the version history. Versions are `major.minor.build` with a
-  three-digit build (1.1.026).
+  three-digit build (1.1.027).
 
 ## License
 

@@ -3,6 +3,18 @@
 Versions are `major.minor.build` with a three-digit build number. Every release bumps the build;
 the minor number changes only for larger milestones.
 
+## 1.1.027
+- Clickable address bar: each folder of the path is a button (Ctrl+click or middle-click opens it in a new
+  tab), and the arrow after it lists its subfolders to jump to. Folders that don't fit are under «.
+  Click empty space in the address bar to copy the folder's full path (a pop-up confirms it); double-click
+  it, or press Ctrl+L / F4, to type an address.
+- New folder and New text file buttons next to Up: the item is created in the current folder and its name is
+  ready to type.
+- Show file name extensions: ☰ › View options, or Ctrl+E (the same setting as File Explorer's).
+- Text and code preview: text files (logs, .json, .ps1, .cs, .csv …, and any other file that turns out to be
+  text) are shown as text in the preview pane, with a Search box (Enter / F3 for the next match, Shift for the
+  previous). Files only stored in OneDrive's cloud aren't downloaded for this; big files show their first 2 MB.
+
 ## 1.1.026
 - Layouts: save the panes side by side, their widths and their tabs under a name (☰ › Layouts › Save these
   panes and tabs as a layout…) and switch between them from the same menu. Layouts are shared between your

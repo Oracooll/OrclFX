@@ -319,6 +319,32 @@ namespace OrclFileExplorer
                 };
                 lt.Start();
             }
+            // Test hook: DUALPANE_TEST_NEW=folder|file creates a new folder or text file in the active tab 3 seconds
+            // after start (the trace says whether renaming started).
+            string testNew = Environment.GetEnvironmentVariable("DUALPANE_TEST_NEW");
+            if (testNew != null)
+            {
+                Timer nwt = new Timer();
+                nwt.Interval = 3000;
+                nwt.Tick += delegate { nwt.Stop(); CreateNew(ActivePane, testNew == "folder"); };
+                nwt.Start();
+            }
+            // Test hook: DUALPANE_TEST_PREVIEW=<file>[|<search>] shows that file in the preview pane 3 seconds after
+            // start, typing the search text into its search box.
+            string testPreview = Environment.GetEnvironmentVariable("DUALPANE_TEST_PREVIEW");
+            if (testPreview != null)
+            {
+                Timer pvt = new Timer();
+                pvt.Interval = 3000;
+                pvt.Tick += delegate
+                {
+                    pvt.Stop();
+                    string[] a = testPreview.Split('|');
+                    Program.Trace("preview: selected " + ActivePane.ActiveTab.SelectPath(a[0], 0x1 | 0x4 | 0x8 | 0x10));
+                    if (a.Length > 1) preview.TestSearch(a[1]);
+                };
+                pvt.Start();
+            }
             // Test hook: DUALPANE_TEST_FINDBOX=1 opens the Find box 3 seconds after start (to look at it).
             if (Environment.GetEnvironmentVariable("DUALPANE_TEST_FINDBOX") == "1")
             {
@@ -613,6 +639,14 @@ namespace OrclFileExplorer
             foreach (Pane p in Panes) foreach (BrowserTab t in p.Tabs) if (t.Created) t.RefreshView();
             tree.Destroy();
             if (ShowTree) { tree.EnsureCreated(); ActiveFolderChanged(); }
+        }
+
+        public void ToggleExtensions()
+        {
+            bool on = !Native.GetShowExtensions();
+            Native.SetShowExtensions(on);
+            foreach (Pane p in Panes) foreach (BrowserTab t in p.Tabs) if (t.Created) t.RefreshView();
+            Notice("File name extensions are now " + (on ? "shown" : "hidden") + " (in File Explorer too).");
         }
 
         public void ToggleNaturalSort()
@@ -928,6 +962,8 @@ namespace OrclFileExplorer
                 "Alt+1 ... Alt+4\t\tOne to four panes side by side\n" +
                 "Double-click a divider\tMake the panes equal width\n" +
                 "Ctrl+H\t\t\tShow / hide hidden files\n" +
+                "Ctrl+E\t\t\tShow / hide file name extensions\n" +
+                "Click the address bar\tCopy the folder's path (double-click: type one)\n" +
                 "Ctrl+F / F3\t\tFind in this folder and its subfolders\n" +
                 "Ctrl+T\t\t\tNew tab\n" +
                 "Ctrl+W / middle-click tab\tClose tab\n" +
@@ -1064,6 +1100,7 @@ namespace OrclFileExplorer
             if (alt && !ctrl && key == Keys.Right) { p.Nav(Native.SBSP_NAVIGATEFORWARD); return true; }
             if (alt && !ctrl && key == Keys.Up) { p.Nav(Native.SBSP_PARENT); return true; }
             if (ctrl && !alt && !shift && key == Keys.H) { ToggleHidden(); return true; }
+            if (ctrl && !alt && !shift && key == Keys.E) { ToggleExtensions(); return true; }
             if (alt && !ctrl && key == Keys.T) { SetShowTree(!ShowTree); return true; }
             if (alt && !ctrl && key == Keys.P) { SetShowPreview(!ShowPreview); return true; }
             if (alt && !ctrl && key == Keys.S) { SetShowShortcuts(!ShowShortcuts); return true; }
