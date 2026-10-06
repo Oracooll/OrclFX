@@ -3,6 +3,13 @@
 Versions are `major.minor.build` with a three-digit build number. Every release bumps the build;
 the minor number changes only for larger milestones.
 
+## 1.1.030
+- Picture previews show on the first click. Pictures (JPEG, PNG, BMP, GIF, TIFF) are now decoded by the app
+  itself instead of asking Windows for a thumbnail, which often gave the file's icon until you came back to
+  the file. They appear at once, sharp, and turned the right way up (camera rotation).
+- Other files whose thumbnail Windows hasn't made yet (HEIC photos, videos …) show their icon first and are
+  refreshed automatically as soon as the thumbnail is ready.
+
 ## 1.1.029
 - Size of the selection: the status bar shows "3 selected (1.2 GB)". Selected folders are counted with
   everything in them, in the background at low priority ("…" while counting; "at least" when something

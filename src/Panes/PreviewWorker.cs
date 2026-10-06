@@ -22,6 +22,7 @@ namespace OrclFileExplorer
             public RECT Rect;
             public SIZE ThumbSize;
             public uint Back, Text;    // theme colours for handlers that support them
+            public bool ThumbOnly;     // only ask again for the real thumbnail (the shell gave its icon before)
         }
 
         public class Result
@@ -31,6 +32,8 @@ namespace OrclFileExplorer
             public bool Handler;       // a preview handler is showing the file
             public Bitmap Thumbnail;   // otherwise the thumbnail, or null
             public string Text, TextNote; // or the file as text (see TextPreview), with a description
+            public bool IsIcon;        // the thumbnail is only the file's icon: the real one may come later
+            public bool ThumbOnly;     // the answer to a ThumbOnly request
         }
 
         readonly object gate = new object();
@@ -118,13 +121,33 @@ namespace OrclFileExplorer
             Result res = new Result();
             res.From = this;
             res.Ticket = r.Ticket;
+            if (r.ThumbOnly)
+            {
+                res.ThumbOnly = true;
+                res.Thumbnail = ShellImage(r.Path, r.ThumbSize, SIIGBF_THUMBNAILONLY);
+                if (abandoned) { if (res.Thumbnail != null) res.Thumbnail.Dispose(); return; }
+                done(res);
+                return;
+            }
             bool isFile = !Directory.Exists(r.Path);
-            // Plain text first (searchable, follows the theme); other files as text only when no handler shows them.
-            if (isFile && TextPreview.IsPlainTextKind(r.Path) && ReadText(r, res)) { }
+            // Pictures are decoded here; plain text first too (searchable, follows the theme); other files as text
+            // only when no handler shows them.
+            if (isFile && Pictures.IsPictureKind(r.Path) && (res.Thumbnail = LoadPicture(r)) != null) { }
+            else if (isFile && TextPreview.IsPlainTextKind(r.Path) && ReadText(r, res)) { }
             else if (isFile && TryHandler(r)) res.Handler = true;
             else if (Superseded()) return;
             else if (isFile && ReadText(r, res)) { }
-            else res.Thumbnail = Thumbnail(r.Path, r.ThumbSize);
+            else
+            {
+                // The shell's thumbnail; when it isn't ready yet the shell gives the file's icon instead, and the
+                // pane asks again shortly (the shell makes the thumbnail meanwhile).
+                res.Thumbnail = ShellImage(r.Path, r.ThumbSize, SIIGBF_THUMBNAILONLY);
+                if (res.Thumbnail == null && !Superseded())
+                {
+                    res.Thumbnail = ShellImage(r.Path, r.ThumbSize, 0);
+                    res.IsIcon = isFile && res.Thumbnail != null;
+                }
+            }
             if (abandoned) { if (res.Thumbnail != null) res.Thumbnail.Dispose(); return; }
             done(res);
         }
@@ -203,7 +226,16 @@ namespace OrclFileExplorer
             handler = null;
         }
 
-        static Bitmap Thumbnail(string path, SIZE size)
+        static Bitmap LoadPicture(Request r)
+        {
+            try { return Pictures.Load(r.Path, new Size(r.ThumbSize.cx, r.ThumbSize.cy)); }
+            catch { return null; } // not a picture GDI+ can read: the shell's thumbnail instead
+        }
+
+        const int SIIGBF_THUMBNAILONLY = 0x8;
+
+        // flags: 0 = the thumbnail, or the icon when there's none; SIIGBF_THUMBNAILONLY = no icon instead.
+        static Bitmap ShellImage(string path, SIZE size, int flags)
         {
             IShellItem item = null;
             try
@@ -211,7 +243,7 @@ namespace OrclFileExplorer
                 item = Native.ItemFromPath(path);
                 IShellItemImageFactory fac = item as IShellItemImageFactory;
                 IntPtr hbmp;
-                if (fac != null && fac.GetImage(size, 0, out hbmp) == 0 && hbmp != IntPtr.Zero)
+                if (fac != null && fac.GetImage(size, (uint)flags, out hbmp) == 0 && hbmp != IntPtr.Zero)
                 {
                     try { return PreviewPane.BitmapWithAlpha(hbmp); }
                     finally { Native.DeleteObject(hbmp); }

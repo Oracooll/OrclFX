@@ -73,6 +73,7 @@ namespace OrclFileExplorer
             host.Controls.Add(message);
             Controls.Add(host);
             Controls.Add(header);
+            retryTimer.Tick += delegate { RetryThumbnail(); };
             watchdog.Interval = 1000;
             watchdog.Tick += delegate { CheckWorker(); };
         }
@@ -257,8 +258,35 @@ namespace OrclFileExplorer
         string stuckFor;
 
         // Hands the newest selection to the worker; anything still running for an older one is no longer wanted.
+        // When the shell showed only a file's icon, its real thumbnail is asked for again a few times.
+        readonly Timer retryTimer = new Timer();
+        int retries;
+
+        void ScheduleRetry()
+        {
+            if (++retries > 5) return;
+            retryTimer.Stop();
+            retryTimer.Interval = 400 * retries;
+            retryTimer.Start();
+        }
+
+        void RetryThumbnail()
+        {
+            retryTimer.Stop();
+            if (worker == null || current.Length == 0 || !picture.Visible) return;
+            PreviewWorker.Request r = new PreviewWorker.Request();
+            r.Ticket = thumbTicket; // the same request: a newer selection still wins
+            r.Path = current;
+            r.ThumbOnly = true;
+            r.ThumbSize.cx = Math.Max(64, Math.Min(2560, host.ClientSize.Width));
+            r.ThumbSize.cy = Math.Max(64, Math.Min(2560, host.ClientSize.Height));
+            worker.Submit(r);
+        }
+
         void Submit(string path)
         {
+            retryTimer.Stop();
+            retries = 0;
             ClearShown();
             PreviewWorker.Request r = new PreviewWorker.Request();
             r.Ticket = ++thumbTicket;
@@ -299,8 +327,21 @@ namespace OrclFileExplorer
                 Layout2();
                 return;
             }
+            if (res.ThumbOnly)
+            {
+                // A retry: the real thumbnail replaces the icon, or ask again a little later.
+                if (res.Thumbnail == null) { ScheduleRetry(); return; }
+                if (!picture.Visible) { res.Thumbnail.Dispose(); return; }
+                Program.Trace("preview: thumbnail arrived on retry " + retries);
+                Image was = picture.Image;
+                picture.Image = res.Thumbnail;
+                if (was != null) was.Dispose();
+                return;
+            }
             if (res.Text != null) { ShowText(res.Text, res.TextNote); return; }
             if (res.Thumbnail == null) { ShowMessage("No preview available"); return; }
+            if (res.IsIcon) ScheduleRetry();
+            Program.Trace("preview: " + Path.GetFileName(current) + " shows a " + (res.IsIcon ? "file icon (asking again)" : "picture") + " " + res.Thumbnail.Width + "x" + res.Thumbnail.Height);
             Image old = picture.Image;
             picture.Image = res.Thumbnail;
             if (old != null) old.Dispose();
