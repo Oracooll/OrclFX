@@ -20,6 +20,8 @@ a single `orclfx.exe`, no installer package and no admin rights needed.
 - The active pane, the one you used last, is framed in your accent colour. The first click on an
   inactive pane only activates it.
 - Double-click empty space in a file list to go up one level.
+- A tab on an unplugged drive or an offline share keeps its folder: it shows This PC until the folder is back,
+  and opens it when you return to the tab.
 - Drag a divider to resize: only that divider moves, and the panes to its right share the change
   equally. Double-click a divider to make all panes the same width.
 
@@ -151,7 +153,7 @@ deleted. When OneDrive keeps two versions of the list (two computers changed it 
   Windows applies some light/dark choices only when an app starts.
 - Only one window runs at a time; launching the app again brings the open window to the front.
 - See [CHANGELOG.md](CHANGELOG.md) for the version history. Versions are `major.minor.build` with a
-  three-digit build (1.1.024).
+  three-digit build (1.1.025).
 
 ## License
 

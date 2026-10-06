@@ -3,6 +3,23 @@
 Versions are `major.minor.build` with a three-digit build number. Every release bumps the build;
 the minor number changes only for larger milestones.
 
+## 1.1.025
+Fixes from a second audit loop (5 rounds; the last found no major problems):
+- A tab on a drive that isn't plugged in or a network share that is offline keeps its folder: it shows This PC
+  meanwhile (with a note) and opens the folder again when you come back to the tab once it's available.
+  Before, the tab was switched to This PC for good. Offline shares are checked in the background, so they
+  no longer freeze the window at startup; shares that need a sign-in still open and let Windows ask.
+- A damaged shortcuts list (an empty or garbled file after a crash or a sync glitch) is read from its backup
+  instead of showing an empty list, and the next save no longer overwrites that good backup.
+- If saving a settings or shortcuts file fails halfway (OneDrive or antivirus holding it), the file is put back
+  instead of being left missing.
+- A right-click on a title-bar button no longer presses it (a right-click on the close button closed the
+  window; on a view button it also changed the current view).
+- "Update to version…" clicked again during a download no longer starts a second update.
+- A theme restart waits for the old window however long it takes to close (it could end with no window open).
+- Left open for days, the app still checks for updates once a day; folder sizes aren't rescanned while you're
+  away; a repeated save error is logged once instead of every few seconds.
+
 ## 1.1.024
 - Default view: right-click a view button in the title bar to make that view the default for every folder
   you open, in all panes and tabs (a small green tick marks it). It always wins over the view a folder had

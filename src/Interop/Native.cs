@@ -179,6 +179,7 @@ namespace OrclFileExplorer
         [DllImport("kernel32.dll")] public static extern bool CloseHandle(IntPtr h);
         [DllImport("kernel32.dll", CharSet = CharSet.Unicode)] public static extern uint GetDriveType(string root);
         [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)] public static extern bool DeleteFile(string name);
+        [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)] public static extern uint GetFileAttributes(string name);
 
         [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
         struct SHFILEOPSTRUCT

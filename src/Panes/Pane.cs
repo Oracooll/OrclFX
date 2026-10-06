@@ -110,7 +110,7 @@ namespace OrclFileExplorer
         public void NewTab()
         {
             BrowserTab t = ActiveTab;
-            AddTab(t != null ? t.Folder : Native.ThisPC, false, true);
+            AddTab(t != null ? t.KeptFolder : Native.ThisPC, false, true);
         }
 
         public void Select(int i)
@@ -120,7 +120,7 @@ namespace OrclFileExplorer
             active = i;
             Main.SetActivePane(this);
             ShowActive();
-            if (old != null && old != ActiveTab) old.Host.Visible = false;
+            if (old != null && old != ActiveTab) { old.Host.Visible = false; ActiveTab.RetryMissing(); }
             strip.Invalidate();
             if (Main.Ready)
             {
@@ -180,7 +180,7 @@ namespace OrclFileExplorer
         public void ToggleLock(BrowserTab t)
         {
             t.Locked = !t.Locked;
-            t.LockedFolder = t.Locked ? t.Folder : null;
+            t.LockedFolder = t.Locked ? t.KeptFolder : null; // a tab standing in for a missing folder locks that folder
             strip.Invalidate();
             Main.StateChanged();
         }
@@ -237,8 +237,8 @@ namespace OrclFileExplorer
             {
                 BrowserTab tab = t;
                 m.Items.Add(tab.Locked ? "Unlock tab" : "Lock tab to this folder", null, delegate { ToggleLock(tab); });
-                m.Items.Add("Duplicate tab", null, delegate { AddTab(tab.Folder, false, true); });
-                m.Items.Add(Main.PaneCount > 2 ? "Open in next pane" : "Open in other pane", null, delegate { Main.Other(this).AddTab(tab.Folder, false, true); });
+                m.Items.Add("Duplicate tab", null, delegate { AddTab(tab.KeptFolder, false, true); });
+                m.Items.Add(Main.PaneCount > 2 ? "Open in next pane" : "Open in other pane", null, delegate { Main.Other(this).AddTab(tab.KeptFolder, false, true); });
                 ToolStripItem add = m.Items.Add("Add to Shortcuts", null, delegate { Main.Shortcuts.Add(tab.Address, tab.Title); });
                 add.Enabled = Util.IsNetworkPath(tab.Address) ? Path.IsPathRooted(tab.Address) : Directory.Exists(tab.Address);
                 m.Items.Add(new ToolStripSeparator());

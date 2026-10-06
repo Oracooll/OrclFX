@@ -23,6 +23,7 @@ namespace OrclFileExplorer
         // Set by a second start of the app: the running one shows its window (see MainForm.ListenForShow).
         public static string ShowEventName { get { return "OrclFx.Show." + Util.PathKey(MainForm.StateFile); } }
         public static bool Portable;
+        static bool showingError;
 
         public static void LogError(Exception ex)
         {
@@ -52,18 +53,27 @@ namespace OrclFileExplorer
             Application.ThreadException += delegate(object s, System.Threading.ThreadExceptionEventArgs e)
             {
                 LogError(e.Exception);
-                MessageBox.Show("Something went wrong:\n\n" + e.Exception.Message, Program.AppName, MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                // One box at a time: an error repeating on a timer mustn't stack up boxes.
+                if (showingError) return;
+                showingError = true;
+                try
+                {
+                    MessageBox.Show("Something went wrong:\n\n" + e.Exception.Message, Program.AppName, MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                }
+                finally { showingError = false; }
             };
             Trace("start: " + string.Join(" ", args));
             // --update <process id> <exe to replace> [--portable]: this is a downloaded update (see Updater).
             if (args.Length >= 3 && args[0] == "--update") { FinishUpdate(args); return; }
             bool portable = false, restarted = false;
+            int from = 0; // --from <process id>: the window this one replaces (theme restart)
             // --quiet with --install / --uninstall: no windows at all; the exit code says whether it worked
             // (used by winget and other unattended installs).
             Installer.Quiet = Array.IndexOf(args, "--quiet") >= 0;
             foreach (string a in args)
             {
                 if (a == "--restart") restarted = true;
+                if (a == "--from") { int i = Array.IndexOf(args, a); if (i + 1 < args.Length) int.TryParse(args[i + 1], out from); }
                 if (a == "--uninstall") { Installer.Uninstall(); return; }
                 if (a == "--install") { if (!Installer.InstallQuietly()) Environment.ExitCode = 1; return; }
                 if (a == "--portable") portable = true;
@@ -76,7 +86,22 @@ namespace OrclFileExplorer
             using (System.Threading.Mutex single = new System.Threading.Mutex(true, "OrclFx.Instance." + Util.PathKey(MainForm.StateFile), out first))
             {
                 // After a restart (theme change) the previous window may still be closing: wait for it.
-                if (!first && restarted) { try { first = single.WaitOne(15000); } catch (System.Threading.AbandonedMutexException) { first = true; } }
+                if (!first && restarted)
+                {
+                    try
+                    {
+                        first = single.WaitOne(15000);
+                        // It may be asking the user something (a save problem): wait until it has really gone.
+                        if (!first && from > 0)
+                        {
+                            // (Bounded: if the user keeps the old window after all, this one gives up instead of
+                            // popping up whenever that window is closed.)
+                            try { using (Process old = Process.GetProcessById(from)) old.WaitForExit(120000); } catch { }
+                            first = single.WaitOne(15000);
+                        }
+                    }
+                    catch (System.Threading.AbandonedMutexException) { first = true; }
+                }
                 // Another window already uses this settings file (installed or portable): bring it forward instead,
                 // so two windows never overwrite each other's tabs and shortcuts.
                 if (!first)

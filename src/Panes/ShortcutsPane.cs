@@ -578,7 +578,7 @@ namespace OrclFileExplorer
             try
             {
                 stamp = File.GetLastWriteTimeUtc(ListFile);
-                lines = File.ReadAllLines(ListFile, Encoding.UTF8);
+                lines = ShortcutList.ReadLines(ListFile);
             }
             catch
             {
@@ -665,8 +665,8 @@ namespace OrclFileExplorer
             }
             catch (Exception ex)
             {
+                if (saveError != ex.Message) Program.LogError(ex); // retried every 5 s: logged once
                 saveError = ex.Message;
-                Program.LogError(ex);
                 return false;
             }
         }

@@ -50,8 +50,37 @@ namespace OrclFileExplorer
             Host.Resize += delegate { Resize(); };
         }
 
+        // A folder this tab keeps although it couldn't be opened (an unplugged drive, an offline share): the tab
+        // shows This PC meanwhile, is saved with this folder, and opens it again when it is shown and it's back.
+        // Cleared as soon as the user goes somewhere else in the tab.
+        public string MissingFolder;
+        bool fallingBack;     // the next completed navigation is the This PC stand-in
+        int reachCheck;       // the latest background check of a network folder (older answers are ignored)
+        public bool WaitingForNetwork { get { return reachPending; } }
+        bool reachPending;
+
+        // The tab's own folder (also when it stands in for a missing one), and what is saved for it.
+        public string KeptFolder { get { return MissingFolder ?? Folder; } }
+        public string SavedFolder { get { return Locked ? LockedFolder : KeptFolder; } }
+
+        // The user started something else in the tab (Find): the missing folder no longer matters.
+        void ForgetMissing()
+        {
+            reachCheck++;
+            reachPending = false;
+            fallingBack = false;
+            MissingFolder = null;
+        }
+
         public bool Created { get { return browser != null; } }
-        public string Tooltip { get { return (Locked ? "Locked tab: " : "") + Address; } }
+        public string Tooltip
+        {
+            get
+            {
+                if (MissingFolder != null) return "Not available now: " + MissingFolder + " (opens again when you come back to this tab)";
+                return (Locked ? "Locked tab: " : "") + Address;
+            }
+        }
 
         void ReadNames(IntPtr pidl)
         {
@@ -82,7 +111,55 @@ namespace OrclFileExplorer
             browser.SetPropertyBag("DualPane");
             browser.Advise(this, out cookie);
             if (!navigate) return;
-            if (!Navigate(Locked ? LockedFolder : Folder) && !Locked) Navigate(Native.ThisPC);
+            Open(Locked ? LockedFolder : MissingFolder ?? Folder);
+        }
+
+        // Opens the tab's folder. A network folder is checked in the background first: looking up an offline
+        // share on this thread would freeze the window for the network timeout.
+        void Open(string want)
+        {
+            if (Util.IsNetworkPath(want))
+            {
+                int check = ++reachCheck;
+                reachPending = true;
+                System.Threading.Thread th = new System.Threading.Thread(delegate()
+                {
+                    bool there = false;
+                    try { there = Util.NetworkFolderReachable(want); } catch { }
+                    try
+                    {
+                        Pane.BeginInvoke((MethodInvoker)delegate
+                        {
+                            if (check != reachCheck || browser == null) return;
+                            reachPending = false;
+                            if (!there || !Navigate(want)) Unavailable(want);
+                        });
+                    }
+                    catch { }
+                });
+                th.IsBackground = true;
+                th.Start();
+                return;
+            }
+            if (!Navigate(want)) Unavailable(want);
+        }
+
+        void Unavailable(string want)
+        {
+            Pane.Main.Notice("\u26A0 " + want + " isn't available" + (Locked ? "." : ": the tab shows This PC and keeps its folder."));
+            MissingFolder = want;
+            if (Locked) return; // a locked tab never leaves its folder (it stays empty until the folder is back)
+            fallingBack = true;
+            if (!Navigate(Native.ThisPC)) fallingBack = false;
+        }
+
+        // The tab is shown again: if its folder was missing and is back, open it.
+        public void RetryMissing()
+        {
+            if (browser == null || reachPending || MissingFolder == null || IsFindResults) return;
+            string want = MissingFolder;
+            if (Util.IsNetworkPath(want)) { Open(want); return; }
+            if (Directory.Exists(want)) Navigate(want);
         }
 
         public void Recreate()
@@ -114,6 +191,7 @@ namespace OrclFileExplorer
                 // would from a shown one.
                 if (Locked && !Util.SameFolder(path, LockedFolder)) { Pane.AddTab(path, false, true); return true; }
                 Folder = path;
+                MissingFolder = null;
                 return true;
             }
             IntPtr pidl = Native.ParsePath(path);
@@ -313,6 +391,7 @@ namespace OrclFileExplorer
         public void StartFind(string root, string text)
         {
             ClearFind(); // earlier results: their list is about to be replaced, and their search stopped
+            ForgetMissing();
             FindText = text;
             FindRoot = root;
             FindInContents = false;
@@ -330,6 +409,7 @@ namespace OrclFileExplorer
         public void StartWindowsSearch(string root, string text)
         {
             ClearFind();
+            ForgetMissing();
             // A fresh view goes straight to the search (a new tab would otherwise still be opening its folder).
             DestroyBrowser();
             EnsureCreated(false);
@@ -602,6 +682,18 @@ namespace OrclFileExplorer
             // Left the results (opened a folder, Back, ...), or went to a folder before they appeared.
             if (IsFindResults && (!findPending || Native.GetName(pidl, Native.SIGDN_FILESYSPATH) != null)) ClearFind();
             ReadNames(pidl);
+            reachCheck++; reachPending = false; // the user went somewhere: a pending network check no longer applies
+            if (fallingBack && string.Equals(Folder, Native.ThisPC, StringComparison.OrdinalIgnoreCase))
+            {
+                // Standing in for a missing folder: the tab keeps that folder's name.
+                fallingBack = false;
+                if (MissingFolder != null)
+                {
+                    string name = Path.GetFileName(MissingFolder.TrimEnd('\\'));
+                    Title = string.IsNullOrEmpty(name) ? MissingFolder : name;
+                }
+            }
+            else { fallingBack = false; MissingFolder = null; } // the user went somewhere (perhaps before This PC appeared)
             Pane.TabNavigated(this);
             return 0;
         }

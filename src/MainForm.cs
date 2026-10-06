@@ -306,6 +306,11 @@ namespace OrclFileExplorer
             Application.AddMessageFilter(this);
             statusTimer.Start();
             ScheduleUpdateCheck();
+            // Left open for days, it still checks once a day.
+            Timer daily = new Timer();
+            daily.Interval = 3600000;
+            daily.Tick += delegate { ScheduleUpdateCheck(); };
+            daily.Start();
             BrowserTab t = ActivePane.ActiveTab;
             if (t != null) BeginInvoke((MethodInvoker)t.Activate);
         }
@@ -445,7 +450,7 @@ namespace OrclFileExplorer
         {
             if (!Ready || !ShowTree) return;
             BrowserTab t = ActivePane.ActiveTab;
-            if (t != null) tree.SyncTo(t.Folder);
+            if (t != null && !t.WaitingForNetwork) tree.SyncTo(t.Folder);
         }
 
         void UpdatePreview()
@@ -489,7 +494,7 @@ namespace OrclFileExplorer
         SizeJob EnsureSizeJob(string target)
         {
             if (sizeJob != null && Util.SameFolder(sizeJob.Root, target) &&
-                !(sizeJob.Finished && (DateTime.Now - sizeJob.FinishedAt).TotalMinutes >= 2)) return sizeJob;
+                !(sizeJob.Finished && (DateTime.Now - sizeJob.FinishedAt).TotalMinutes >= 2 && ActiveForm == this)) return sizeJob; // no rescans while away
             if (sizeJob != null && !sizeJob.Finished)
             {
                 sizeJob.Cancel = true;
@@ -717,7 +722,7 @@ namespace OrclFileExplorer
             try
             {
                 Program.Trace("restarting for theme");
-                Process.Start(Application.ExecutablePath, "--restart" + (Program.Portable ? " --portable" : ""));
+                Process.Start(Application.ExecutablePath, "--restart --from " + Process.GetCurrentProcess().Id + (Program.Portable ? " --portable" : ""));
                 Close();
             }
             catch { restarting = false; RecreateViews(); }
@@ -799,7 +804,7 @@ namespace OrclFileExplorer
                 UpdateViewButtons();
                 Notice("Every folder now opens in " + TitleBar.ViewNames[i] + " view (right-click it again to stop).");
             }
-            else Notice("No default view: each folder opens in the view it had last.");
+            else Notice("No default view: each folder opens in the view it was last shown in.");
             StateChanged();
         }
 
@@ -1318,7 +1323,7 @@ namespace OrclFileExplorer
                 {
                     sb.AppendLine("pane" + i + ".active=" + Panes[i].ActiveIndex);
                     foreach (BrowserTab t in Panes[i].Tabs)
-                        sb.AppendLine("pane" + i + ".tab=" + SettingsFile.FormatTab(t.Locked, t.Locked ? t.LockedFolder : t.Folder));
+                        sb.AppendLine("pane" + i + ".tab=" + SettingsFile.FormatTab(t.Locked, t.SavedFolder));
                 }
                 // Shortcuts that couldn't be moved to the shared file yet stay here so they aren't lost.
                 if (Shortcuts.PendingLegacy != null)
@@ -1328,8 +1333,8 @@ namespace OrclFileExplorer
             }
             catch (Exception ex)
             {
+                if (stateSaveError != ex.Message) Program.LogError(ex); // retried every 10 s: logged once
                 stateSaveError = ex.Message;
-                Program.LogError(ex);
                 saveTimer.Stop();
                 saveTimer.Interval = 10000; // retry
                 saveTimer.Start();

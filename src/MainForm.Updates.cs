@@ -82,6 +82,8 @@ namespace OrclFileExplorer
 
         public void OfferUpdate(Updater.Release r)
         {
+            if (restarting) return;
+            if (updateBusy) { Notice("Already checking for or downloading an update…"); return; }
             string notes = (r.Notes ?? "").Trim();
             if (notes.Length > 700) notes = notes.Substring(0, 700).TrimEnd() + "…";
             if (!TestAutoUpdate && MessageBox.Show(this, "Version " + Util.FormatVersion(r.Version) + " is available (you have " + Installer.Version + ").\n\n" +
@@ -103,6 +105,7 @@ namespace OrclFileExplorer
         void Downloaded(Updater.Release r, string file, string error)
         {
             updateBusy = false;
+            if (restarting) return;
             if (error != null)
             {
                 MessageBox.Show(this, "The update couldn't be downloaded: " + error + "\n\nNothing was changed. Releases: " + Updater.ReleasesPage,

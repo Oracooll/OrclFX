@@ -39,6 +39,40 @@ namespace OrclFileExplorer
             return r;
         }
 
+        // A list file always has its header line (Serialize writes it even for an empty list), so one with neither
+        // a comment nor a shortcut was damaged (cut off by a crash, zeros from a sync glitch) and isn't trusted.
+        public static bool IsIntact(string[] lines)
+        {
+            foreach (string l in lines) if (l.StartsWith("#") || l.IndexOf('|') > 0) return true;
+            return false;
+        }
+
+        // The file's lines, or its backup's (file.bak, kept by every save) when the file is damaged.
+        public static string[] ReadLines(string file)
+        {
+            string[] lines = File.ReadAllLines(file, Encoding.UTF8);
+            if (IsIntact(lines)) return lines;
+            try
+            {
+                string bak = file + ".bak";
+                if (File.Exists(bak))
+                {
+                    string[] b = File.ReadAllLines(bak, Encoding.UTF8);
+                    if (IsIntact(b)) return b;
+                }
+            }
+            catch { }
+            return lines;
+        }
+
+        // Puts the good backup back in place of a damaged file, so the next save keeps it as the backup (the file is
+        // never missing meanwhile, even if that save then fails).
+        static void RestoreBackup(string file)
+        {
+            string bak = file + ".bak";
+            if (File.Exists(bak) && IsIntact(File.ReadAllLines(bak, Encoding.UTF8))) File.Copy(bak, file, true);
+        }
+
         public static string Serialize(List<KeyValuePair<string, string>> entries)
         {
             StringBuilder sb = new StringBuilder();
@@ -57,7 +91,14 @@ namespace OrclFileExplorer
             return Util.WithFileLock(file, delegate
             {
                 List<KeyValuePair<string, string>> merged = local;
-                if (File.Exists(file)) merged = Merge(baseList, local, Parse(File.ReadAllLines(file, Encoding.UTF8)));
+                if (File.Exists(file))
+                {
+                    string[] lines = File.ReadAllLines(file, Encoding.UTF8);
+                    // A damaged file holds nothing to merge (reading it as "every shortcut was removed" would delete
+                    // them all), and it mustn't become the backup.
+                    if (IsIntact(lines)) merged = Merge(baseList, local, Parse(lines));
+                    else RestoreBackup(file);
+                }
                 Util.WriteAllTextAtomic(file, Serialize(merged));
                 return merged;
             });
@@ -98,7 +139,13 @@ namespace OrclFileExplorer
         {
             Util.WithFileLock(target, delegate
             {
-                List<KeyValuePair<string, string>> current = File.Exists(target) ? Parse(File.ReadAllLines(target, Encoding.UTF8)) : new List<KeyValuePair<string, string>>();
+                List<KeyValuePair<string, string>> current = new List<KeyValuePair<string, string>>();
+                if (File.Exists(target))
+                {
+                    current = Parse(ReadLines(target));
+                    // Damaged (read from its backup instead): replaced without becoming the backup itself.
+                    if (!IsIntact(File.ReadAllLines(target, Encoding.UTF8))) RestoreBackup(target);
+                }
                 List<KeyValuePair<string, string>> merged = lastMerged == null ? Union(current, source) : Merge(lastMerged, current, source);
                 Util.WriteAllTextAtomic(target, Serialize(merged));
                 return true;

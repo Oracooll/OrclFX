@@ -59,6 +59,14 @@ namespace OrclFileExplorer
         protected override void OnMouseLeave(EventArgs e) { hover = down = false; Invalidate(); base.OnMouseLeave(e); }
         protected override void OnMouseDown(MouseEventArgs e) { down = true; Invalidate(); base.OnMouseDown(e); }
         protected override void OnMouseUp(MouseEventArgs e) { down = false; Invalidate(); base.OnMouseUp(e); }
+        // A plain Control raises Click for every mouse button: only the left one presses the button (a right-click
+        // on the close button mustn't close the window; on a view button it sets the default view instead).
+        protected override void OnClick(EventArgs e)
+        {
+            MouseEventArgs m = e as MouseEventArgs;
+            if (m == null || m.Button == MouseButtons.Left) base.OnClick(e);
+        }
+        protected override void OnMouseClick(MouseEventArgs e) { if (e.Button == MouseButtons.Left) base.OnMouseClick(e); }
 
         protected override void OnPaint(PaintEventArgs e)
         {

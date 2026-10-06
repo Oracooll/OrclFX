@@ -26,6 +26,28 @@ namespace OrclFileExplorer
             return path.Length >= 2 && path[1] == ':' && Native.GetDriveType(path.Substring(0, 2) + @"\") == 4; // DRIVE_REMOTE
         }
 
+        // Whether a network folder is there. Slow when it isn't (the network timeout): call it off the UI thread.
+        // Only "not there" answers count; a share that wants a sign-in or refuses access counts as there, so opening
+        // it lets Windows ask. A server on its own (\\server, the list of its shares) is checked through its IPC$.
+        public static bool NetworkFolderReachable(string path)
+        {
+            string probe = path.TrimEnd('\\');
+            if (probe.StartsWith(@"\\") && probe.IndexOf('\\', 2) < 0) probe += @"\IPC$";
+            if (Native.GetFileAttributes(probe) != 0xFFFFFFFF) return true;
+            switch (System.Runtime.InteropServices.Marshal.GetLastWin32Error())
+            {
+                case 2: case 3:          // file / path not found
+                case 15: case 21:        // invalid drive, drive not ready
+                case 51: case 53:        // remote computer not listening, network path not found
+                case 59: case 64:        // unexpected network error, network name deleted
+                case 67: case 1203:      // network name not found, no network or bad path
+                case 1222: case 1231: case 1232: // no network, network / host unreachable
+                    return false;
+                default:
+                    return true;
+            }
+        }
+
         public static bool SameFolder(string a, string b)
         {
             return a != null && b != null && string.Equals(a.TrimEnd('\\'), b.TrimEnd('\\'), StringComparison.OrdinalIgnoreCase);
@@ -56,7 +78,21 @@ namespace OrclFileExplorer
                 try
                 {
                     File.WriteAllText(tmp, text, new UTF8Encoding(false));
-                    if (File.Exists(path)) File.Replace(tmp, path, path + ".bak", true);
+                    if (File.Exists(path))
+                    {
+                        try { File.Replace(tmp, path, path + ".bak", true); }
+                        catch
+                        {
+                            // File.Replace can fail after it has already moved path to path.bak (for example when
+                            // OneDrive or antivirus holds the new file): never leave path missing.
+                            if (!File.Exists(path))
+                            {
+                                try { File.Move(tmp, path); }
+                                catch { try { File.Copy(path + ".bak", path); } catch { } }
+                            }
+                            throw;
+                        }
+                    }
                     else File.Move(tmp, path);
                 }
                 finally

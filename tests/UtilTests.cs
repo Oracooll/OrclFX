@@ -20,6 +20,15 @@ namespace OrclFileExplorer.Tests
         }
 
         [Test]
+        static void NetworkFolderReachable_OnlyNotThereCountsAsMissing()
+        {
+            Assert.True(!Util.NetworkFolderReachable(@"\\no-such-host-orclfx\share"), "unknown server");
+            Assert.True(!Util.NetworkFolderReachable(@"\\no-such-host-orclfx"), "unknown server on its own");
+            Assert.True(Util.NetworkFolderReachable(System.Environment.GetFolderPath(System.Environment.SpecialFolder.Windows)), "a folder that exists");
+            Assert.True(!Util.NetworkFolderReachable(@"C:\no-such-folder-orclfx"), "a folder that doesn't");
+        }
+
+        [Test]
         static void SameFolder()
         {
             Assert.True(Util.SameFolder(@"C:\A\B", @"c:\a\b\"), "case and trailing backslash");

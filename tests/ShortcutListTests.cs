@@ -186,6 +186,37 @@ namespace OrclFileExplorer.Tests
         }
 
         [Test]
+        static void DamagedFile_IsReadFromItsBackup()
+        {
+            using (TempDir d = new TempDir())
+            {
+                string f = System.IO.Path.Combine(d.Path, "shortcuts.txt");
+                ShortcutList.SaveMerged(f, L(), L(A));
+                ShortcutList.SaveMerged(f, L(A), L(A, B)); // shortcuts.txt.bak now holds [A]
+                System.IO.File.WriteAllText(f, "\0\0\0\0");
+                Assert.Sequence(Show(L(A)), Show(ShortcutList.Parse(ShortcutList.ReadLines(f))), "read from the backup");
+                Assert.True(ShortcutList.IsIntact(new string[] { ShortcutList.Header }), "an empty list is intact");
+                Assert.True(!ShortcutList.IsIntact(new string[0]), "an empty file is damaged");
+            }
+        }
+
+        [Test]
+        static void SaveMerged_OverADamagedFileKeepsTheListAndTheBackup()
+        {
+            using (TempDir d = new TempDir())
+            {
+                string f = System.IO.Path.Combine(d.Path, "shortcuts.txt");
+                ShortcutList.SaveMerged(f, L(), L(A));
+                ShortcutList.SaveMerged(f, L(A), L(A, B)); // backup: [A]
+                System.IO.File.WriteAllText(f, "");
+                // Read as empty, the merge would remove A and B (the base had them, "the file" doesn't).
+                List<KeyValuePair<string, string>> saved = ShortcutList.SaveMerged(f, L(A, B), L(A, B, C));
+                Assert.Sequence(Show(L(A, B, C)), Show(saved), "saved");
+                Assert.Sequence(Show(L(A)), Show(ShortcutList.Parse(System.IO.File.ReadAllLines(f + ".bak"))), "the good backup is kept");
+            }
+        }
+
+        [Test]
         static void SaveMerged_KeepsWhatOthersSavedMeanwhile()
         {
             using (TempDir d = new TempDir())
