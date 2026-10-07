@@ -503,21 +503,65 @@ namespace OrclFileExplorer
 
         // The view lists a new item a moment after it's created: try for a few seconds to select it for renaming,
         // as long as the tab still shows the folder it was made in (another folder may have an item of that name).
+        // Then, for a few seconds and until the user presses a key or clicks, it keeps the rename box open with the
+        // keyboard in it: the view may close it right away when it redraws the new item (OneDrive, for one, changes
+        // the item's sync icon a moment later).
         void StartRename(string path, string dir)
         {
-            int tries = 0;
+            int tries = 0, watched = 0, reopened = 0, openedAt = 0;
+            bool open = false;
             Timer timer = new Timer();
             timer.Interval = 100;
             timer.Tick += delegate
             {
-                bool gone = !Alive || !Util.SameFolder(Address, dir) || ++tries > 40;
-                bool renaming = !gone && SelectForRename(path);
-                if (!gone && !renaming) return;
+                bool done = !Alive || !Util.SameFolder(Address, dir);
+                if (!done && !open)
+                {
+                    if (++tries > 40) done = true;
+                    else if (SelectForRename(path))
+                    {
+                        open = true;
+                        openedAt = Environment.TickCount;
+                        FocusRenameBox();
+                        Program.Trace("new item " + Path.GetFileName(path) + ": renaming True");
+                    }
+                }
+                else if (!done)
+                {
+                    // The user has started typing (or clicked somewhere): leave it to them.
+                    if (unchecked(MainForm.LastInputTick - openedAt) > 0 || ++watched > 40) done = true;
+                    else if (RenameBox() == IntPtr.Zero)
+                    {
+                        if (!File.Exists(path) && !Directory.Exists(path) || ++reopened > 5) done = true;
+                        else if (SelectForRename(path))
+                        {
+                            FocusRenameBox();
+                            Program.Trace("new item " + Path.GetFileName(path) + ": the view closed the rename box; opened again");
+                        }
+                    }
+                    else FocusRenameBox();
+                }
+                if (!done) return;
                 timer.Stop();
                 timer.Dispose();
-                Program.Trace("new item " + Path.GetFileName(path) + ": renaming " + renaming);
+                if (!open) Program.Trace("new item " + Path.GetFileName(path) + ": renaming False");
             };
             timer.Start();
+        }
+
+        public bool Renaming { get { return RenameBox() != IntPtr.Zero; } }
+
+        IntPtr RenameBox()
+        {
+            IntPtr view = ViewWindow();
+            return view == IntPtr.Zero ? IntPtr.Zero : Native.FindChild(view, "Edit");
+        }
+
+        // Typing goes into the rename box (only while this app is the active one).
+        void FocusRenameBox()
+        {
+            IntPtr box = RenameBox();
+            if (box != IntPtr.Zero && Form.ActiveForm == Pane.Main && Native.GetFocus() != box) Native.SetFocus(box);
         }
 
         bool SelectForRename(string path)

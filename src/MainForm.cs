@@ -724,6 +724,8 @@ namespace OrclFileExplorer
                 if (t == null || !t.Created) continue;
                 int n = t.Count(Native.SVGIO_ALLVIEW);
                 if (n == t.fitCount && t.fitFolder == t.Folder) continue;
+                // Not while a name is being typed: resizing the column would close the rename box (tried again later).
+                if (t.Renaming) continue;
                 t.fitCount = n;
                 t.fitFolder = t.Folder;
                 t.AutoFitName();
@@ -1169,9 +1171,13 @@ namespace OrclFileExplorer
             }
         }
 
+        // The last key press or mouse click anywhere in the app (a rename box opened for the user stops being guarded).
+        public static int LastInputTick = Environment.TickCount - 100000;
+
         bool FilterMessage(ref Message m)
         {
             int msg = m.Msg;
+            if (msg == 0x100 || msg == 0x104 || msg == 0x201 || msg == 0x204 || msg == 0x207 || msg == 0xA1 || msg == 0xA4) LastInputTick = Environment.TickCount;
             // While Quick Look is open, its keys (arrows, Space, Esc) are its own wherever the focus is: in the file
             // list behind it they would move the selection there instead.
             if ((msg == 0x100 || msg == 0x104) && quickLook != null && !quickLook.IsDisposed && quickLook.Visible && Form.ActiveForm == quickLook &&

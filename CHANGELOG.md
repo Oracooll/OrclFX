@@ -3,6 +3,12 @@
 Versions are `major.minor.build` with a three-digit build number. Every release bumps the build;
 the minor number changes only for larger milestones.
 
+## 1.1.035
+- New folder / New text file: the new item's name is always left open for typing, with "New folder" (or "New Text
+  Document") selected. For a few seconds after it appears, until you type or click, the app keeps the rename box
+  open and the keyboard in it: Windows' file list could close it when it redrew the new item (OneDrive changing
+  its sync icon, for example). Auto-fit of the Name column also waits while a name is being typed.
+
 ## 1.1.034
 - Space Viewer: the thumbnail pane is on the left. The viewer keeps the keyboard: clicking a thumbnail or stepping
   through pictures no longer lets the file list behind it take the keys. Page Up / Page Down move a screenful of
