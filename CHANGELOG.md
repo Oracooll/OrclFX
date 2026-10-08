@@ -3,6 +3,17 @@
 Versions are `major.minor.build` with a three-digit build number. Every release bumps the build;
 the minor number changes only for larger milestones.
 
+## 1.1.037
+Fixes from an audit loop (3 rounds; the last found no problems):
+- Space Viewer: stepping back to a PDF, text or other non-picture file showed an empty pane.
+- Space Viewer: Del on a PDF, Office or other file with a Windows preview usually failed ("file in use"), because
+  the preview (in the viewer, and in the main window's preview pane) still held it open. Both now let go of it
+  first and don't reopen it while Windows asks about it; if it still can't be deleted, it is shown again.
+- Turning a PNG that holds more than the picture (an animation, a colour profile, text) is refused: saving it
+  again would have dropped that.
+- Shortcuts: a damaged list left by a version before 1.1.015 (the old DualPane folder) could remove shortcuts
+  from the shared list when it was merged; it is now ignored.
+
 ## 1.1.036
 - The app is now called **OrclFX** (it was Orcl File Explorer): in its window, dialogs, the Start menu and
   Settings > Apps. The GitHub repository is now github.com/Oracooll/OrclFX (it was orcl-file-explorer; old links

@@ -371,6 +371,7 @@ namespace OrclFileExplorer
                             switch (step)
                             {
                                 case "next": quickLook.Step(1); break;
+                                case "prev": quickLook.Step(-1); break;
                                 case "turn": quickLook.Turn(true); break;
                                 case "delete": quickLook.DeleteCurrent(); break;
                                 case "info": quickLook.ToggleInfo(); break;
@@ -1091,6 +1092,19 @@ namespace OrclFileExplorer
             quickLook = null;
             BrowserTab t = ActivePane == null ? null : ActivePane.ActiveTab;
             if (t != null && !IsDisposed) { Activate(); t.Activate(); }
+        }
+
+        // The preview pane lets go of this file if it shows it (it's about to be deleted).
+        public void ReleasePreviewOf(string path)
+        {
+            if (preview == null) return;
+            if (string.Equals(preview.CurrentPath, path, StringComparison.OrdinalIgnoreCase)) preview.ReleaseFile();
+            preview.HoldBack(path); // until ResumePreview: not reopened while it's being deleted
+        }
+
+        public void ResumePreview()
+        {
+            if (preview != null) preview.HoldBack(null);
         }
 
         public void UpdateStatus()

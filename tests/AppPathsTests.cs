@@ -56,6 +56,21 @@ namespace OrclFileExplorer.Tests
         }
 
         [Test]
+        static void ADamagedOldListRemovesNothing()
+        {
+            using (TempDir d = new TempDir())
+            {
+                string oldLocal = Path.Combine(d.Path, "DualPane"), newLocal = Path.Combine(d.Path, "OrclFX");
+                string oldList = d.File(@"OneDrive\DualPane\shortcuts.txt", "A|C:\\A\r\nB|C:\\B\r\n");
+                string newList = Path.Combine(d.Path, @"OneDrive\Documents\OrclFX\shortcuts.txt");
+                AppPaths.Migrate(oldLocal, newLocal, oldList, newList);
+                File.WriteAllBytes(oldList, new byte[64]); // zeros after a sync glitch
+                AppPaths.Migrate(oldLocal, newLocal, oldList, newList);
+                Assert.Equal(2, Folders(newList).Count, "both shortcuts are still there");
+            }
+        }
+
+        [Test]
         static void EditsOnNotYetUpdatedComputersAreMergedIn()
         {
             using (TempDir d = new TempDir())

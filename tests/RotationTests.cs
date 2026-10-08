@@ -118,6 +118,27 @@ namespace OrclFileExplorer.Tests
         }
 
         [Test]
+        static void PngsWithMoreThanThePictureAreNotTurned()
+        {
+            using (TempDir d = new TempDir())
+            {
+                string f = Picture(d, "plain.png", 40, 20, ImageFormat.Png);
+                Assert.True(Rotation.PlainPng(File.ReadAllBytes(f)), "a PNG as Windows saves it");
+                // Insert a text chunk (tEXt) after the header: re-saving would drop it.
+                byte[] b = File.ReadAllBytes(f);
+                byte[] text = new byte[] { 0, 0, 0, 4, (byte)'t', (byte)'E', (byte)'X', (byte)'t', (byte)'a', 0, (byte)'b', (byte)'c', 0, 0, 0, 0 };
+                byte[] withText = new byte[b.Length + text.Length];
+                Array.Copy(b, 0, withText, 0, 33);                 // signature + IHDR
+                Array.Copy(text, 0, withText, 33, text.Length);
+                Array.Copy(b, 33, withText, 33 + text.Length, b.Length - 33);
+                File.WriteAllBytes(f, withText);
+                Assert.True(!Rotation.PlainPng(withText), "a PNG with text");
+                Assert.True(Rotation.Turn(f, true) != null, "not turned");
+                Assert.True(Convert.ToBase64String(withText) == Convert.ToBase64String(File.ReadAllBytes(f)), "unchanged");
+            }
+        }
+
+        [Test]
         static void WhatCantBeTurnedSafelyIsLeftAlone()
         {
             using (TempDir d = new TempDir())

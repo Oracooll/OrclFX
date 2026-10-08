@@ -289,10 +289,16 @@ namespace OrclFileExplorer
             string gone = ActOn();
             if (gone == null) return;
             int i = files == null ? -1 : files.FindIndex(Same(gone));
-            preview.Unload(); // a preview handler may hold the file open
-            if (!Native.ShellRecycle(Handle, gone) || File.Exists(gone))
+            // A preview handler (here, and in the main window's preview pane) may hold the file open.
+            preview.ReleaseFile();
+            main.ReleasePreviewOf(gone);
+            bool deleted;
+            try { deleted = Native.ShellRecycle(Handle, gone) && !File.Exists(gone); }
+            finally { main.ResumePreview(); }
+            if (!deleted)
             {
                 main.Notice("⚠ " + Path.GetFileName(gone) + " wasn't deleted.");
+                ShowFile(gone); // shown again (its preview was closed for the delete)
                 return;
             }
             main.Notice(Path.GetFileName(gone) + " was moved to the Recycle Bin.");

@@ -101,6 +101,8 @@ namespace OrclFileExplorer
         {
             if (!File.Exists(source) || Util.SameFolder(source, target)) return;
             string sourceText = File.ReadAllText(source, System.Text.Encoding.UTF8);
+            // A damaged list (empty, zeros after a sync glitch) would read as "every shortcut was removed".
+            if (!ShortcutList.IsIntact(Lines(sourceText))) return;
             // Named from the source's portable path (%OneDrive%\...), so every computer uses the same note.
             string note = Path.Combine(Path.GetDirectoryName(target), "." + Path.GetFileName(target) + ".merged-" + Util.TextKey(ShortcutList.ToPortable(source)));
             string noteText = File.Exists(note) ? File.ReadAllText(note, System.Text.Encoding.UTF8) : null;

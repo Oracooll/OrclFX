@@ -52,11 +52,32 @@ namespace OrclFileExplorer
             return null;
         }
 
+        // A PNG made only of the parts Windows writes back when saving (so re-saving keeps everything): the image
+        // header and data, sRGB, gamma and resolution. Anything else (an animation, a colour profile, text, EXIF ...)
+        // would be dropped.
+        internal static bool PlainPng(byte[] b)
+        {
+            if (b.Length < 8 || b[0] != 0x89 || b[1] != 'P' || b[2] != 'N' || b[3] != 'G') return false;
+            int i = 8;
+            while (i + 8 <= b.Length)
+            {
+                long len = ((long)b[i] << 24) | ((long)b[i + 1] << 16) | ((long)b[i + 2] << 8) | b[i + 3];
+                string type = System.Text.Encoding.ASCII.GetString(b, i + 4, 4);
+                if (type != "IHDR" && type != "IDAT" && type != "IEND" && type != "sRGB" && type != "gAMA" && type != "pHYs") return false;
+                if (type == "IEND") return true;
+                if (len > b.Length - i - 12) return false; // a damaged length
+                i += 12 + (int)len;
+            }
+            return false;
+        }
+
         static string TurnAndSave(string path, bool cw, string ext)
         {
             ImageFormat format = ext == ".png" ? ImageFormat.Png : ext == ".bmp" || ext == ".dib" ? ImageFormat.Bmp : null;
             if (format == null) return Path.GetFileName(path) + " can't be turned without changing it (only JPEG, PNG and BMP are turned).";
             byte[] bytes = File.ReadAllBytes(path);
+            if (format == ImageFormat.Png && !PlainPng(bytes))
+                return Path.GetFileName(path) + " can't be turned without changing it (it holds an animation, a colour profile or other data that saving it again would drop).";
             using (MemoryStream ms = new MemoryStream(bytes))
             using (Image img = Image.FromStream(ms, false, false))
             {

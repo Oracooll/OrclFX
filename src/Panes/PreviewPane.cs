@@ -141,6 +141,7 @@ namespace OrclFileExplorer
             message.Visible = picture.Visible = false;
             textPanel.Visible = true;
             textPanel.BringToFront();
+            Program.Trace("preview text: " + Path.GetFileName(current) + ", " + text.Length + " chars");
             Search(); // the search term stays from file to file
         }
 
@@ -241,9 +242,15 @@ namespace OrclFileExplorer
             worker.SetRect(HostRect());
         }
 
+        // A file being deleted: not opened again meanwhile (the main window asks for its preview every 300 ms, also
+        // while Windows' "file in use" dialog waits for the user).
+        string heldBack;
+        public void HoldBack(string path) { heldBack = path; }
+
         public void Show(string path)
         {
             if (path == null) path = "";
+            if (heldBack != null && string.Equals(path, heldBack, StringComparison.OrdinalIgnoreCase)) return;
             if (path == current && shownJob == null) return;
             current = path;
             shownJob = null;
@@ -438,6 +445,27 @@ namespace OrclFileExplorer
         {
             if (worker != null) Submit("");
             else { ++thumbTicket; ClearShown(); }
+            current = ""; // showing the same file again later loads it again
+            shownJob = null;
+        }
+
+        // The file shown (empty when none).
+        public string CurrentPath { get { return current; } }
+
+        // Lets go of the file now (a preview handler may hold it open): before it's deleted or moved. Waits at most
+        // two seconds; a stuck handler is left to finish on its own.
+        public void ReleaseFile()
+        {
+            retryTimer.Stop();
+            ++thumbTicket;
+            ClearShown();
+            current = "";
+            shownJob = null;
+            if (worker == null) return;
+            PreviewWorker w = worker;
+            worker = null;
+            w.Quit();
+            if (!w.WaitForExit(2000)) { w.Abandon(); abandoned.Add(w); }
         }
 
         // For closing: unload the handler, waiting at most two seconds for a stuck one.
