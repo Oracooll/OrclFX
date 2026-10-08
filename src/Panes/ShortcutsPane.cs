@@ -1,4 +1,4 @@
-// Orcl File Explorer: Shortcuts pane: the shared list of saved folders along the bottom.
+// OrclFX: Shortcuts pane: the shared list of saved folders along the bottom.
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;

@@ -1,4 +1,4 @@
-// Orcl File Explorer: the Find history (recent searches). No UI; covered by tests\.
+// OrclFX: the Find history (recent searches). No UI; covered by tests\.
 using System;
 using System.Collections.Generic;
 

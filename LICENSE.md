@@ -1,4 +1,4 @@
-Required Notice: Copyright (c) 2026 Oracooll (https://github.com/Oracooll/orcl-file-explorer)
+Required Notice: Copyright (c) 2026 Oracooll (https://github.com/Oracooll/OrclFX)
 
 # PolyForm Noncommercial License 1.0.0
 

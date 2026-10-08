@@ -1,4 +1,4 @@
-// Orcl File Explorer: where the window reopens. No UI; covered by tests\.
+// OrclFX: where the window reopens. No UI; covered by tests\.
 using System;
 using System.Collections.Generic;
 using System.Drawing;

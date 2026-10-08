@@ -3,6 +3,13 @@
 Versions are `major.minor.build` with a three-digit build number. Every release bumps the build;
 the minor number changes only for larger milestones.
 
+## 1.1.036
+- The app is now called **OrclFX** (it was Orcl File Explorer): in its window, dialogs, the Start menu and
+  Settings > Apps. The GitHub repository is now github.com/Oracooll/OrclFX (it was orcl-file-explorer; old links
+  and the update check of earlier versions are redirected there).
+- Nothing moves: the program stays in `%LOCALAPPDATA%\Programs\Orcl File Explorer`, so taskbar pins keep working,
+  and settings, shortcuts and layouts stay where they are. Earlier versions update to this one as usual.
+
 ## 1.1.035
 - New folder / New text file: the new item's name is always left open for typing, with "New folder" (or "New Text
   Document") selected. For a few seconds after it appears, until you type or click, the app keeps the rename box

@@ -1,4 +1,4 @@
-// Orcl File Explorer: Lays out 1-4 file panes side by side with draggable dividers.
+// OrclFX: Lays out 1-4 file panes side by side with draggable dividers.
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;

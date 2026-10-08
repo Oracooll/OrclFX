@@ -1,4 +1,4 @@
-// Orcl File Explorer: Per-user install, update and uninstall (no admin rights needed).
+// OrclFX: Per-user install, update and uninstall (no admin rights needed).
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -21,13 +21,17 @@ namespace OrclFileExplorer
         const string OldUninstallKey = @"Software\Microsoft\Windows\CurrentVersion\Uninstall\DualPane";
         public static readonly string Version = Util.FormatVersion(Assembly.GetExecutingAssembly().GetName().Version);
 
-        static readonly string InstallDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Programs", Program.AppName);
+        // The folder keeps the app's former name: copies installed there update in place, and taskbar pins (which
+        // point at the program file) keep working.
+        static readonly string InstallDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Programs", Program.FormerName);
         static readonly string InstalledExe = Path.Combine(InstallDir, "orclfx.exe");
         // Where versions before 1.1 (named DualPane) were installed.
         static readonly string OldInstallDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Programs", "DualPane");
         static readonly string OldInstalledExe = Path.Combine(OldInstallDir, "DualPane.exe");
         static readonly string StartMenuLink = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Programs), Program.AppName + ".lnk");
         static readonly string OldStartMenuLink = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Programs), "DualPane.lnk");
+        // The Start menu entry under the former name (replaced by "OrclFX" when the program is registered again).
+        static readonly string FormerStartMenuLink = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Programs), Program.FormerName + ".lnk");
 
         public static bool IsRunningInstalledCopy()
         {
@@ -39,8 +43,8 @@ namespace OrclFileExplorer
         {
             bool installed = File.Exists(InstalledExe);
             string msg = installed
-                ? "Orcl File Explorer is already installed on this computer.\n\nYes: update the installed copy to version " + Version + " and start it\nNo: just run this copy without installing\nCancel: quit"
-                : "Install Orcl File Explorer on this computer?\n\nIt installs for your Windows account only (no admin rights needed), adds it to the Start menu, and can be removed from Settings > Apps.\n\nYes: install and start\nNo: just run this copy without installing\nCancel: quit";
+                ? "OrclFX is already installed on this computer.\n\nYes: update the installed copy to version " + Version + " and start it\nNo: just run this copy without installing\nCancel: quit"
+                : "Install OrclFX on this computer?\n\nIt installs for your Windows account only (no admin rights needed), adds it to the Start menu, and can be removed from Settings > Apps.\n\nYes: install and start\nNo: just run this copy without installing\nCancel: quit";
             DialogResult r = MessageBox.Show(msg, Program.AppName, MessageBoxButtons.YesNoCancel, MessageBoxIcon.Question);
             if (r == DialogResult.Cancel) return false;
             if (r == DialogResult.No) return true;
@@ -88,7 +92,7 @@ namespace OrclFileExplorer
             }
             catch (IOException)
             {
-                if (!Quiet) MessageBox.Show("The installed Orcl File Explorer is running. Close it and try again.", Program.AppName, MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                if (!Quiet) MessageBox.Show("The installed OrclFX is running. Close it and try again.", Program.AppName, MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return false;
             }
             catch (Exception ex)
@@ -143,6 +147,7 @@ namespace OrclFileExplorer
         static void MigrateOldInstall()
         {
             try { if (File.Exists(OldStartMenuLink)) File.Delete(OldStartMenuLink); } catch { }
+            try { if (File.Exists(FormerStartMenuLink)) File.Delete(FormerStartMenuLink); } catch { }
             try { Registry.CurrentUser.DeleteSubKeyTree(OldUninstallKey, false); } catch { }
             try
             {
@@ -193,14 +198,15 @@ namespace OrclFileExplorer
             if (InstalledCopyRunning())
             {
                 if (Quiet) { Environment.ExitCode = 1; return; }
-                MessageBox.Show("Orcl File Explorer is running. Close it, then uninstall again.", Program.AppName, MessageBoxButtons.OK, MessageBoxIcon.Information);
+                MessageBox.Show("OrclFX is running. Close it, then uninstall again.", Program.AppName, MessageBoxButtons.OK, MessageBoxIcon.Information);
                 return;
             }
             // Quiet (winget): no questions, and the settings are kept.
-            if (!Quiet && MessageBox.Show("Uninstall Orcl File Explorer from this computer?", Program.AppName, MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes) return;
+            if (!Quiet && MessageBox.Show("Uninstall OrclFX from this computer?", Program.AppName, MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes) return;
             bool wipeSettings = !Quiet && MessageBox.Show("Also delete your saved tabs and settings?", Program.AppName, MessageBoxButtons.YesNo, MessageBoxIcon.Question) == DialogResult.Yes;
             try { File.Delete(StartMenuLink); } catch { }
             try { File.Delete(OldStartMenuLink); } catch { }
+            try { File.Delete(FormerStartMenuLink); } catch { }
             try { Registry.CurrentUser.DeleteSubKeyTree(UninstallKey, false); } catch { }
             if (wipeSettings)
             {
@@ -214,7 +220,7 @@ namespace OrclFileExplorer
                     try { Directory.Delete(dir, false); } catch { }
             }
             if (!Quiet)
-                MessageBox.Show("Orcl File Explorer was uninstalled. Its program file is removed a few seconds after this message closes.",
+                MessageBox.Show("OrclFX was uninstalled. Its program file is removed a few seconds after this message closes.",
                     Program.AppName, MessageBoxButtons.OK, MessageBoxIcon.Information);
             // The running exe can't delete itself: delete just orclfx.exe a moment after we exit (retrying while it
             // is still in use), then the folder only if nothing else is left in it.

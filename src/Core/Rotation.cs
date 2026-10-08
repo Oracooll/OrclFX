@@ -1,4 +1,4 @@
-// Orcl File Explorer: turning a picture file by 90° without losing quality. JPEG photos get a new EXIF orientation
+// OrclFX: turning a picture file by 90° without losing quality. JPEG photos get a new EXIF orientation
 // (their image data isn't touched); ordinary 24/32-bit PNG and BMP pictures are turned and saved again. Anything
 // that re-saving would change (GIF palettes, 16-bit or indexed PNG, TIFF) isn't turned.
 // Covered by tests\.

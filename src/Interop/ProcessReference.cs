@@ -1,4 +1,4 @@
-// Orcl File Explorer: keeps the app running while the shell copies, moves or deletes files for it.
+// OrclFX: keeps the app running while the shell copies, moves or deletes files for it.
 using System;
 using System.Runtime.InteropServices;
 using System.Threading;

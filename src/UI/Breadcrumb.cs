@@ -1,4 +1,4 @@
-// Orcl File Explorer: the address bar's clickable path. Click a folder to open it (Ctrl+click or middle-click: in a
+// OrclFX: the address bar's clickable path. Click a folder to open it (Ctrl+click or middle-click: in a
 // new tab), click the arrow after it to pick one of its subfolders, click empty space to copy the address, and
 // double-click empty space (or press Ctrl+L / F4) to type an address.
 using System;

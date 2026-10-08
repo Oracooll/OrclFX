@@ -1,4 +1,4 @@
-﻿# Builds dist\orclfx.exe (Orcl File Explorer) with the C# compiler that ships with Windows (.NET Framework 4.x).
+﻿# Builds dist\orclfx.exe (OrclFX) with the C# compiler that ships with Windows (.NET Framework 4.x).
 param([string]$Out)
 $ErrorActionPreference = 'Stop'
 $root = $PSScriptRoot

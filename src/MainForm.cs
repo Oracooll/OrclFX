@@ -1,4 +1,4 @@
-// Orcl File Explorer: Main window: layout, commands, input routing and saved settings.
+// OrclFX: Main window: layout, commands, input routing and saved settings.
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -667,7 +667,7 @@ namespace OrclFileExplorer
             }
             if (MessageBox.Show(this,
                 "Folder sizes are worked out by scanning every file inside each folder. On big folders this keeps the disk busy and can take a while.\n\n" +
-                "Orcl File Explorer scans in the background at low priority, skips network drives, and turns this off by itself if a scan gets out of hand " +
+                "OrclFX scans in the background at low priority, skips network drives, and turns this off by itself if a scan gets out of hand " +
                 "(more than " + SizeJob.MaxSeconds + " seconds or " + (SizeJob.MaxEntries / 1000000) + " million items).\n\nTurn on folder sizes?",
                 "Folder sizes", MessageBoxButtons.YesNo, MessageBoxIcon.Warning, MessageBoxDefaultButton.Button2) != DialogResult.Yes) return;
             if (MessageBox.Show(this,
@@ -705,7 +705,7 @@ namespace OrclFileExplorer
             }
             foreach (Pane p in Panes) foreach (BrowserTab t in p.Tabs) if (t.Created) t.RefreshView();
             MessageBox.Show(this, "Natural number sorting is now " + (on ? "on" : "off") + ".\n\nThis is a Windows setting, so it applies to File Explorer as well. " +
-                "If the order doesn't change straight away, restart Orcl File Explorer.", "Sorting", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                "If the order doesn't change straight away, restart OrclFX.", "Sorting", MessageBoxButtons.OK, MessageBoxIcon.Information);
         }
 
         public void SetAutoFit(bool on)

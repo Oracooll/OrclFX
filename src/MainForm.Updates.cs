@@ -1,4 +1,4 @@
-// Orcl File Explorer: main window, the "Check for updates" part (the work itself is in Core\Updater.cs).
+// OrclFX: main window, the "Check for updates" part (the work itself is in Core\Updater.cs).
 using System;
 using System.Diagnostics;
 using System.Threading;
@@ -114,7 +114,7 @@ namespace OrclFileExplorer
             }
             if (ProcessReference.Busy > 0)
             {
-                MessageBox.Show(this, "A copy or move is still running in Orcl File Explorer. Update when it has finished (menu \u203A Update).",
+                MessageBox.Show(this, "A copy or move is still running in OrclFX. Update when it has finished (menu \u203A Update).",
                     Program.AppName, MessageBoxButtons.OK, MessageBoxIcon.Information);
                 return;
             }

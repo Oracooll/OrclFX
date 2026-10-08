@@ -1,4 +1,4 @@
-// Orcl File Explorer: P/Invoke declarations and thin wrappers around Windows and Shell APIs.
+// OrclFX: P/Invoke declarations and thin wrappers around Windows and Shell APIs.
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;

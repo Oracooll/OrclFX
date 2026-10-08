@@ -1,4 +1,4 @@
-// Orcl File Explorer: finding, downloading, checking and applying updates from the GitHub releases.
+// OrclFX: finding, downloading, checking and applying updates from the GitHub releases.
 using System;
 using System.Collections;
 using System.Collections.Generic;
@@ -13,13 +13,13 @@ namespace OrclFileExplorer
     // How an update works:
     // 1. FetchLatest asks GitHub for the newest release of this repository.
     // 2. Download saves its orclfx.exe to %TEMP%\orclfx-update and checks it: the size and SHA-256 that GitHub
-    //    reports, and that it is Orcl File Explorer with the release's version number.
+    //    reports, and that it is OrclFX with the release's version number.
     // 3. The running app saves its settings, starts the download with --update <its process id> <its exe> and
     //    closes. The new exe waits for it to exit, copies itself over the old exe (for the installed copy:
     //    reinstalls, which also updates the Start menu and Settings > Apps entries) and starts it again.
     static class Updater
     {
-        public const string Repo = "Oracooll/orcl-file-explorer";
+        public const string Repo = "Oracooll/OrclFX";
         public static readonly string ReleasesPage = "https://github.com/" + Repo + "/releases";
         // DUALPANE_UPDATE_URL points the check somewhere else (for tests).
         static readonly string ApiUrl = Environment.GetEnvironmentVariable("DUALPANE_UPDATE_URL") ??
@@ -129,9 +129,10 @@ namespace OrclFileExplorer
             }
             AssemblyName name;
             try { name = AssemblyName.GetAssemblyName(file); }
-            catch { throw new IOException("the download isn't a valid Orcl File Explorer program"); }
-            if (FileVersionInfo.GetVersionInfo(file).ProductName != Program.AppName)
-                throw new IOException("the download isn't Orcl File Explorer");
+            catch { throw new IOException("the download isn't a valid OrclFX program"); }
+            string product = FileVersionInfo.GetVersionInfo(file).ProductName;
+            if (product != Program.FormerName && product != Program.AppName)
+                throw new IOException("the download isn't OrclFX");
             if (name.Version != r.Version)
                 throw new IOException("the download is version " + Util.FormatVersion(name.Version) + ", not " + Util.FormatVersion(r.Version));
         }

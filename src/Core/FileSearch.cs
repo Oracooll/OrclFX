@@ -1,4 +1,4 @@
-// Orcl File Explorer: finding files and folders by name in a folder and all its subfolders. No UI; covered by tests\.
+// OrclFX: finding files and folders by name in a folder and all its subfolders. No UI; covered by tests\.
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;

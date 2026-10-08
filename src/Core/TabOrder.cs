@@ -1,4 +1,4 @@
-// Orcl File Explorer: where a tab the app opens goes in the tab row. No UI; covered by tests\.
+// OrclFX: where a tab the app opens goes in the tab row. No UI; covered by tests\.
 using System;
 using System.Collections.Generic;
 

@@ -1,4 +1,4 @@
-// Orcl File Explorer: width arithmetic for the 1-4 side-by-side file panes. No UI; covered by tests\.
+// OrclFX: width arithmetic for the 1-4 side-by-side file panes. No UI; covered by tests\.
 using System;
 
 namespace OrclFileExplorer

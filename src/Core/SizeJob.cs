@@ -1,4 +1,4 @@
-// Orcl File Explorer: Background scan that totals the size of a folder's subfolders.
+// OrclFX: Background scan that totals the size of a folder's subfolders.
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;

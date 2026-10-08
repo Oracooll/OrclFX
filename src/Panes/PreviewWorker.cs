@@ -1,4 +1,4 @@
-// Orcl File Explorer: runs preview handlers and thumbnail extraction on their own STA thread.
+// OrclFX: runs preview handlers and thumbnail extraction on their own STA thread.
 using System;
 using System.Drawing;
 using System.IO;

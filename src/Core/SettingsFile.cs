@@ -1,4 +1,4 @@
-// Orcl File Explorer: reading the settings file (key=value lines) and its per-pane tab entries. No UI; covered by tests\.
+// OrclFX: reading the settings file (key=value lines) and its per-pane tab entries. No UI; covered by tests\.
 using System;
 using System.IO;
 

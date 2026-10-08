@@ -1,4 +1,4 @@
-// Orcl File Explorer: One tab: an embedded Windows Explorer view (IExplorerBrowser).
+// OrclFX: One tab: an embedded Windows Explorer view (IExplorerBrowser).
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;

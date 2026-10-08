@@ -1,4 +1,4 @@
-// Orcl File Explorer: the Space Viewer's thumbnail pane: every picture of the folder as a grid. Ctrl+mouse wheel
+// OrclFX: the Space Viewer's thumbnail pane: every picture of the folder as a grid. Ctrl+mouse wheel
 // makes the thumbnails bigger or smaller (64-512 pixels); they are made in the background, the visible ones first,
 // and only a limited number is kept in memory.
 using System;

@@ -1,4 +1,4 @@
-// Orcl File Explorer: building a Windows Search results folder (what File Explorer's search box shows).
+// OrclFX: building a Windows Search results folder (what File Explorer's search box shows).
 using System;
 using System.Runtime.InteropServices;
 

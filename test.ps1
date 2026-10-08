@@ -1,4 +1,4 @@
-﻿# Builds Orcl File Explorer and its tests into dist\tests\ and runs them.
+﻿# Builds OrclFX and its tests into dist\tests\ and runs them.
 #   .\test.ps1              unit tests (no windows open)
 #   .\test.ps1 -Smoke       also starts the app with throw-away settings, checks it opens, saves and closes cleanly
 #   .\test.ps1 -Filter Merge  only tests whose name contains "Merge"

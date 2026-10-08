@@ -1,4 +1,4 @@
-// Orcl File Explorer: reading a file as text for the preview pane (encoding, binary detection, size limit). No UI;
+// OrclFX: reading a file as text for the preview pane (encoding, binary detection, size limit). No UI;
 // covered by tests\.
 using System;
 using System.Collections.Generic;

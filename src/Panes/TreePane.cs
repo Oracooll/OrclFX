@@ -1,4 +1,4 @@
-// Orcl File Explorer: Folder tree (INameSpaceTreeControl) that follows the active pane.
+// OrclFX: Folder tree (INameSpaceTreeControl) that follows the active pane.
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;

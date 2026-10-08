@@ -1,4 +1,4 @@
-// Orcl File Explorer: splitting a folder path into the parts of the address bar. No UI; covered by tests\.
+// OrclFX: splitting a folder path into the parts of the address bar. No UI; covered by tests\.
 using System;
 using System.Collections.Generic;
 

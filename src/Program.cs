@@ -1,4 +1,4 @@
-// Orcl File Explorer (orclfx.exe): a light multi-pane file manager that hosts the real Windows Explorer view.
+// OrclFX (orclfx.exe): a light multi-pane file manager that hosts the real Windows Explorer view.
 // Built with the C# 5 compiler that ships with .NET Framework 4.x (see build.ps1). This file: the entry point
 // (command-line switches, single-instance check, error logging).
 using System;
@@ -19,7 +19,9 @@ namespace OrclFileExplorer
 {
     static class Program
     {
-        public const string AppName = "Orcl File Explorer";
+        public const string AppName = "OrclFX";
+        // The name the app had until 1.1.035: still the program's product name and its install folder (see Installer).
+        public const string FormerName = "Orcl File Explorer";
         // Set by a second start of the app: the running one shows its window (see MainForm.ListenForShow).
         public static string ShowEventName { get { return "OrclFx.Show." + Util.PathKey(MainForm.StateFile); } }
         public static bool Portable;

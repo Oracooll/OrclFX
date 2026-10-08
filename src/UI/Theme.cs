@@ -1,4 +1,4 @@
-// Orcl File Explorer: Light/dark colours and the themed menu renderer.
+// OrclFX: Light/dark colours and the themed menu renderer.
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;

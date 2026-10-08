@@ -1,4 +1,4 @@
-// Orcl File Explorer: A file pane: tab strip, address bar and the tabs' Explorer views.
+// OrclFX: A file pane: tab strip, address bar and the tabs' Explorer views.
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;

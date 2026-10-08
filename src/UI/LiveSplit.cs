@@ -1,4 +1,4 @@
-// Orcl File Explorer: SplitContainer that resizes live while the splitter is dragged.
+// OrclFX: SplitContainer that resizes live while the splitter is dragged.
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;

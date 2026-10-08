@@ -1,4 +1,4 @@
-// Orcl File Explorer: Owner-drawn tab strip of a file pane.
+// OrclFX: Owner-drawn tab strip of a file pane.
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;

@@ -1,4 +1,4 @@
-// Orcl File Explorer: decoding common picture files directly for the preview (faster, sharper and more reliable
+// OrclFX: decoding common picture files directly for the preview (faster, sharper and more reliable
 // than the shell's thumbnails, which often come back as the file's icon the first time). Covered by tests\.
 using System;
 using System.Collections.Generic;

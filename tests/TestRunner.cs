@@ -1,4 +1,4 @@
-// Orcl File Explorer tests: a minimal runner, so the tests build with the same Windows C# compiler as the app
+// OrclFX tests: a minimal runner, so the tests build with the same Windows C# compiler as the app
 // and need no packages. Every static method marked [Test] runs; the exit code is the number of failures.
 // Usage: orclfx.tests.exe [part of a test name to run only matching tests]
 using System;

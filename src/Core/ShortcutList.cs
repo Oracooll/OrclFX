@@ -1,4 +1,4 @@
-// Orcl File Explorer: the shared shortcuts file (format, portable paths, three-way merge). No UI; covered by tests\.
+// OrclFX: the shared shortcuts file (format, portable paths, three-way merge). No UI; covered by tests\.
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -9,7 +9,7 @@ namespace OrclFileExplorer
     // A shortcut is a (label, folder path) pair. The file holds one "label|path" line per shortcut.
     static class ShortcutList
     {
-        public const string Header = "# Orcl File Explorer shortcuts, one per line as: label, a vertical bar, then the folder. Shared between computers through OneDrive.";
+        public const string Header = "# OrclFX shortcuts, one per line as: label, a vertical bar, then the folder. Shared between computers through OneDrive.";
 
         // Store paths relative to OneDrive / the user profile so they resolve on every computer.
         public static string ToPortable(string path)

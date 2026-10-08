@@ -1,4 +1,4 @@
-// Orcl File Explorer: the Find box that drops down from the magnifier in the title bar.
+// OrclFX: the Find box that drops down from the magnifier in the title bar.
 using System;
 using System.Collections.Generic;
 using System.Drawing;

@@ -1,4 +1,4 @@
-// Orcl File Explorer: Preview pane: preview handlers, thumbnails and folder sizes.
+// OrclFX: Preview pane: preview handlers, thumbnails and folder sizes.
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;

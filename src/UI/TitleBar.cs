@@ -1,4 +1,4 @@
-// Orcl File Explorer: Custom title bar: icon, title, layout/view/theme buttons, caption buttons.
+// OrclFX: Custom title bar: icon, title, layout/view/theme buttons, caption buttons.
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;

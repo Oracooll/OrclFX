@@ -1,4 +1,4 @@
-// Orcl File Explorer: turning JPEG photos without re-encoding them, by changing the EXIF orientation tag (the way
+// OrclFX: turning JPEG photos without re-encoding them, by changing the EXIF orientation tag (the way
 // cameras record a turned photo), and reading the tag. No UI; covered by tests\.
 using System;
 using System.IO;

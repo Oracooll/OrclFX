@@ -1,4 +1,4 @@
-// Orcl File Explorer: the Space Viewer's picture view: fit to the window or zoom (mouse wheel at the pointer, 1 for
+// OrclFX: the Space Viewer's picture view: fit to the window or zoom (mouse wheel at the pointer, 1 for
 // 100 %), drag to move around, and an info box with the photo's details.
 using System;
 using System.Drawing;

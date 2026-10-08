@@ -1,4 +1,4 @@
-// Orcl File Explorer: a small themed dialog that asks for one line of text.
+// OrclFX: a small themed dialog that asks for one line of text.
 using System;
 using System.Drawing;
 using System.Windows.Forms;

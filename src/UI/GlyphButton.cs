@@ -1,4 +1,4 @@
-// Orcl File Explorer: Flat owner-drawn button used in the title bar and pane headers.
+// OrclFX: Flat owner-drawn button used in the title bar and pane headers.
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;

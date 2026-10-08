@@ -1,4 +1,4 @@
-// Orcl File Explorer: Win32 structures and the Shell COM interfaces the app uses.
+// OrclFX: Win32 structures and the Shell COM interfaces the app uses.
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;

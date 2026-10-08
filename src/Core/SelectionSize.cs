@@ -1,4 +1,4 @@
-// Orcl File Explorer: background total of the selected files and folders, for the status bar. No UI; covered by
+// OrclFX: background total of the selected files and folders, for the status bar. No UI; covered by
 // tests\.
 using System;
 using System.Collections.Generic;

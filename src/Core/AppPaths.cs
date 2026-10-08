@@ -1,4 +1,4 @@
-// Orcl File Explorer: where settings are kept, and moving them from the old "DualPane" folders. Covered by tests\.
+// OrclFX: where settings are kept, and moving them from the old "DualPane" folders. Covered by tests\.
 using System;
 using System.Collections.Generic;
 using System.IO;

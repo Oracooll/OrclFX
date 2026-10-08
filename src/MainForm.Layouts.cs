@@ -1,4 +1,4 @@
-// Orcl File Explorer: saved layouts (named sets of panes and tabs, shared through OneDrive), tab colours and
+// OrclFX: saved layouts (named sets of panes and tabs, shared through OneDrive), tab colours and
 // opening a terminal in a folder.
 using System;
 using System.Collections.Generic;

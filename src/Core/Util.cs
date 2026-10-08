@@ -1,4 +1,4 @@
-// Orcl File Explorer: path, file and formatting helpers with no UI (covered by tests\).
+// OrclFX: path, file and formatting helpers with no UI (covered by tests\).
 using System;
 using System.IO;
 using System.Text;

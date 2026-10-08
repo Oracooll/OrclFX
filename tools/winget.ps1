@@ -7,7 +7,7 @@ param([Parameter(Mandatory = $true)][string]$Version, [switch]$Submit)
 $ErrorActionPreference = 'Stop'
 $root = Split-Path $PSScriptRoot
 $id = 'Oracooll.OrclFileExplorer'
-$repo = 'Oracooll/orcl-file-explorer'
+$repo = 'Oracooll/OrclFX'
 $schema = '1.10.0'
 $tag = "v$Version"
 $url = "https://github.com/$repo/releases/download/$tag/orclfx.exe"
@@ -51,7 +51,7 @@ InstallerSwitches:
 UpgradeBehavior: install
 ReleaseDate: $date
 AppsAndFeaturesEntries:
-- DisplayName: Orcl File Explorer
+- DisplayName: OrclFX
   Publisher: Orcl
   DisplayVersion: $Version
   ProductCode: OrclFileExplorer
@@ -71,14 +71,14 @@ Publisher: Orcl
 PublisherUrl: https://github.com/Oracooll
 PublisherSupportUrl: https://github.com/$repo/issues
 Author: Oracooll
-PackageName: Orcl File Explorer
+PackageName: OrclFX
 PackageUrl: https://github.com/$repo
 License: PolyForm Noncommercial 1.0.0
 LicenseUrl: https://github.com/$repo/blob/main/LICENSE.md
 Copyright: Copyright (c) 2026 Oracooll
 ShortDescription: A light multi-pane file manager that hosts the real Windows Explorer view.
 Description: |-
-  Orcl File Explorer shows one to four file panes side by side, each with its own remembered and lockable
+  OrclFX shows one to four file panes side by side, each with its own remembered and lockable
   tabs, and every pane is the real Windows Explorer view (thumbnails, right-click menus, drag and drop).
   It adds a folder tree, a preview pane, a shortcuts strip shared between computers through OneDrive,
   dark and light themes, and optional folder sizes.

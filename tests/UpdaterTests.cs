@@ -20,6 +20,15 @@ namespace OrclFileExplorer.Tests
         }
 
         [Test]
+        static void TheRenameKeepsTheInstallFolderAndTheProductName()
+        {
+            // Installed copies of 1.1.035 and earlier live there and only accept updates with this product name.
+            Assert.True(Installer.InstalledPath.EndsWith(@"\Programs\Orcl File Explorer\orclfx.exe", StringComparison.OrdinalIgnoreCase), "install folder: " + Installer.InstalledPath);
+            Assert.Equal("Orcl File Explorer", System.Diagnostics.FileVersionInfo.GetVersionInfo(typeof(Installer).Assembly.Location).ProductName, "product name");
+            Assert.Equal("OrclFX", Program.AppName, "the app's name");
+        }
+
+        [Test]
         static void Tags()
         {
             Assert.Equal(new Version(1, 1, 9, 0), Updater.ParseTag("v1.1.009"), "v1.1.009");
@@ -31,7 +40,7 @@ namespace OrclFileExplorer.Tests
         [Test]
         static void ReadsTheRelease()
         {
-            Updater.Release r = Updater.ParseRelease(Json("v1.1.012", "orclfx.exe", "https://github.com/Oracooll/orcl-file-explorer/releases/download/v1.1.012/orclfx.exe",
+            Updater.Release r = Updater.ParseRelease(Json("v1.1.012", "orclfx.exe", "https://github.com/Oracooll/OrclFX/releases/download/v1.1.012/orclfx.exe",
                 123456, "sha256:ABCDEF0123", false));
             Assert.True(r != null, "parsed");
             Assert.Equal(new Version(1, 1, 12, 0), r.Version, "version");

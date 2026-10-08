@@ -1,4 +1,4 @@
-// Orcl File Explorer: main window, the Find part (the search itself is in Core\FileSearch.cs).
+// OrclFX: main window, the Find part (the search itself is in Core\FileSearch.cs).
 using System;
 using System.Collections.Generic;
 using System.Drawing;

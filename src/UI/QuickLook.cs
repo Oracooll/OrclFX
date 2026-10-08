@@ -1,4 +1,4 @@
-// Orcl File Explorer: the Space Viewer (Space in a file list): a large view of the selected file, with a pane on its
+// OrclFX: the Space Viewer (Space in a file list): a large view of the selected file, with a pane on its
 // left holding thumbnails of every picture in the folder. Either pane can be turned off from the title bar (viewer only, or
 // thumbnails only). Pictures can be zoomed (wheel, 1 = 100 %), moved, shown full screen (F), turned without losing
 // quality ([ and ]), deleted to the Recycle Bin (Del) and described (I). Arrows step through the folder; Space or

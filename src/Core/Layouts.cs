@@ -1,4 +1,4 @@
-// Orcl File Explorer: saved layouts (named sets of panes and tabs) and the shared file that holds them. No UI;
+// OrclFX: saved layouts (named sets of panes and tabs) and the shared file that holds them. No UI;
 // covered by tests\.
 using System;
 using System.Collections.Generic;
@@ -35,7 +35,7 @@ namespace OrclFileExplorer
 
     static class LayoutFile
     {
-        public const string Header = "# Orcl File Explorer layouts: a [name] line, then its panes and tabs. Shared between computers through OneDrive.";
+        public const string Header = "# OrclFX layouts: a [name] line, then its panes and tabs. Shared between computers through OneDrive.";
         public const int MaxColor = 6;
 
         // "[name]" starts a layout; the lines after it use the settings file's keys (panes, paneweights, activepane,

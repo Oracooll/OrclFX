@@ -1,12 +1,14 @@
-# Orcl File Explorer
+# OrclFX
+
+(Formerly Orcl File Explorer.)
 
 A light multi-pane file manager for Windows, in the spirit of xplorer2, made for wide and ultrawide
 screens. Every pane hosts the **real Windows Explorer view**, so thumbnails, right-click menus,
 drag and drop, renaming, columns and shell extensions behave exactly as in File Explorer.
 
-![Orcl File Explorer with three panes](docs/screenshot.png)
+![OrclFX with three panes](docs/screenshot.png)
 
-**[Download the latest release](https://github.com/Oracooll/orcl-file-explorer/releases/latest)**:
+**[Download the latest release](https://github.com/Oracooll/OrclFX/releases/latest)**:
 a single `orclfx.exe`, no installer package and no admin rights needed.
 
 ## Features
@@ -90,7 +92,7 @@ a single `orclfx.exe`, no installer package and no admin rights needed.
 
 ## Install
 
-1. Download `orclfx.exe` from the [releases page](https://github.com/Oracooll/orcl-file-explorer/releases/latest).
+1. Download `orclfx.exe` from the [releases page](https://github.com/Oracooll/OrclFX/releases/latest).
 2. Run it and choose **Yes** to install for your Windows account. It goes to
    `%LOCALAPPDATA%\Programs\Orcl File Explorer`, appears in the Start menu, and can be removed from
    Settings › Apps.
@@ -170,7 +172,7 @@ deleted. When OneDrive keeps two versions of the list (two computers changed it 
   Windows applies some light/dark choices only when an app starts.
 - Only one window runs at a time; launching the app again brings the open window to the front.
 - See [CHANGELOG.md](CHANGELOG.md) for the version history, and [IDEAS.md](IDEAS.md) for suggestions kept for later. Versions are `major.minor.build` with a
-  three-digit build (1.1.035).
+  three-digit build (1.1.036).
 
 ## License
 
