@@ -416,6 +416,27 @@ namespace OrclFileExplorer
                 };
                 dt.Start();
             }
+            // Test hook: DUALPANE_TEST_WHEEL=<notches>[,<notches>...] steps the active tab's view as Ctrl+wheel does,
+            // one entry every second from 4 seconds after start.
+            string testWheel = Environment.GetEnvironmentVariable("DUALPANE_TEST_WHEEL");
+            if (testWheel != null)
+            {
+                Queue<int> notches = new Queue<int>();
+                foreach (string n in testWheel.Split(',')) notches.Enqueue(int.Parse(n));
+                Timer wt = new Timer();
+                wt.Interval = 4000;
+                wt.Tick += delegate
+                {
+                    wt.Interval = 1000;
+                    if (notches.Count == 0) { wt.Stop(); return; }
+                    BrowserTab a = ActivePane.ActiveTab;
+                    StepView(a, notches.Dequeue());
+                    int vm, vs;
+                    a.GetViewMode(out vm, out vs);
+                    Program.Trace("test: view now " + vm + "/" + vs + "  (" + noticeText + ")");
+                };
+                wt.Start();
+            }
             // Test hook: DUALPANE_TEST_SHRINKNAME=1 narrows the Name column 4 seconds after start (as a refresh can), to
             // see auto-fit widen it again.
             if (Environment.GetEnvironmentVariable("DUALPANE_TEST_SHRINKNAME") == "1")
@@ -954,6 +975,51 @@ namespace OrclFileExplorer
         public static readonly string[] AllViewNames = { "Extra large icons", "Large icons", "Medium icons", "Small icons", "List", "Details", "Tiles", "Content" };
         public static readonly int[,] AllViewModes = { { 1, 256 }, { 1, 96 }, { 1, 48 }, { 2, 16 }, { 3, 16 }, { 4, 16 }, { 6, 48 }, { 8, 32 } };
 
+        // Ctrl+mouse wheel over a file list steps through every view, smallest to largest (wheel up: larger), one
+        // view per notch, stopping at either end. Indexes into AllViewModes / AllViewNames.
+        static readonly int[] WheelOrder = { 5, 4, 3, 7, 6, 2, 1, 0 }; // Details, List, Small, Content, Tiles, Medium, Large, Extra large
+        int wheelSteps;    // a touchpad sends small amounts: they add up to whole notches
+
+        bool CtrlWheel(ref Message m)
+        {
+            if (!Native.KeyDown(0x11) || Native.KeyDown(0x12) || Native.KeyDown(0x10) || Form.ActiveForm != this) return false;
+            int lp = unchecked((int)(long)m.LParam);
+            POINT pt = new POINT();
+            pt.x = (short)(lp & 0xFFFF);
+            pt.y = (short)((lp >> 16) & 0xFFFF);
+            IntPtr under = Native.WindowFromPoint(pt);
+            BrowserTab t = null;
+            foreach (Pane p in VisiblePanes())
+                if (p.ActiveTab != null && p.ActiveTab.Created && Native.IsChild(p.ActiveTab.Host.Handle, under)) t = p.ActiveTab;
+            if (t == null) return false;
+            wheelSteps += (short)(((long)m.WParam >> 16) & 0xFFFF);
+            int steps = wheelSteps / 120;
+            if (steps == 0) return true;
+            wheelSteps -= steps * 120;
+            StepView(t, steps);
+            return true;
+        }
+
+        void StepView(BrowserTab t, int steps)
+        {
+            int mode, size;
+            if (!t.GetViewMode(out mode, out size)) return;
+            int at = 0;
+            for (int i = 0; i < WheelOrder.Length; i++)
+            {
+                int vm = AllViewModes[WheelOrder[i], 0], vs = AllViewModes[WheelOrder[i], 1];
+                bool same = mode == vm && (vm != 1 || (vs == 256 ? size > 160 : vs == 96 ? size > 64 && size <= 160 : size <= 64));
+                if (same) { at = i; break; }
+            }
+            int to = Math.Max(0, Math.Min(WheelOrder.Length - 1, at + steps));
+            if (to == at) return;
+            int k = WheelOrder[to];
+            if (t.Pane != ActivePane) SetActivePane(t.Pane);
+            t.SetViewMode(AllViewModes[k, 0], AllViewModes[k, 1]);
+            UpdateViewButtons();
+            Notice("View: " + AllViewNames[k] + " (Ctrl+mouse wheel)");
+        }
+
         public void SetViewMode(int mode, int size)
         {
             BrowserTab t = ActivePane.ActiveTab;
@@ -1075,6 +1141,7 @@ namespace OrclFileExplorer
                 "Ctrl+H\t\t\tShow / hide hidden files\n" +
                 "Ctrl+E\t\t\tShow / hide file name extensions\n" +
                 "Ctrl+R / F5\t\tRefresh the folder\n" +
+                "Ctrl+mouse wheel\tAll views, smallest to largest\n" +
                 "Space\t\t\tSpace Viewer: a large view and thumbnails (arrows: next file)\n" +
                 "Click the address bar\tCopy the folder's path (double-click: type one)\n" +
                 "Ctrl+F / F3\t\tFind in this folder and its subfolders\n" +
@@ -1255,6 +1322,7 @@ namespace OrclFileExplorer
         bool FilterMessage(ref Message m)
         {
             int msg = m.Msg;
+            if (msg == 0x20A && CtrlWheel(ref m)) return true; // WM_MOUSEWHEEL
             if (msg == 0x100 || msg == 0x104 || msg == 0x201 || msg == 0x204 || msg == 0x207 || msg == 0xA1 || msg == 0xA4) LastInputTick = Environment.TickCount;
             // F5 refreshes the view: auto-fit takes over again (also after a width set by hand).
             if (msg == 0x100 && (int)m.WParam == 0x74 && ActivePane != null && ActivePane.ActiveTab != null)

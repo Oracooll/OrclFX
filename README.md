@@ -90,6 +90,7 @@ a single `orclfx.exe`, no installer package and no admin rights needed.
 | Ctrl+H | Show or hide hidden files |
 | Ctrl+E | Show or hide file name extensions |
 | Ctrl+R, F5 | Refresh the folder |
+| Ctrl+mouse wheel | Step through all views, smallest to largest (Details, List, Small icons, Content, Tiles, Medium, Large, Extra large icons) |
 | Space | Space Viewer (a large view of the selected file, with thumbnails) |
 
 ## Install
@@ -174,7 +175,7 @@ deleted. When OneDrive keeps two versions of the list (two computers changed it 
   Windows applies some light/dark choices only when an app starts.
 - Only one window runs at a time; launching the app again brings the open window to the front.
 - See [CHANGELOG.md](CHANGELOG.md) for the version history, and [IDEAS.md](IDEAS.md) for suggestions kept for later. Versions are `major.minor.build` with a
-  three-digit build (1.1.039).
+  three-digit build (1.1.040).
 
 ## License
 

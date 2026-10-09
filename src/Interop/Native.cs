@@ -140,6 +140,7 @@ namespace OrclFileExplorer
         static extern int AccessibleObjectFromPoint(POINT pt, [MarshalAs(UnmanagedType.IDispatch)] out object acc, out object child);
 
         public const int ROLE_SYSTEM_LIST = 0x21;
+        [DllImport("user32.dll")] public static extern IntPtr WindowFromPoint(POINT pt);
         [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr h, out RECT r);
 
         // The accessibility role of what is at a screen point (an Explorer view says "list" for its empty space, and

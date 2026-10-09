@@ -3,6 +3,11 @@
 Versions are `major.minor.build` with a three-digit build number. Every release bumps the build;
 the minor number changes only for larger milestones.
 
+## 1.1.040
+- Ctrl+mouse wheel over a file list steps through all eight views, smallest to largest: Details, List, Small
+  icons, Content, Tiles, Medium, Large and Extra large icons (wheel up: larger), one view per notch, stopping at
+  either end. The status bar names the view.
+
 ## 1.1.039
 - A Refresh button next to New text file in each pane (the same as Ctrl+R / F5).
 
