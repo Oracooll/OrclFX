@@ -3,6 +3,9 @@
 Versions are `major.minor.build` with a three-digit build number. Every release bumps the build;
 the minor number changes only for larger milestones.
 
+## 1.1.039
+- A Refresh button next to New text file in each pane (the same as Ctrl+R / F5).
+
 ## 1.1.038
 - Auto-fit of the Name column works again after a refresh: it no longer waits for the folder or its number of
   items to change, but re-fits whenever the column was changed by something else (a refresh, the view) and

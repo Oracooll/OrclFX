@@ -24,7 +24,7 @@ namespace OrclFileExplorer
         readonly Panel addrBar = new Panel(), addrBorder = new Panel(), addrInner = new Panel(), content = new Panel();
         readonly Panel spacerL = new Panel(), spacerR = new Panel();
         readonly TextBox addr = new TextBox();
-        readonly GlyphButton back, fwd, up, newFolderBtn, newFileBtn, menuBtn;
+        readonly GlyphButton back, fwd, up, newFolderBtn, newFileBtn, refreshBtn, menuBtn;
         readonly Breadcrumb crumbs;
 
         public Pane(MainForm main)
@@ -47,6 +47,8 @@ namespace OrclFileExplorer
             newFileBtn = new GlyphButton("\uE8A5", "New text file", DockStyle.Left);
             newFolderBtn.Click += delegate { Main.CreateNew(this, true); };
             newFileBtn.Click += delegate { Main.CreateNew(this, false); };
+            refreshBtn = new GlyphButton("", "Refresh (Ctrl+R or F5)", DockStyle.Left);
+            refreshBtn.Click += delegate { Main.RefreshTab(ActiveTab); if (ActiveTab != null) ActiveTab.Activate(); };
 
             addrBar.Dock = DockStyle.Top;
             addrBar.Height = Native.Px(38);
@@ -80,6 +82,7 @@ namespace OrclFileExplorer
             addrBar.Controls.Add(spacerR);
             addrBar.Controls.Add(menuBtn);
             addrBar.Controls.Add(spacerL);
+            addrBar.Controls.Add(refreshBtn);
             addrBar.Controls.Add(newFileBtn);
             addrBar.Controls.Add(newFolderBtn);
             addrBar.Controls.Add(up);
@@ -101,7 +104,7 @@ namespace OrclFileExplorer
             addrInner.BackColor = addr.BackColor = crumbs.BackColor = Theme.Input;
             foreach (BrowserTab t in Tabs) t.Host.BackColor = Theme.Window;
             ApplyActiveLook();
-            back.Invalidate(); fwd.Invalidate(); up.Invalidate(); newFolderBtn.Invalidate(); newFileBtn.Invalidate(); menuBtn.Invalidate();
+            back.Invalidate(); fwd.Invalidate(); up.Invalidate(); newFolderBtn.Invalidate(); newFileBtn.Invalidate(); refreshBtn.Invalidate(); menuBtn.Invalidate();
         }
 
         public void ApplyActiveLook()

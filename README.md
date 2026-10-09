@@ -28,7 +28,8 @@ a single `orclfx.exe`, no installer package and no admin rights needed.
 - **Open terminal here** (Ctrl+Alt+T): Windows Terminal (or PowerShell) in the tab's folder.
 - **Address bar**: click a folder of the path to go there, or the arrow after it to pick a subfolder.
   Click empty space in it to copy the folder's path; double-click it (or Ctrl+L) to type an address.
-- **New folder** and **New text file** buttons next to Up create the item and let you type its name.
+- **New folder** and **New text file** buttons next to Up create the item and let you type its name; the
+  **Refresh** button next to them reads the folder again (Ctrl+R, F5).
 - **Space Viewer**: press Space on a file for a large view with thumbnails on its left of the folder's pictures (each pane
   can be turned off in its title bar; Ctrl+wheel resizes the thumbnails up to 512 px). Wheel to zoom, drag to
   move, 1 for 100 %, F for full screen, I for the picture's details, [ and ] to turn it without losing quality,
@@ -173,7 +174,7 @@ deleted. When OneDrive keeps two versions of the list (two computers changed it 
   Windows applies some light/dark choices only when an app starts.
 - Only one window runs at a time; launching the app again brings the open window to the front.
 - See [CHANGELOG.md](CHANGELOG.md) for the version history, and [IDEAS.md](IDEAS.md) for suggestions kept for later. Versions are `major.minor.build` with a
-  three-digit build (1.1.038).
+  three-digit build (1.1.039).
 
 ## License
 
