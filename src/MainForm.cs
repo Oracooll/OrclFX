@@ -448,7 +448,12 @@ namespace OrclFileExplorer
                 {
                     BrowserTab a = ActivePane.ActiveTab;
                     if (rstage == 0) { a.TestSetNameWidth(60); a.fitWidth = 60; a.fitManual = true; Program.Trace("test: narrowed by hand to " + a.NameColumnWidth() + ", ideal " + a.TestIdealNameWidth()); rf.Interval = 2000; }
-                    else if (rstage == 1) { RefreshTab(a); rf.Interval = 3000; }
+                    else if (rstage == 1)
+                    {
+                        if (Environment.GetEnvironmentVariable("DUALPANE_TEST_DIVIDER") == "1") Program.Trace("test: divider double-click sent " + a.DoubleClickNameDivider());
+                        else RefreshTab(a);
+                        rf.Interval = 3000;
+                    }
                     else { rf.Stop(); Program.Trace("test: after refresh " + a.NameColumnWidth() + ", ideal " + a.TestIdealNameWidth() + ", pane " + a.Host.ClientSize.Width); }
                     rstage++;
                 };
@@ -826,7 +831,14 @@ namespace OrclFileExplorer
                     }
                     // Otherwise again when something else changed it (a refresh, the view), or every 2 s anyway
                     // (renamed files, names that arrived late).
-                    if (!moved && t.fitWidth >= 0 && (unchecked(Environment.TickCount - t.fitTick) < 3000 || n > 3000)) continue;
+                    if (!moved && t.fitWidth >= 0)
+                    {
+                        // Every few seconds: only when the names now need a clearly different width (renamed files).
+                        if (unchecked(Environment.TickCount - t.fitTick) < 3000 || n > 3000) continue;
+                        t.fitTick = Environment.TickCount;
+                        int need = t.LongestNameWidth();
+                        if (need <= 0 || Math.Abs(need - w) <= Native.Px(24)) continue;
+                    }
                 }
                 t.fitCount = n;
                 t.fitFolder = t.Folder;

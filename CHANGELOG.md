@@ -3,6 +3,12 @@
 Versions are `major.minor.build` with a three-digit build number. Every release bumps the build;
 the minor number changes only for larger milestones.
 
+## 1.1.044
+- Auto-fit now does what a double-click on the Name column's divider does: Windows sizes the column to the
+  names itself, exactly as in File Explorer (no 70 % limit any more). It happens when a folder opens, on refresh
+  (Ctrl+R / F5), when items are added or removed, and when names change; never while a mouse button is held, and
+  the keyboard stays where it was.
+
 ## 1.1.043
 - Auto-fit really fits the Name column to the longest name now (at most 70 % of the pane). It used the width the
   Explorer view reports as "ideal", which turned out not to depend on the names (about the same in every folder),

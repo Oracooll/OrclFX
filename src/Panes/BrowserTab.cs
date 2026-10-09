@@ -341,6 +341,24 @@ namespace OrclFileExplorer
             bool details = fv.GetCurrentViewMode(out mode) == 0 && mode == 4;
             Marshal.ReleaseComObject(fv);
             if (!details) return;
+            fitTick = Environment.TickCount;
+            // Not while a mouse button is held (a drag in progress): tried again shortly.
+            if (Control.MouseButtons != MouseButtons.None) { fitTick -= 2500; return; }
+            // As the user would: a double-click on the Name column's divider, so Windows sizes it to the names itself.
+            IntPtr focusBefore = Native.GetFocus();
+            if (DoubleClickNameDivider())
+            {
+                // Runs after the posted clicks: note the width Windows chose, and keep the keyboard where it was.
+                Pane.BeginInvoke((MethodInvoker)delegate
+                {
+                    if (!Alive) return;
+                    if (focusBefore != IntPtr.Zero && Native.GetFocus() != focusBefore && Native.IsWindow(focusBefore)) Native.SetFocus(focusBefore);
+                    fitWidth = NameColumnWidth();
+                    Program.Trace("auto-fit: Name column " + fitWidth + " (divider double-click)");
+                });
+                return;
+            }
+            // Otherwise (the divider's place can't be told) the names are measured here.
             IColumnManager cm = View<IColumnManager>(new Guid("d8ec27bb-3f3b-4042-b10a-4acfd924d453"));
             if (cm == null) return;
             try
@@ -349,7 +367,6 @@ namespace OrclFileExplorer
                 CM_COLUMNINFO ci = new CM_COLUMNINFO();
                 ci.cbSize = (uint)Marshal.SizeOf(typeof(CM_COLUMNINFO));
                 ci.dwMask = 0x1; // CM_MASK_WIDTH
-                fitTick = Environment.TickCount;
                 if (cm.GetColumnInfo(ref name, ref ci) != 0) return;
                 // The view's "ideal width" doesn't follow the names (it stays about the same whatever the folder
                 // holds), so the names are measured here.
@@ -367,10 +384,49 @@ namespace OrclFileExplorer
             finally { Marshal.ReleaseComObject(cm); }
         }
 
+        // Double-clicks the Name column's right divider, as the user would: Windows sizes the column to its contents
+        // itself. Returns false when the divider's place can't be told (not Details, no view).
+        public bool DoubleClickNameDivider()
+        {
+            IColumnManager cm = View<IColumnManager>(new Guid("d8ec27bb-3f3b-4042-b10a-4acfd924d453"));
+            if (cm == null) return false;
+            int x = 0, nameWidth = -1;
+            try
+            {
+                uint count;
+                if (cm.GetColumnCount(0x2 /* CM_ENUM_VISIBLE */, out count) != 0 || count == 0) return false;
+                PROPERTYKEY[] keys = new PROPERTYKEY[count];
+                if (cm.GetColumns(0x2, keys, count) != 0) return false;
+                PROPERTYKEY name = NameKey();
+                foreach (PROPERTYKEY k in keys)
+                {
+                    PROPERTYKEY key = k;
+                    CM_COLUMNINFO ci = new CM_COLUMNINFO();
+                    ci.cbSize = (uint)Marshal.SizeOf(typeof(CM_COLUMNINFO));
+                    ci.dwMask = 0x1;
+                    if (cm.GetColumnInfo(ref key, ref ci) != 0) return false;
+                    if (key.fmtid == name.fmtid && key.pid == name.pid) { nameWidth = (int)ci.uWidth; break; }
+                    x += (int)ci.uWidth;   // columns left of Name (they can be reordered)
+                }
+            }
+            catch { return false; }
+            finally { Marshal.ReleaseComObject(cm); }
+            if (nameWidth < 0) return false;
+            IntPtr ui = Native.FindChild(ViewWindow(), "DirectUIHWND");
+            if (ui == IntPtr.Zero) return false;
+            IntPtr lp = (IntPtr)(((Native.Px(12)) << 16) | ((x + nameWidth - 1) & 0xFFFF));
+            const int WM_LBUTTONDOWN = 0x201, WM_LBUTTONUP = 0x202, WM_LBUTTONDBLCLK = 0x203;
+            Native.PostMessage(ui, WM_LBUTTONDOWN, (IntPtr)1, lp);
+            Native.PostMessage(ui, WM_LBUTTONUP, IntPtr.Zero, lp);
+            Native.PostMessage(ui, WM_LBUTTONDBLCLK, (IntPtr)1, lp);
+            Native.PostMessage(ui, WM_LBUTTONUP, IntPtr.Zero, lp);
+            return true;
+        }
+
         // The width the Name column needs for the longest name shown (the icon and the view's margins included), or 0.
         // At most the first 10,000 items are measured, so a huge folder doesn't hold up the window.
         static Font nameFont;
-        int LongestNameWidth()
+        internal int LongestNameWidth()
         {
             IFolderView v = View<IFolderView>(Native.IID_IFolderView);
             if (v == null) return 0;
