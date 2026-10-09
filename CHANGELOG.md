@@ -3,6 +3,12 @@
 Versions are `major.minor.build` with a three-digit build number. Every release bumps the build;
 the minor number changes only for larger milestones.
 
+## 1.1.045
+- Fixed: 1.1.044 kept making the first pane the active one. Its auto-fit sent the Name column a simulated
+  double-click, which the app took for your click, and in some folders it did so every few seconds. Auto-fit now
+  asks the view to auto-size the column directly (what that double-click does), with no clicks at all, and only
+  fits again when the names change.
+
 ## 1.1.044
 - Auto-fit now does what a double-click on the Name column's divider does: Windows sizes the column to the
   names itself, exactly as in File Explorer (no 70 % limit any more). It happens when a folder opens, on refresh

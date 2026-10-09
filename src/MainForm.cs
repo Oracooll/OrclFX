@@ -450,8 +450,7 @@ namespace OrclFileExplorer
                     if (rstage == 0) { a.TestSetNameWidth(60); a.fitWidth = 60; a.fitManual = true; Program.Trace("test: narrowed by hand to " + a.NameColumnWidth() + ", ideal " + a.TestIdealNameWidth()); rf.Interval = 2000; }
                     else if (rstage == 1)
                     {
-                        if (Environment.GetEnvironmentVariable("DUALPANE_TEST_DIVIDER") == "1") Program.Trace("test: divider double-click sent " + a.DoubleClickNameDivider());
-                        else RefreshTab(a);
+                        RefreshTab(a);
                         rf.Interval = 3000;
                     }
                     else { rf.Stop(); Program.Trace("test: after refresh " + a.NameColumnWidth() + ", ideal " + a.TestIdealNameWidth() + ", pane " + a.Host.ClientSize.Width); }
@@ -836,8 +835,10 @@ namespace OrclFileExplorer
                         // Every few seconds: only when the names now need a clearly different width (renamed files).
                         if (unchecked(Environment.TickCount - t.fitTick) < 3000 || n > 3000) continue;
                         t.fitTick = Environment.TickCount;
+                        // (Compared with the names at the last fit, not with the column: Windows' own fit differs a
+                        // little from this measurement, which would otherwise fit again and again.)
                         int need = t.LongestNameWidth();
-                        if (need <= 0 || Math.Abs(need - w) <= Native.Px(24)) continue;
+                        if (need <= 0 || Math.Abs(need - t.fitNeed) <= Native.Px(4)) continue;
                     }
                 }
                 t.fitCount = n;
