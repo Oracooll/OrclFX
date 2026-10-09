@@ -26,7 +26,7 @@ namespace OrclFileExplorer
         static readonly string[] SortNames = { "As arranged", "Name A to Z", "Name Z to A", "Folder path A to Z" };
         int sortMode, nextSeq;
         readonly ListView list = new ListView();
-        readonly ImageList icons = new ImageList();
+        readonly ImageList icons = new ImageList(), largeIcons = new ImageList();
         int widthValue;        // 0 = fit the longest name
         bool widthInChars;
         readonly Label notice = new Label();
@@ -52,6 +52,7 @@ namespace OrclFileExplorer
         // drive mustn't freeze the window). Finished icons wait in iconsReady until the list can show them.
         readonly Queue<string> iconQueue = new Queue<string>();
         readonly List<KeyValuePair<string, Icon>> iconsReady = new List<KeyValuePair<string, Icon>>();
+        readonly List<KeyValuePair<string, Icon>> largeReady = new List<KeyValuePair<string, Icon>>(); // for Large icons and Tiles
         bool iconWorkerRunning, iconsClosed;
 
         // The list lives in OneDrive (when present) so every computer signed in to it shares the same shortcuts.
@@ -71,6 +72,68 @@ namespace OrclFileExplorer
 
         public string NoticeText { get { return notice.Visible ? notice.Text : null; } }
 
+        const string LongHeader = "Shortcuts  ·  drop folders here to add them, double-click to open (Ctrl+double-click or middle-click: new tab), F2 renames the folder, right-click for more";
+        readonly ToolTip hintTip = new ToolTip();
+        bool sideways;
+
+        // The pane's own view (settings key "shortcutsview"), independent of the file panes' views: -1 = automatic
+        // (one shortcut per row at the left or right of the window, flowing columns at the top or bottom).
+        public static readonly string[] ViewNames = { "Details", "List", "Small icons", "Tiles", "Large icons" };
+        static readonly View[] Views = { View.Details, View.List, View.SmallIcon, View.Tile, View.LargeIcon };
+        int viewSetting = -1;
+        public int ViewSetting { get { return viewSetting; } set { viewSetting = value >= -1 && value < ViewNames.Length ? value : -1; ApplyView(); } }
+        int EffectiveView { get { return viewSetting >= 0 ? viewSetting : sideways ? 0 : 1; } }
+
+        public void SetView(int v)
+        {
+            if (v == viewSetting) return;
+            ViewSetting = v;
+            main.StateChanged();
+            main.Notice("Shortcuts view: " + (v < 0 ? "automatic (" + ViewNames[EffectiveView] + ")" : ViewNames[v]));
+        }
+
+        void ApplyView()
+        {
+            int v = EffectiveView;
+            list.BeginUpdate();
+            if (v == 0)
+            {
+                // Details with one column and no header: a plain list, one shortcut per row.
+                if (list.Columns.Count == 0) list.Columns.Add("");
+                list.HeaderStyle = ColumnHeaderStyle.None;
+                list.FullRowSelect = true;
+            }
+            if (v == 3) list.TileSize = new Size(Native.Px(220), Native.Px(40));
+            list.View = Views[v];
+            list.EndUpdate();
+            if (v == 0) FitRowColumn();
+            if (v == 1) ApplyWidth();
+            // Again once the pane has its new size (it's still the old one while the window rearranges).
+            if (list.IsHandleCreated) list.BeginInvoke((MethodInvoker)delegate { if (EffectiveView == 0) FitRowColumn(); });
+        }
+
+        // At the left or right of the window the title is short; the view follows when it's automatic.
+        public void SetSideways(bool on)
+        {
+            sideways = on;
+            header.Text = on ? "Shortcuts" : LongHeader;
+            ApplyView();
+        }
+
+        [DllImport("user32.dll")] static extern bool ShowScrollBar(IntPtr hwnd, int bar, bool show);
+
+        // Details: the one column as wide as the list (set directly: the list may hold a width it got in List view).
+        void FitRowColumn()
+        {
+            if (list.View != View.Details || list.Columns.Count == 0 || !list.IsHandleCreated) return;
+            int w = list.ClientSize.Width - 2;
+            const int LVM_SETCOLUMNWIDTH = 0x101E;
+            if (w > 20) Native.SendMessage(list.Handle, LVM_SETCOLUMNWIDTH, IntPtr.Zero, (IntPtr)w);
+            // A horizontal scrollbar left over from List view (rows never need one): the list shows it again if
+            // it really needs it.
+            ShowScrollBar(list.Handle, 0 /* SB_HORZ */, false);
+        }
+
         public ShortcutsPane(MainForm m)
         {
             main = m;
@@ -81,9 +144,32 @@ namespace OrclFileExplorer
             header.Padding = new Padding(Native.Px(8), 0, 0, 0);
             header.TextAlign = ContentAlignment.MiddleLeft;
             header.AutoEllipsis = true;
-            header.Text = "Shortcuts  ·  drop folders here to add them, double-click to open (Ctrl+double-click or middle-click: new tab), F2 renames the folder, right-click for more";
+            header.Text = LongHeader;
             header.UseMnemonic = false;
             headerBar.Controls.Add(header);
+            // Dragging the title strip moves the pane to an edge of the window (like the Windows taskbar).
+            Point pressed = Point.Empty;
+            bool down = false;
+            header.MouseDown += delegate(object s, MouseEventArgs e) { if (e.Button == MouseButtons.Left) { down = true; pressed = Cursor.Position; header.Capture = true; } };
+            header.MouseMove += delegate(object s, MouseEventArgs e)
+            {
+                if (!down) return;
+                Size slop = SystemInformation.DragSize;
+                if (!main.ShortcutsDragging && Math.Abs(Cursor.Position.X - pressed.X) <= slop.Width && Math.Abs(Cursor.Position.Y - pressed.Y) <= slop.Height) return;
+                header.Cursor = Cursors.SizeAll;
+                main.ShortcutsDragMove(Cursor.Position);
+            };
+            MouseEventHandler up = delegate(object s, MouseEventArgs e)
+            {
+                if (!down) return;
+                down = false;
+                header.Capture = false;
+                header.Cursor = Cursors.Default;
+                if (main.ShortcutsDragging) main.ShortcutsDragEnd(e.Button == MouseButtons.Left);
+            };
+            header.MouseUp += up;
+            header.MouseCaptureChanged += delegate { if (down && !header.Capture) { down = false; header.Cursor = Cursors.Default; if (main.ShortcutsDragging) main.ShortcutsDragEnd(false); } };
+            hintTip.SetToolTip(header, "Drag this strip to the bottom, left, right or top of the window to move the Shortcuts pane there.\n" + LongHeader);
             for (int i = sortButtons.Length - 1; i >= 0; i--) // docked right: the last added sits furthest right
             {
                 int mode = i;
@@ -97,10 +183,27 @@ namespace OrclFileExplorer
 
             icons.ColorDepth = ColorDepth.Depth32Bit;
             icons.ImageSize = new Size(Native.Px(16), Native.Px(16));
+            largeIcons.ColorDepth = ColorDepth.Depth32Bit;
+            largeIcons.ImageSize = new Size(Native.Px(32), Native.Px(32));
             list.Dock = DockStyle.Fill;
             list.View = View.List;
+            list.Resize += delegate { FitRowColumn(); };
             list.BorderStyle = BorderStyle.None;
             list.SmallImageList = icons;
+            list.LargeImageList = largeIcons;
+            // Ctrl+mouse wheel: the pane's own view (the title bar's view buttons are for the file panes).
+            int wheel = 0;
+            list.MouseWheel += delegate(object s, MouseEventArgs e)
+            {
+                if ((ModifierKeys & Keys.Control) == 0) return;
+                HandledMouseEventArgs h = e as HandledMouseEventArgs;
+                if (h != null) h.Handled = true;
+                wheel += e.Delta;
+                int steps = wheel / 120;
+                if (steps == 0) return;
+                wheel -= steps * 120;
+                SetView(Math.Max(0, Math.Min(ViewNames.Length - 1, EffectiveView + steps)));
+            };
             list.MultiSelect = false;
             list.LabelEdit = true;
             list.ShowItemToolTips = true;
@@ -190,33 +293,41 @@ namespace OrclFileExplorer
                     if (iconQueue.Count == 0) { iconWorkerRunning = false; break; }
                     path = iconQueue.Dequeue();
                 }
-                Icon ic = LoadIcon(path);
+                Icon ic = LoadIcon(path, false);
                 // Still nothing for a folder that exists: try once more a moment later.
-                if (ic == null && Directory.Exists(path)) { System.Threading.Thread.Sleep(500); ic = LoadIcon(path); }
+                if (ic == null && Directory.Exists(path)) { System.Threading.Thread.Sleep(500); ic = LoadIcon(path, false); }
+                Icon large = ic == null ? null : LoadIcon(path, true);
                 lock (iconsReady)
                 {
                     // The pane was closed meanwhile: nobody will use the icon.
-                    if (iconsClosed) { if (ic != null) ic.Dispose(); continue; }
+                    if (iconsClosed) { if (ic != null) ic.Dispose(); if (large != null) large.Dispose(); continue; }
                     iconsReady.Add(new KeyValuePair<string, Icon>(path, ic));
+                    if (large != null) largeReady.Add(new KeyValuePair<string, Icon>(path, large));
                 }
                 // Before the window exists, OnHandleCreated picks the icons up instead.
                 if (IsHandleCreated) try { BeginInvoke((MethodInvoker)ApplyIcons); } catch { }
             }
         }
 
-        static Icon LoadIcon(string path)
+        static Icon LoadIcon(string path, bool large)
         {
             IntPtr pidl = Native.ParsePath(path);
             if (pidl == IntPtr.Zero) return null;
-            try { return Native.SmallIcon(pidl); }
+            try { return large ? Native.LargeIcon(pidl) : Native.SmallIcon(pidl); }
             catch { return null; }
             finally { Marshal.FreeCoTaskMem(pidl); }
         }
 
         void ApplyIcons()
         {
-            List<KeyValuePair<string, Icon>> ready;
-            lock (iconsReady) { ready = new List<KeyValuePair<string, Icon>>(iconsReady); iconsReady.Clear(); }
+            List<KeyValuePair<string, Icon>> ready, readyLarge;
+            lock (iconsReady)
+            {
+                ready = new List<KeyValuePair<string, Icon>>(iconsReady); iconsReady.Clear();
+                readyLarge = new List<KeyValuePair<string, Icon>>(largeReady); largeReady.Clear();
+            }
+            foreach (KeyValuePair<string, Icon> r in readyLarge)
+                if (!largeIcons.Images.ContainsKey(r.Key)) largeIcons.Images.Add(r.Key, r.Value);
             if (ready.Count == 0 || IsDisposed) return;
             foreach (KeyValuePair<string, Icon> r in ready)
             {
@@ -237,6 +348,14 @@ namespace OrclFileExplorer
             list.BeginUpdate();
             foreach (ListViewItem it in list.Items) it.ImageKey = (string)it.Tag;
             list.EndUpdate();
+        }
+
+        internal string TestColumns()
+        {
+            const int LVM_GETCOLUMNWIDTH = 0x101D;
+            string r = "view " + list.View + ", client " + list.ClientSize.Width + ", columns " + list.Columns.Count + ":";
+            for (int i = 0; i < Math.Max(1, list.Columns.Count); i++) r += " " + Native.SendMessage(list.Handle, LVM_GETCOLUMNWIDTH, (IntPtr)i, IntPtr.Zero);
+            return r;
         }
 
         internal void TestRemoveFirst() { if (list.Items.Count > 0) Remove(list.Items[0]); }
@@ -292,9 +411,12 @@ namespace OrclFileExplorer
                 {
                     iconsClosed = true;
                     foreach (KeyValuePair<string, Icon> r in iconsReady) if (r.Value != null) r.Value.Dispose();
+                    foreach (KeyValuePair<string, Icon> r in largeReady) if (r.Value != null) r.Value.Dispose();
                     iconsReady.Clear();
+                    largeReady.Clear();
                 }
                 icons.Dispose();
+                largeIcons.Dispose();
             }
             base.Dispose(disposing);
         }
@@ -394,6 +516,8 @@ namespace OrclFileExplorer
         void ApplyWidth()
         {
             if (!list.IsHandleCreated) return;
+            if (list.View == View.Details) { FitRowColumn(); return; }
+            if (list.View != View.List) return; // the column width is List view's
             int px;
             if (widthValue == 0) px = -1; // LVSCW_AUTOSIZE: fit the longest name
             else if (!widthInChars) px = widthValue;
@@ -933,7 +1057,33 @@ namespace OrclFileExplorer
                 m.Items.Add("Remove", null, delegate { Remove(it); });
                 m.Items.Add(new ToolStripSeparator());
             }
+            ToolStripMenuItem view = new ToolStripMenuItem("View");
+            ToolStripMenuItem auto = new ToolStripMenuItem("Automatic (rows at the sides, columns at the top or bottom)", null, delegate { SetView(-1); });
+            auto.Checked = viewSetting < 0;
+            view.DropDownItems.Add(auto);
+            view.DropDownItems.Add(new ToolStripSeparator());
+            for (int i = 0; i < ViewNames.Length; i++)
+            {
+                int v = i;
+                ToolStripMenuItem vi = new ToolStripMenuItem(ViewNames[i], null, delegate { SetView(v); });
+                vi.Checked = viewSetting == i;
+                if (i == 0) vi.ShortcutKeyDisplayString = "Ctrl+mouse wheel";
+                view.DropDownItems.Add(vi);
+            }
+            view.DropDown.Renderer = m.Renderer;
+            m.Items.Add(view);
+            ToolStripMenuItem position = new ToolStripMenuItem("Position");
+            for (int i = 0; i < MainForm.ShortcutsDockNames.Length; i++)
+            {
+                int dock = i;
+                ToolStripMenuItem pi = new ToolStripMenuItem(MainForm.ShortcutsDockNames[i], null, delegate { main.SetShortcutsDock(dock); });
+                pi.Checked = main.ShortcutsDock == i;
+                position.DropDownItems.Add(pi);
+            }
+            position.DropDown.Renderer = m.Renderer;
+            m.Items.Add(position);
             ToolStripMenuItem width = new ToolStripMenuItem("Column width");
+            width.Enabled = list.View == View.List;
             ToolStripMenuItem fit = new ToolStripMenuItem("Fit longest name", null, delegate { widthValue = 0; ApplyWidth(); main.StateChanged(); });
             fit.Checked = widthValue == 0;
             ToolStripMenuItem set = new ToolStripMenuItem(widthValue == 0 ? "Set width…" : "Set width… (now " + widthValue + (widthInChars ? " characters" : " px") + ")", null, delegate { AskWidth(); });

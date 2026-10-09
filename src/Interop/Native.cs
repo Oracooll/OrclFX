@@ -333,6 +333,16 @@ namespace OrclFileExplorer
             return icon;
         }
 
+        public static Icon LargeIcon(IntPtr pidl)
+        {
+            SHFILEINFO fi = new SHFILEINFO();
+            SHGetFileInfo(pidl, 0, ref fi, (uint)Marshal.SizeOf(fi), 0x100 | 0x0 | 0x8); // ICON | LARGEICON | PIDL
+            if (fi.hIcon == IntPtr.Zero) return null;
+            Icon icon = (Icon)Icon.FromHandle(fi.hIcon).Clone();
+            DestroyIcon(fi.hIcon);
+            return icon;
+        }
+
         public static string ClassName(IntPtr h)
         {
             StringBuilder sb = new StringBuilder(64);

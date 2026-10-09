@@ -3,6 +3,15 @@
 Versions are `major.minor.build` with a three-digit build number. Every release bumps the build;
 the minor number changes only for larger milestones.
 
+## 1.1.047
+- The Shortcuts pane can sit at the bottom (as before), left, right or top of the window, like the Windows
+  taskbar: drag its title strip towards an edge and let go (a see-through outline shows where it will go; it
+  docks only near an edge, Esc cancels), or right-click › Position. At the left or right it is the outermost
+  column, outside the Tree and Preview panes. Its position and its size there are remembered.
+- The Shortcuts pane has its own view, not affected by the title bar's view buttons: Details (one per row),
+  List, Small icons, Tiles or Large icons, from right-click › View or with Ctrl+mouse wheel over it.
+  "Automatic" (the default) shows rows at the sides and columns at the top or bottom.
+
 ## 1.1.046
 - Changes made by other programs (new, deleted or renamed files) appear at once: the app watches the folders on
   screen itself, as xplorer2 does, and passes each change on to the file list. Before, they showed up about a

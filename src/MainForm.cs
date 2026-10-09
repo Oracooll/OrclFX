@@ -186,10 +186,7 @@ namespace OrclFileExplorer
         protected override void OnShown(EventArgs e)
         {
             base.OnShown(e);
-            vsplit.Panel2MinSize = Native.Px(50);
-            vsplit.Panel2Collapsed = !ShowShortcuts;
-            int sh = Native.Px(shortcutsHeight);
-            try { if (vsplit.Height > sh + Native.Px(200)) vsplit.SplitterDistance = vsplit.Height - sh - vsplit.SplitterWidth; }
+            try { ApplyShortcutsDock(); }
             catch (Exception ex) { Program.LogError(ex); }
             vsplit.SplitterMoved += delegate { StateChanged(); };
             // A splitter rejects positions (and minimum sizes) that don't fit its width; never let that stop the
@@ -497,6 +494,31 @@ namespace OrclFileExplorer
                     lt2.Interval = round < loopRounds / 2 ? 300 : 100;
                 };
                 lt2.Start();
+            }
+            // Test hook: DUALPANE_TEST_DOCK=<edge>[,<edge>...] moves the Shortcuts pane (bottom/left/right/top) every
+            // 2 seconds from 4 seconds after start, logging where letting go would dock at a few points, and whether
+            // the file list still works.
+            string testDock = Environment.GetEnvironmentVariable("DUALPANE_TEST_DOCK");
+            if (testDock != null)
+            {
+                Queue<string> edges = new Queue<string>(testDock.Split(','));
+                Timer dk = new Timer();
+                dk.Interval = 4000;
+                dk.Tick += delegate
+                {
+                    dk.Interval = 2000;
+                    if (edges.Count == 0) { dk.Stop(); return; }
+                    string edgeName = edges.Dequeue();
+                    for (int d = 0; d < ShortcutsDockNames.Length; d++) if (string.Equals(edgeName, ShortcutsDockNames[d], StringComparison.OrdinalIgnoreCase)) SetShortcutsDock(d);
+                    Rectangle a = vsplit.RectangleToScreen(vsplit.ClientRectangle);
+                    Point mid = new Point(a.Left + a.Width / 2, a.Top + a.Height / 2);
+                    Program.Trace("dock: now " + ShortcutsDockNames[shortcutsDock] + ", size " + ShortcutsSize + ", shortcuts panel " + Shortcuts.Width + "x" + Shortcuts.Height +
+                        "; release at middle -> " + TestEdgeAt(mid) + ", 20 px from left -> " + TestEdgeAt(new Point(a.Left + 20, mid.Y)) +
+                        ", 20 px from right -> " + TestEdgeAt(new Point(a.Right - 20, mid.Y)) + ", 20 px from top -> " + TestEdgeAt(new Point(mid.X, a.Top + 20)) +
+                        ", 20 px from bottom -> " + TestEdgeAt(new Point(mid.X, a.Bottom - 20)) + ", 300 px from left -> " + TestEdgeAt(new Point(a.Left + 300, mid.Y)) +
+                        "; list items " + ActivePane.ActiveTab.Count(Native.SVGIO_ALLVIEW) + "; shortcuts list " + Shortcuts.TestColumns());
+                };
+                dk.Start();
             }
             // Test hook: DUALPANE_TEST_SHRINKNAME=1 narrows the Name column 4 seconds after start (as a refresh can), to
             // see auto-fit widen it again.
@@ -1065,8 +1087,9 @@ namespace OrclFileExplorer
 
         public void SetShowShortcuts(bool show)
         {
+            if (!show) RememberShortcutsSize();
             ShowShortcuts = show;
-            vsplit.Panel2Collapsed = !show;
+            ApplyShortcutsDock();
             UpdateLayoutButtons();
             StateChanged();
         }
@@ -1704,8 +1727,13 @@ namespace OrclFileExplorer
                             case "previewwidth": if (int.TryParse(v, out n) && n >= 100 && n <= 5000) previewWidth = n; break;
                             case "shortcuts": ShowShortcuts = v != "0"; break;
                             case "shortcutsheight": if (int.TryParse(v, out n) && n >= 40 && n <= 5000) shortcutsHeight = n; break;
+                            case "shortcutssidewidth": if (int.TryParse(v, out n) && n >= 60 && n <= 5000) shortcutsSideWidth = n; break;
+                            case "shortcutsdock":
+                                for (int d = 0; d < ShortcutsDockNames.Length; d++) if (string.Equals(v, ShortcutsDockNames[d], StringComparison.OrdinalIgnoreCase)) shortcutsDock = d;
+                                break;
                             case "shortcutswidth": Shortcuts.WidthSetting = v; break;
                             case "shortcutsort": if (int.TryParse(v, out n)) Shortcuts.SortMode = n; break;
+                            case "shortcutsview": if (int.TryParse(v, out n)) Shortcuts.ViewSetting = n; break;
                             case "shortcut":
                                 int bar = v.IndexOf('|');
                                 if (bar > 0) legacyShortcuts.Add(new KeyValuePair<string, string>(v.Substring(0, bar), v.Substring(bar + 1)));
@@ -1807,10 +1835,13 @@ namespace OrclFileExplorer
                 sb.AppendLine("treewidth=" + (int)Math.Round(tw * 100.0 / Native.Px(100)));
                 sb.AppendLine("previewwidth=" + (int)Math.Round(pw * 100.0 / Native.Px(100)));
                 sb.AppendLine("shortcuts=" + (ShowShortcuts ? "1" : "0"));
-                int h = Ready && ShowShortcuts ? vsplit.Panel2.Height : Native.Px(shortcutsHeight);
-                sb.AppendLine("shortcutsheight=" + (int)Math.Round(h * 100.0 / Native.Px(100)));
+                RememberShortcutsSize();
+                sb.AppendLine("shortcutsheight=" + shortcutsHeight);
+                sb.AppendLine("shortcutsdock=" + ShortcutsDockNames[shortcutsDock].ToLowerInvariant());
+                sb.AppendLine("shortcutssidewidth=" + shortcutsSideWidth);
                 sb.AppendLine("shortcutswidth=" + Shortcuts.WidthSetting);
                 sb.AppendLine("shortcutsort=" + Shortcuts.SortMode);
+                sb.AppendLine("shortcutsview=" + Shortcuts.ViewSetting);
                 sb.AppendLine("theme=" + Theme.Mode);
                 sb.AppendLine("svthumbs=" + (QuickLook.ShowThumbs ? "1" : "0"));
                 sb.AppendLine("svviewer=" + (QuickLook.ShowViewer ? "1" : "0"));

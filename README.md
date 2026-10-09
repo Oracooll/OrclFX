@@ -45,7 +45,9 @@ a single `orclfx.exe`, no installer package and no admin rights needed.
 - **Tree**: one folder tree that follows the active pane.
 - **Preview**: previews the active pane's selected file with the Windows preview handlers
   (PDF, Office, images …). Text and code files are shown as text with a Search box. Handlers run outside the app, as in File Explorer; files without an out-of-process handler show a thumbnail.
-- **Shortcuts**: a strip of favourite folders. Drop folders onto it, double-click to open
+- **Shortcuts**: a strip of favourite folders. Drag its title strip to the bottom, left, right or top of the window
+  to move it there (like the Windows taskbar; also right-click › Position); it has its own view (right-click ›
+  View, or Ctrl+mouse wheel over it). Drop folders onto it, double-click to open
   (Ctrl+double-click or middle-click for a new tab), F2 renames the real folder, sort icons on its
   header. The list is stored in your OneDrive (Documents\OrclFX), so all your computers share it; shortcuts to folders
   that don't exist on the current computer are dimmed and listed in a warning line.
@@ -175,7 +177,7 @@ deleted. When OneDrive keeps two versions of the list (two computers changed it 
   Windows applies some light/dark choices only when an app starts.
 - Only one window runs at a time; launching the app again brings the open window to the front.
 - See [CHANGELOG.md](CHANGELOG.md) for the version history, and [IDEAS.md](IDEAS.md) for suggestions kept for later. Versions are `major.minor.build` with a
-  three-digit build (1.1.046).
+  three-digit build (1.1.047).
 
 ## License
 
