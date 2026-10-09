@@ -3,6 +3,11 @@
 Versions are `major.minor.build` with a three-digit build number. Every release bumps the build;
 the minor number changes only for larger milestones.
 
+## 1.1.042
+- All eight views now have a button in the title bar: Small icons and Extra large icons were added, and the
+  buttons are in the order Ctrl+mouse wheel goes through them, so the lit button shows which view the wheel
+  chose. A default view (green tick) set with an earlier version stays on the same view.
+
 ## 1.1.041
 - Ctrl+mouse wheel goes through the views in this order: Details, List, Tiles, Content, Small, Medium, Large and
   Extra large icons.

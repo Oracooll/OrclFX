@@ -22,8 +22,9 @@ namespace OrclFileExplorer
         // Tree, 1 pane, 2 panes, 3 panes, 4 panes, Preview, Shortcuts
         public readonly GlyphButton[] LayoutButtons = new GlyphButton[7];
         // Details, List, Tiles, Content, Medium icons, Large icons (for the active pane)
-        public readonly GlyphButton[] ViewButtons = new GlyphButton[6];
-        public static readonly string[] ViewNames = { "Details", "List", "Tiles", "Content", "Medium icons", "Large icons" };
+        // All eight views, in the order Ctrl+mouse wheel goes through them (smallest to largest).
+        public static readonly string[] ViewNames = { "Details", "List", "Tiles", "Content", "Small icons", "Medium icons", "Large icons", "Extra large icons" };
+        public readonly GlyphButton[] ViewButtons = new GlyphButton[ViewNames.Length];
         readonly GlyphButton min, max, close;
         public readonly GlyphButton FindButton;
         Icon icon;
@@ -81,10 +82,10 @@ namespace OrclFileExplorer
             vgap1.Dock = DockStyle.Right;
             vgap1.Width = Native.Px(17);
             Controls.Add(vgap1);
-            for (int i = 0; i < 6; i++)
+            for (int i = 0; i < ViewNames.Length; i++)
             {
                 int kind = i;
-                ViewButtons[i] = new GlyphButton("", "View: " + ViewNames[i] + " (Ctrl+Shift+" + new[] { 6, 5, 7, 8, 3, 2 }[i] + ")\nRight-click: make it the default view for every folder (green tick); again to stop", DockStyle.Right);
+                ViewButtons[i] = new GlyphButton("", "View: " + ViewNames[i] + " (Ctrl+Shift+" + new[] { 6, 5, 7, 8, 4, 3, 2, 1 }[i] + "; Ctrl+mouse wheel goes through all views)\nRight-click: make it the default view for every folder (green tick); again to stop", DockStyle.Right);
                 ViewButtons[i].Width = Native.Px(30);
                 ViewButtons[i].Painter = delegate(Graphics g, Rectangle r, Color c) { DrawViewIcon(g, r, c, kind); };
                 Controls.Add(ViewButtons[i]);
@@ -176,18 +177,34 @@ namespace OrclFileExplorer
                             g.DrawLine(p, x + 5, yy + 2, x + w - 1, yy + 2);
                         }
                         break;
-                    case 4: // medium icons: 3 x 2 squares
+                    case 4: // small icons: three rows of [dot + short line] in two columns
+                        for (int k = 0; k < 6; k++)
+                        {
+                            int cx = x + (k % 2) * (w / 2 + 1), yy = y + 1 + (k / 2) * (h - 3) / 2;
+                            g.FillRectangle(b, cx, yy - 1, 3, 3);
+                            g.DrawLine(p, cx + 4, yy, cx + w / 2 - 2, yy);
+                        }
+                        break;
+                    case 5: // medium icons: 3 x 2 squares
                         for (int k = 0; k < 6; k++)
                         {
                             int s = Math.Max(3, w / 4);
                             g.DrawRectangle(p, x + (k % 3) * (w - s - 1) / 2, y + (k / 3) * (h - s - 1), s, s);
                         }
                         break;
-                    case 5: // large icons: 2 big squares
+                    case 6: // large icons: 2 big squares
                         {
                             int s = Math.Min(w / 2 - 2, h - 2);
                             g.DrawRectangle(p, x, y + (h - s) / 2, s, s);
                             g.DrawRectangle(p, x + w - s - 1, y + (h - s) / 2, s, s);
+                        }
+                        break;
+                    case 7: // extra large icons: one big picture (a frame with a hill and a sun)
+                        {
+                            int s = h - 1, x0 = x + (w - s) / 2;
+                            g.DrawRectangle(p, x0, y, s, s);
+                            g.FillPolygon(b, new Point[] { new Point(x0 + 1, y + s), new Point(x0 + s / 3, y + s / 2), new Point(x0 + s * 2 / 3, y + s - 2), new Point(x0 + s, y + s) });
+                            g.FillRectangle(b, x0 + s - 4, y + 2, 2, 2);
                         }
                         break;
                 }

@@ -63,7 +63,7 @@ namespace OrclFileExplorer
         {
             Text = Program.AppName + " " + Installer.Version;
             // Room for the tree, one pane and the preview; a saved narrower size is widened to this.
-            MinimumSize = new Size(Native.Px(800), Native.Px(400)); // wide enough for the title bar's buttons and icon
+            MinimumSize = new Size(Native.Px(880), Native.Px(400)); // wide enough for the title bar's buttons and icon
             Font = new Font("Segoe UI", 9f);
             Icon = AppIcon();
             titleBar = new TitleBar(this);
@@ -118,7 +118,7 @@ namespace OrclFileExplorer
                 titleBar.LayoutButtons[i].Click += delegate { SetPaneCount(count); };
             }
             previewBtn.Click += delegate { SetShowPreview(!ShowPreview); };
-            for (int i = 0; i < 6; i++)
+            for (int i = 0; i < ButtonViewModes.GetLength(0); i++)
             {
                 int v = i;
                 titleBar.ViewButtons[i].Click += delegate { SetViewMode(ButtonViewModes[v, 0], ButtonViewModes[v, 1]); };
@@ -971,13 +971,24 @@ namespace OrclFileExplorer
         }
 
         // Explorer view modes (FOLDERVIEWMODE, icon size): the six title-bar buttons, then all eight for the menu.
-        static readonly int[,] ButtonViewModes = { { 4, 16 }, { 3, 16 }, { 6, 48 }, { 8, 32 }, { 1, 48 }, { 1, 96 } };
+        // The title bar's view buttons (TitleBar.ViewNames): Details, List, Tiles, Content, Small, Medium, Large and
+        // Extra large icons, the order Ctrl+mouse wheel goes through.
+        static readonly int[,] ButtonViewModes = { { 4, 16 }, { 3, 16 }, { 6, 48 }, { 8, 32 }, { 2, 16 }, { 1, 48 }, { 1, 96 }, { 1, 256 } };
+
+        // Whether the view mode/size is button i's (icon views by size: up to 64, up to 160, bigger).
+        static bool IsButtonView(int i, int mode, int size)
+        {
+            int vm = ButtonViewModes[i, 0], vs = ButtonViewModes[i, 1];
+            if (mode != vm) return false;
+            if (vm != 1) return true;
+            return vs == 256 ? size > 160 : vs == 96 ? size > 64 && size <= 160 : size <= 64;
+        }
         public static readonly string[] AllViewNames = { "Extra large icons", "Large icons", "Medium icons", "Small icons", "List", "Details", "Tiles", "Content" };
         public static readonly int[,] AllViewModes = { { 1, 256 }, { 1, 96 }, { 1, 48 }, { 2, 16 }, { 3, 16 }, { 4, 16 }, { 6, 48 }, { 8, 32 } };
 
         // Ctrl+mouse wheel over a file list steps through every view, smallest to largest (wheel up: larger), one
         // view per notch, stopping at either end. Indexes into AllViewModes / AllViewNames.
-        static readonly int[] WheelOrder = { 5, 4, 6, 7, 3, 2, 1, 0 }; // Details, List, Tiles, Content, Small, Medium, Large, Extra large
+        // (The same order as the title bar's view buttons.)
         int wheelSteps;    // a touchpad sends small amounts: they add up to whole notches
 
         bool CtrlWheel(ref Message m)
@@ -1004,20 +1015,14 @@ namespace OrclFileExplorer
         {
             int mode, size;
             if (!t.GetViewMode(out mode, out size)) return;
-            int at = 0;
-            for (int i = 0; i < WheelOrder.Length; i++)
-            {
-                int vm = AllViewModes[WheelOrder[i], 0], vs = AllViewModes[WheelOrder[i], 1];
-                bool same = mode == vm && (vm != 1 || (vs == 256 ? size > 160 : vs == 96 ? size > 64 && size <= 160 : size <= 64));
-                if (same) { at = i; break; }
-            }
-            int to = Math.Max(0, Math.Min(WheelOrder.Length - 1, at + steps));
+            int count = ButtonViewModes.GetLength(0), at = 0;
+            for (int i = 0; i < count; i++) if (IsButtonView(i, mode, size)) { at = i; break; }
+            int to = Math.Max(0, Math.Min(count - 1, at + steps));
             if (to == at) return;
-            int k = WheelOrder[to];
             if (t.Pane != ActivePane) SetActivePane(t.Pane);
-            t.SetViewMode(AllViewModes[k, 0], AllViewModes[k, 1]);
-            UpdateViewButtons();
-            Notice("View: " + AllViewNames[k] + " (Ctrl+mouse wheel)");
+            t.SetViewMode(ButtonViewModes[to, 0], ButtonViewModes[to, 1]);
+            UpdateViewButtons(); // the button of the new view lights up
+            Notice("View: " + TitleBar.ViewNames[to] + " (Ctrl+mouse wheel)");
         }
 
         public void SetViewMode(int mode, int size)
@@ -1038,7 +1043,7 @@ namespace OrclFileExplorer
         void SetDefaultView(int i)
         {
             defaultView = defaultView == i ? -1 : i;
-            for (int k = 0; k < 6; k++) titleBar.ViewButtons[k].Marked = k == defaultView;
+            for (int k = 0; k < ButtonViewModes.GetLength(0); k++) titleBar.ViewButtons[k].Marked = k == defaultView;
             if (defaultView >= 0)
             {
                 // Right away for the folders on screen, too.
@@ -1055,7 +1060,7 @@ namespace OrclFileExplorer
         {
             if (defaultView < 0 || t == null || !t.Created) return;
             int mode, size;
-            if (t.GetViewMode(out mode, out size) && mode == ButtonViewModes[defaultView, 0] && size == ButtonViewModes[defaultView, 1]) return;
+            if (t.GetViewMode(out mode, out size) && IsButtonView(defaultView, mode, size)) return;
             t.SetViewMode(ButtonViewModes[defaultView, 0], ButtonViewModes[defaultView, 1]);
         }
 
@@ -1064,11 +1069,9 @@ namespace OrclFileExplorer
             BrowserTab t = ActivePane == null ? null : ActivePane.ActiveTab;
             int mode = 0, size = 0;
             if (t != null && t.Created) t.GetViewMode(out mode, out size);
-            for (int i = 0; i < 6; i++)
+            for (int i = 0; i < ButtonViewModes.GetLength(0); i++)
             {
-                bool on;
-                if (ButtonViewModes[i, 0] != 1) on = mode == ButtonViewModes[i, 0];
-                else on = mode == 1 && (ButtonViewModes[i, 1] > 64 ? size > 64 : size <= 64);
+                bool on = IsButtonView(i, mode, size);
                 if (titleBar.ViewButtons[i].Checked != on) titleBar.ViewButtons[i].Checked = on;
             }
         }
@@ -1612,7 +1615,20 @@ namespace OrclFileExplorer
                             case "svinfo": QuickLook.ShowInfo = v == "1"; break;
                             case "svthumbsize": if (int.TryParse(v, out n) && n >= 64 && n <= 512) QuickLook.ThumbSize = n; break;
                             case "svthumbwidth": if (int.TryParse(v, out n) && n >= 100 && n <= 5000) QuickLook.ThumbWidth = n; break;
-                            case "defaultview": if (int.TryParse(v, out n) && n >= 0 && n < 6) { defaultView = n; titleBar.ViewButtons[n].Marked = true; } break;
+                            case "defaultview":
+                                {
+                                    int dv = -1;
+                                    string[] ms = v.Split('/');
+                                    int dm, ds;
+                                    if (ms.Length == 2 && int.TryParse(ms[0], out dm) && int.TryParse(ms[1], out ds))
+                                    {
+                                        for (int b = 0; b < ButtonViewModes.GetLength(0); b++) if (ButtonViewModes[b, 0] == dm && ButtonViewModes[b, 1] == ds) dv = b;
+                                    }
+                                    // Versions up to 1.1.041 saved the number of one of their six buttons.
+                                    else if (int.TryParse(v, out n) && n >= 0 && n < 6) dv = new[] { 0, 1, 2, 3, 5, 6 }[n];
+                                    if (dv >= 0) { defaultView = dv; titleBar.ViewButtons[dv].Marked = true; }
+                                }
+                                break;
                             case "activepane": if (int.TryParse(v, out n) && n >= 0 && n < Panes.Length) startPane = n; break;
                             default:
                                 int pi; bool isTab;
@@ -1700,7 +1716,7 @@ namespace OrclFileExplorer
                 sb.AppendLine("svinfo=" + (QuickLook.ShowInfo ? "1" : "0"));
                 sb.AppendLine("svthumbsize=" + QuickLook.ThumbSize);
                 sb.AppendLine("svthumbwidth=" + QuickLook.ThumbWidth);
-                sb.AppendLine("defaultview=" + defaultView);
+                sb.AppendLine("defaultview=" + (defaultView < 0 ? "-1" : ButtonViewModes[defaultView, 0] + "/" + ButtonViewModes[defaultView, 1]));
                 sb.AppendLine("activepane=" + Array.IndexOf(Panes, ActivePane));
                 for (int i = 0; i < Panes.Length; i++)
                 {
