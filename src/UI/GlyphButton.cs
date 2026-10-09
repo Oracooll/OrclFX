@@ -66,6 +66,7 @@ namespace OrclFileExplorer
             MouseEventArgs m = e as MouseEventArgs;
             if (m == null || m.Button == MouseButtons.Left) base.OnClick(e);
         }
+        internal void TestClick() { OnClick(EventArgs.Empty); }
         protected override void OnMouseClick(MouseEventArgs e) { if (e.Button == MouseButtons.Left) base.OnMouseClick(e); }
 
         protected override void OnPaint(PaintEventArgs e)

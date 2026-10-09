@@ -3,6 +3,16 @@
 Versions are `major.minor.build` with a three-digit build number. Every release bumps the build;
 the minor number changes only for larger milestones.
 
+## 1.1.046
+- Changes made by other programs (new, deleted or renamed files) appear at once: the app watches the folders on
+  screen itself, as xplorer2 does, and passes each change on to the file list. Before, they showed up about a
+  second later, through Windows' own notifications.
+- F5 and Ctrl+R refresh the active pane wherever the keyboard is (the address box, the tree, the Shortcuts pane
+  ...); before, F5 only worked while the file list had the focus.
+- Refresh (F5, Ctrl+R or the Refresh button) fits the Name column at once, also after a width set by hand, and
+  again as soon as the folder has been read again. The column no longer shrinks for a moment while the list
+  reloads, even when refreshing many times in a row.
+
 ## 1.1.045
 - Fixed: 1.1.044 kept making the first pane the active one. Its auto-fit sent the Name column a simulated
   double-click, which the app took for your click, and in some folders it did so every few seconds. Auto-fit now

@@ -269,7 +269,27 @@ namespace OrclFileExplorer
         internal int fitWidth = -1;      // the Name column width auto-fit set (or found right) last
         internal int fitNeed = -1;       // the names' measured width at the last fit (a re-fit follows when it changes)
         internal int fitTick;            // when auto-fit last looked at the names
-        internal bool fitManual;         // the user set the width by hand: left alone until the folder changes or F5
+        internal bool fitManual;
+        internal int fitAgainAt;
+        int lastAutoWidth;               // the width the last auto-size gave, in lastAutoFolder
+        string lastAutoFolder;
+
+        void SetNameWidth(int w)
+        {
+            IColumnManager cm = View<IColumnManager>(new Guid("d8ec27bb-3f3b-4042-b10a-4acfd924d453"));
+            if (cm == null) return;
+            try
+            {
+                PROPERTYKEY name = NameKey();
+                CM_COLUMNINFO ci = new CM_COLUMNINFO();
+                ci.cbSize = (uint)Marshal.SizeOf(typeof(CM_COLUMNINFO));
+                ci.dwMask = 0x1;
+                ci.uWidth = (uint)w;
+                if (cm.SetColumnInfo(ref name, ref ci) == 0) fitWidth = w;
+            }
+            catch { }
+            finally { Marshal.ReleaseComObject(cm); }
+        }         // after a refresh: fit once more at this tick (0 = no)         // the user set the width by hand: left alone until the folder changes or F5
 
         static PROPERTYKEY NameKey()
         {
@@ -310,6 +330,37 @@ namespace OrclFileExplorer
             finally { Marshal.ReleaseComObject(cm); }
         }
 
+        // After a refresh: fits the Name column as soon as the view has read the folder again (checked every 50 ms,
+        // for at most 5 seconds): once the list has been emptied and filled again, or after 0.6 s if it never looked
+        // empty.
+        Timer reloadFit;
+        public void FitWhenReloaded()
+        {
+            if (reloadFit != null) { reloadFit.Stop(); reloadFit.Dispose(); }
+            Timer timer = new Timer();
+            reloadFit = timer;
+            timer.Interval = 50;
+            int started = Environment.TickCount;
+            bool sawEmpty = false;
+            timer.Tick += delegate
+            {
+                int elapsed = unchecked(Environment.TickCount - started);
+                bool stop = !Alive || elapsed > 5000;
+                if (!stop)
+                {
+                    int n = Count(Native.SVGIO_ALLVIEW);
+                    if (n <= 0) { sawEmpty = true; return; }
+                    if (!sawEmpty && elapsed < 600) return;
+                    if (!Renaming) { fitManual = false; AutoFitName(); }
+                    stop = true;
+                }
+                timer.Stop();
+                timer.Dispose();
+                if (reloadFit == timer) reloadFit = null;
+            };
+            timer.Start();
+        }
+
         // The Name column's width in Details view, or -1 (another view, or no view yet).
         public int NameColumnWidth()
         {
@@ -343,6 +394,13 @@ namespace OrclFileExplorer
             Marshal.ReleaseComObject(fv);
             if (!details) return;
             fitTick = Environment.TickCount;
+            // An empty list (also while the view reads the folder again) would shrink the column to its header.
+            if (Count(Native.SVGIO_ALLVIEW) <= 0)
+            {
+                // ... but the width last fitted here is put back (a width set by hand doesn't stay while it reloads).
+                if (lastAutoWidth > 0 && Util.SameFolder(lastAutoFolder, Folder) && NameColumnWidth() != lastAutoWidth) SetNameWidth(lastAutoWidth);
+                return;
+            }
             fitNeed = LongestNameWidth();
             // What a double-click on the Name column's divider does: Windows sizes the column to the names itself
             // (CM_WIDTH_AUTOSIZE).
@@ -364,6 +422,8 @@ namespace OrclFileExplorer
                 if (done)
                 {
                     fitWidth = NameColumnWidth();
+                    lastAutoWidth = fitWidth;
+                    lastAutoFolder = Folder;
                     Program.Trace("auto-fit: Name column " + fitWidth + " (auto-size)");
                     return;
                 }

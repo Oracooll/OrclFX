@@ -142,6 +142,7 @@ namespace OrclFileExplorer
         public const int ROLE_SYSTEM_LIST = 0x21;
         [DllImport("user32.dll")] public static extern IntPtr WindowFromPoint(POINT pt);
         [DllImport("user32.dll")] public static extern bool IsWindow(IntPtr h);
+        [DllImport("shell32.dll", CharSet = CharSet.Unicode)] public static extern void SHChangeNotify(int eventId, int flags, string item1, string item2);
         [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr h, out RECT r);
 
         // The accessibility role of what is at a screen point (an Explorer view says "list" for its empty space, and

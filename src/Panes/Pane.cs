@@ -176,6 +176,8 @@ namespace OrclFileExplorer
             Main.StateChanged();
         }
 
+        internal void TestClickRefresh() { refreshBtn.TestClick(); }
+
         public void ShowActive()
         {
             BrowserTab t = ActiveTab;

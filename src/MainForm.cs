@@ -146,7 +146,21 @@ namespace OrclFileExplorer
             saveTimer.Interval = 1500;
             saveTimer.Tick += delegate { saveTimer.Stop(); SaveState(); };
             statusTimer.Interval = 300;
-            statusTimer.Tick += delegate { UpdateStatus(); UpdatePreview(); AutoFitViews(); UpdateViewButtons(); };
+            statusTimer.Tick += delegate
+            {
+                WatchShownFolders();
+                if (!timeTicks) { UpdateStatus(); UpdatePreview(); AutoFitViews(); UpdateViewButtons(); return; }
+                // Test: DUALPANE_TEST_TIMING=1 logs how long each part of the 300 ms tick takes, and item count changes.
+                System.Diagnostics.Stopwatch sw = System.Diagnostics.Stopwatch.StartNew();
+                UpdateStatus(); long a = sw.ElapsedMilliseconds;
+                UpdatePreview(); long b = sw.ElapsedMilliseconds;
+                AutoFitViews(); long c = sw.ElapsedMilliseconds;
+                UpdateViewButtons(); long d = sw.ElapsedMilliseconds;
+                if (d > 15) Program.Trace("tick slow: status " + a + ", preview " + (b - a) + ", autofit " + (c - b) + ", buttons " + (d - c) + " ms");
+                BrowserTab ct = ActivePane == null ? null : ActivePane.ActiveTab;
+                int cnt = ct != null && ct.Created ? ct.Count(Native.SVGIO_ALLVIEW) : -1;
+                if (cnt != lastTimedCount) { Program.Trace("items: " + cnt); lastTimedCount = cnt; }
+            };
         }
 
         // The app icon is embedded with all its sizes; fall back to the exe's icon.
@@ -447,7 +461,7 @@ namespace OrclFileExplorer
                 rf.Tick += delegate
                 {
                     BrowserTab a = ActivePane.ActiveTab;
-                    if (rstage == 0) { a.TestSetNameWidth(60); a.fitWidth = 60; a.fitManual = true; Program.Trace("test: narrowed by hand to " + a.NameColumnWidth() + ", ideal " + a.TestIdealNameWidth()); rf.Interval = 2000; }
+                    if (rstage == 0) { a.TestSetNameWidth(900); a.fitWidth = a.NameColumnWidth(); a.fitManual = true; Program.Trace("test: narrowed by hand to " + a.NameColumnWidth() + ", ideal " + a.TestIdealNameWidth()); rf.Interval = 2000; }
                     else if (rstage == 1)
                     {
                         RefreshTab(a);
@@ -458,13 +472,40 @@ namespace OrclFileExplorer
                 };
                 rf.Start();
             }
+            // Test hook: DUALPANE_TEST_REFRESHLOOP=<rounds> widens the Name column to 900 as if by hand and refreshes,
+            // over and over from 4 seconds after start (every 300 ms, the second half every 100 ms), logging the width
+            // right after each refresh and just before the next widening.
+            int loopRounds;
+            if (int.TryParse(Environment.GetEnvironmentVariable("DUALPANE_TEST_REFRESHLOOP"), out loopRounds))
+            {
+                Timer lt2 = new Timer();
+                lt2.Interval = 4000;
+                int round = 0;
+                lt2.Tick += delegate
+                {
+                    BrowserTab a = ActivePane.ActiveTab;
+                    int before = a.NameColumnWidth();
+                    if (round >= loopRounds) { lt2.Stop(); Program.Trace("loop: end, Name column " + before); return; }
+                    a.TestSetNameWidth(900); a.fitWidth = a.NameColumnWidth(); a.fitManual = true;
+                    int widened = a.NameColumnWidth();
+                    string how = new[] { "F5", "Ctrl+R", "button" }[round % 3];
+                    if (how == "F5") { if (IsRefreshKey(Keys.F5, false, false, false)) RefreshTab(ActivePane.ActiveTab); }
+                    else if (how == "Ctrl+R") { if (IsRefreshKey(Keys.R, true, false, false)) RefreshTab(ActivePane.ActiveTab); }
+                    else ActivePane.TestClickRefresh();
+                    Program.Trace("loop " + (round + 1) + " (" + how + "): before " + before + ", widened " + widened + ", right after refresh " + a.NameColumnWidth());
+                    round++;
+                    lt2.Interval = round < loopRounds / 2 ? 300 : 100;
+                };
+                lt2.Start();
+            }
             // Test hook: DUALPANE_TEST_SHRINKNAME=1 narrows the Name column 4 seconds after start (as a refresh can), to
             // see auto-fit widen it again.
-            if (Environment.GetEnvironmentVariable("DUALPANE_TEST_SHRINKNAME") == "1")
+            string shrinkTo = Environment.GetEnvironmentVariable("DUALPANE_TEST_SHRINKNAME");
+            if (shrinkTo != null)
             {
                 Timer sn = new Timer();
                 sn.Interval = 4000;
-                sn.Tick += delegate { sn.Stop(); BrowserTab a = ActivePane.ActiveTab; Program.Trace("test: Name column " + a.NameColumnWidth() + ", narrowing"); a.TestSetNameWidth(40); Program.Trace("test: Name column now " + a.NameColumnWidth()); };
+                sn.Tick += delegate { sn.Stop(); BrowserTab a = ActivePane.ActiveTab; int to = shrinkTo == "1" ? 40 : int.Parse(shrinkTo); Program.Trace("test: Name column " + a.NameColumnWidth() + ", setting it to " + to); a.TestSetNameWidth(to); Program.Trace("test: Name column now " + a.NameColumnWidth()); };
                 sn.Start();
             }
             // Test hook: DUALPANE_TEST_FINDBOX=1 opens the Find box 3 seconds after start (to look at it).
@@ -765,12 +806,33 @@ namespace OrclFileExplorer
 
         // Ctrl+R (and F5, which the view handles itself): the folder is read again, and auto-fit takes over the Name
         // column again.
+        readonly bool timeTicks = Environment.GetEnvironmentVariable("DUALPANE_TEST_TIMING") == "1";
+
+        // The folders on screen are watched, so changes made by other programs appear at once (see FolderWatch).
+        readonly FolderWatch folderWatch = new FolderWatch();
+        readonly List<string> watched = new List<string>();
+
+        void WatchShownFolders()
+        {
+            watched.Clear();
+            foreach (Pane p in VisiblePanes())
+            {
+                BrowserTab t = p.ActiveTab;
+                if (t != null && t.Created && !t.IsFindResults && !t.WaitingForNetwork) watched.Add(t.Address);
+            }
+            folderWatch.WatchOnly(watched);
+        }
+        int lastTimedCount = -2;
+
         public void RefreshTab(BrowserTab t)
         {
             if (t == null || !t.Created) return;
             t.fitManual = false;
-            t.fitTick = Environment.TickCount - 1500;
+            // The Name column is fitted at once (to the names shown, which the folder watch keeps current), whatever
+            // the user clicked just before; and again once the view has read the folder again.
+            if (AutoFit && !t.Renaming) t.AutoFitName();
             t.RefreshView();
+            if (AutoFit) t.FitWhenReloaded();
             Program.Trace("refresh: " + t.Folder);
         }
 
@@ -814,6 +876,14 @@ namespace OrclFileExplorer
                 bool changed = n != t.fitCount || t.fitFolder != t.Folder;
                 // Not while a name is being typed: resizing the column would close the rename box (tried again later).
                 if (t.Renaming) continue;
+                // The second fit after a refresh.
+                if (t.fitAgainAt != 0 && unchecked(Environment.TickCount - t.fitAgainAt) >= 0)
+                {
+                    t.fitAgainAt = 0;
+                    t.fitManual = false;
+                    // Still empty (being read again): the fit follows when the items come back (their count changes).
+                    if (n > 0) changed = true;
+                }
                 if (changed) t.fitManual = false; // another folder, or items added or removed
                 else
                 {
@@ -894,6 +964,7 @@ namespace OrclFileExplorer
         protected override void OnFormClosed(FormClosedEventArgs e)
         {
             formClosed.Set();
+            folderWatch.Dispose();
             base.OnFormClosed(e);
         }
 
@@ -1357,12 +1428,6 @@ namespace OrclFileExplorer
             int msg = m.Msg;
             if (msg == 0x20A && CtrlWheel(ref m)) return true; // WM_MOUSEWHEEL
             if (msg == 0x100 || msg == 0x104 || msg == 0x201 || msg == 0x204 || msg == 0x207 || msg == 0xA1 || msg == 0xA4) LastInputTick = Environment.TickCount;
-            // F5 refreshes the view: auto-fit takes over again (also after a width set by hand).
-            if (msg == 0x100 && (int)m.WParam == 0x74 && ActivePane != null && ActivePane.ActiveTab != null)
-            {
-                ActivePane.ActiveTab.fitManual = false;
-                ActivePane.ActiveTab.fitTick = Environment.TickCount - 1500;
-            }
             // While Quick Look is open, its keys (arrows, Space, Esc) are its own wherever the focus is: in the file
             // list behind it they would move the selection there instead.
             if ((msg == 0x100 || msg == 0x104) && quickLook != null && !quickLook.IsDisposed && quickLook.Visible && Form.ActiveForm == quickLook &&
@@ -1392,12 +1457,19 @@ namespace OrclFileExplorer
             return false;
         }
 
+        static bool IsRefreshKey(Keys key, bool ctrl, bool alt, bool shift)
+        {
+            return !alt && !shift && (!ctrl && key == Keys.F5 || ctrl && key == Keys.R);
+        }
+
         bool Shortcut(Keys key, BrowserTab ft, IntPtr focus)
         {
             bool ctrl = Native.KeyDown(0x11), shift = Native.KeyDown(0x10), alt = Native.KeyDown(0x12);
             if (Form.ActiveForm != this) return false;
             if (!ctrl && !alt && (key >= Keys.A && key <= Keys.Z || key >= Keys.D0 && key <= Keys.D9 || key >= Keys.NumPad0 && key <= Keys.NumPad9 || key >= Keys.Oem1))
                 typedTick = Environment.TickCount;
+            // F5 / Ctrl+R: the active pane's folder, wherever the keyboard is (also in the address box, the tree ...).
+            if (IsRefreshKey(key, ctrl, alt, shift)) { RefreshTab(ActivePane.ActiveTab); return true; }
             string fc = focus == IntPtr.Zero ? "" : Native.ClassName(focus);
             bool typing = fc == "Edit" || fc.Contains(".EDIT.") || fc.Contains("COMBOBOX") || fc == "ComboBox";
             if (typing)
@@ -1417,7 +1489,6 @@ namespace OrclFileExplorer
             if (alt && !ctrl && key == Keys.Up) { p.Nav(Native.SBSP_PARENT); return true; }
             if (ctrl && !alt && !shift && key == Keys.H) { ToggleHidden(); return true; }
             if (ctrl && !alt && !shift && key == Keys.E) { ToggleExtensions(); return true; }
-            if (ctrl && !alt && !shift && key == Keys.R) { RefreshTab(t); return true; }
             if (alt && !ctrl && key == Keys.T) { SetShowTree(!ShowTree); return true; }
             if (alt && !ctrl && key == Keys.P) { SetShowPreview(!ShowPreview); return true; }
             if (alt && !ctrl && key == Keys.S) { SetShowShortcuts(!ShowShortcuts); return true; }
