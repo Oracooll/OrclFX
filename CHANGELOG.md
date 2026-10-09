@@ -3,6 +3,10 @@
 Versions are `major.minor.build` with a three-digit build number. Every release bumps the build;
 the minor number changes only for larger milestones.
 
+## 1.1.041
+- Ctrl+mouse wheel goes through the views in this order: Details, List, Tiles, Content, Small, Medium, Large and
+  Extra large icons.
+
 ## 1.1.040
 - Ctrl+mouse wheel over a file list steps through all eight views, smallest to largest: Details, List, Small
   icons, Content, Tiles, Medium, Large and Extra large icons (wheel up: larger), one view per notch, stopping at

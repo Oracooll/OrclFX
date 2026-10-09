@@ -977,7 +977,7 @@ namespace OrclFileExplorer
 
         // Ctrl+mouse wheel over a file list steps through every view, smallest to largest (wheel up: larger), one
         // view per notch, stopping at either end. Indexes into AllViewModes / AllViewNames.
-        static readonly int[] WheelOrder = { 5, 4, 3, 7, 6, 2, 1, 0 }; // Details, List, Small, Content, Tiles, Medium, Large, Extra large
+        static readonly int[] WheelOrder = { 5, 4, 6, 7, 3, 2, 1, 0 }; // Details, List, Tiles, Content, Small, Medium, Large, Extra large
         int wheelSteps;    // a touchpad sends small amounts: they add up to whole notches
 
         bool CtrlWheel(ref Message m)
