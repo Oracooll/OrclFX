@@ -278,6 +278,21 @@ namespace OrclFileExplorer
             return name;
         }
 
+        internal int TestIdealNameWidth()
+        {
+            IColumnManager cm = View<IColumnManager>(new Guid("d8ec27bb-3f3b-4042-b10a-4acfd924d453"));
+            if (cm == null) return -1;
+            try
+            {
+                PROPERTYKEY name = NameKey();
+                CM_COLUMNINFO ci = new CM_COLUMNINFO();
+                ci.cbSize = (uint)Marshal.SizeOf(typeof(CM_COLUMNINFO));
+                ci.dwMask = 0x4;
+                return cm.GetColumnInfo(ref name, ref ci) == 0 ? (int)ci.uIdealWidth : -1;
+            }
+            finally { Marshal.ReleaseComObject(cm); }
+        }
+
         internal void TestSetNameWidth(int w)
         {
             IColumnManager cm = View<IColumnManager>(new Guid("d8ec27bb-3f3b-4042-b10a-4acfd924d453"));
@@ -333,10 +348,14 @@ namespace OrclFileExplorer
                 PROPERTYKEY name = NameKey();
                 CM_COLUMNINFO ci = new CM_COLUMNINFO();
                 ci.cbSize = (uint)Marshal.SizeOf(typeof(CM_COLUMNINFO));
-                ci.dwMask = 0x1 | 0x4; // CM_MASK_WIDTH | CM_MASK_IDEALWIDTH
+                ci.dwMask = 0x1; // CM_MASK_WIDTH
                 fitTick = Environment.TickCount;
-                if (cm.GetColumnInfo(ref name, ref ci) != 0 || ci.uIdealWidth == 0) return;
-                uint want = Math.Min(ci.uIdealWidth + (uint)Native.Px(12), (uint)Math.Max(Native.Px(150), Host.ClientSize.Width * 7 / 10));
+                if (cm.GetColumnInfo(ref name, ref ci) != 0) return;
+                // The view's "ideal width" doesn't follow the names (it stays about the same whatever the folder
+                // holds), so the names are measured here.
+                int longest = LongestNameWidth();
+                if (longest <= 0) return;
+                uint want = (uint)Math.Max(Native.Px(120), Math.Min(longest, Math.Max(Native.Px(150), Host.ClientSize.Width * 7 / 10)));
                 fitWidth = (int)ci.uWidth;
                 if (Math.Abs((int)want - (int)ci.uWidth) < 3) return;
                 ci.dwMask = 0x1;
@@ -346,6 +365,41 @@ namespace OrclFileExplorer
             }
             catch { }
             finally { Marshal.ReleaseComObject(cm); }
+        }
+
+        // The width the Name column needs for the longest name shown (the icon and the view's margins included), or 0.
+        // At most the first 10,000 items are measured, so a huge folder doesn't hold up the window.
+        static Font nameFont;
+        int LongestNameWidth()
+        {
+            IFolderView v = View<IFolderView>(Native.IID_IFolderView);
+            if (v == null) return 0;
+            int widest = 0;
+            try
+            {
+                Guid iid = Native.IID_IShellItemArray;
+                object o;
+                if (v.Items(Native.SVGIO_ALLVIEW, ref iid, out o) != 0) return 0;
+                IShellItemArray arr = o as IShellItemArray;
+                uint n;
+                if (nameFont == null) nameFont = SystemFonts.IconTitleFont; // the file list's font
+                if (arr != null && arr.GetCount(out n) == 0)
+                    for (uint i = 0; i < n && i < 10000; i++)
+                    {
+                        IShellItem item;
+                        if (arr.GetItemAt(i, out item) != 0) continue;
+                        string shown = Native.ItemName(item, 0 /* SIGDN_NORMALDISPLAY: as the list shows it */);
+                        Marshal.ReleaseComObject(item);
+                        if (shown == null) continue;
+                        int w = TextRenderer.MeasureText(shown, nameFont, Size.Empty, TextFormatFlags.NoPadding | TextFormatFlags.NoPrefix | TextFormatFlags.SingleLine).Width;
+                        if (w > widest) widest = w;
+                    }
+                if (o != null) Marshal.ReleaseComObject(o);
+            }
+            catch { return 0; }
+            finally { Marshal.ReleaseComObject(v); }
+            // Icon (16) with its gap, and the view's own margins on both sides of the name.
+            return widest == 0 ? 0 : widest + Native.Px(16 + 6) + Native.Px(28);
         }
 
         // Full path of the single selected item, or null when nothing or several are selected.

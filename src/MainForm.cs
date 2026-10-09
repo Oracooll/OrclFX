@@ -437,6 +437,23 @@ namespace OrclFileExplorer
                 };
                 wt.Start();
             }
+            // Test hook: DUALPANE_TEST_REFRESHFIT=1 narrows the Name column as if by hand (4 s after start), refreshes
+            // with Ctrl+R's code 2 s later, and logs the width and the ideal width 3 s after that.
+            if (Environment.GetEnvironmentVariable("DUALPANE_TEST_REFRESHFIT") == "1")
+            {
+                Timer rf = new Timer();
+                rf.Interval = 4000;
+                int rstage = 0;
+                rf.Tick += delegate
+                {
+                    BrowserTab a = ActivePane.ActiveTab;
+                    if (rstage == 0) { a.TestSetNameWidth(60); a.fitWidth = 60; a.fitManual = true; Program.Trace("test: narrowed by hand to " + a.NameColumnWidth() + ", ideal " + a.TestIdealNameWidth()); rf.Interval = 2000; }
+                    else if (rstage == 1) { RefreshTab(a); rf.Interval = 3000; }
+                    else { rf.Stop(); Program.Trace("test: after refresh " + a.NameColumnWidth() + ", ideal " + a.TestIdealNameWidth() + ", pane " + a.Host.ClientSize.Width); }
+                    rstage++;
+                };
+                rf.Start();
+            }
             // Test hook: DUALPANE_TEST_SHRINKNAME=1 narrows the Name column 4 seconds after start (as a refresh can), to
             // see auto-fit widen it again.
             if (Environment.GetEnvironmentVariable("DUALPANE_TEST_SHRINKNAME") == "1")
@@ -809,7 +826,7 @@ namespace OrclFileExplorer
                     }
                     // Otherwise again when something else changed it (a refresh, the view), or every 2 s anyway
                     // (renamed files, names that arrived late).
-                    if (!moved && t.fitWidth >= 0 && unchecked(Environment.TickCount - t.fitTick) < 2000) continue;
+                    if (!moved && t.fitWidth >= 0 && (unchecked(Environment.TickCount - t.fitTick) < 3000 || n > 3000)) continue;
                 }
                 t.fitCount = n;
                 t.fitFolder = t.Folder;

@@ -3,6 +3,11 @@
 Versions are `major.minor.build` with a three-digit build number. Every release bumps the build;
 the minor number changes only for larger milestones.
 
+## 1.1.043
+- Auto-fit really fits the Name column to the longest name now (at most 70 % of the pane). It used the width the
+  Explorer view reports as "ideal", which turned out not to depend on the names (about the same in every folder),
+  so long names were cut off; the names are now measured. Refresh (Ctrl+R / F5) fits it again too.
+
 ## 1.1.042
 - All eight views now have a button in the title bar: Small icons and Extra large icons were added, and the
   buttons are in the order Ctrl+mouse wheel goes through them, so the lit button shows which view the wheel
