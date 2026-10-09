@@ -88,6 +88,7 @@ a single `orclfx.exe`, no installer package and no admin rights needed.
 | Alt+T / Alt+P / Alt+S | Tree / Preview / Shortcuts pane |
 | Ctrl+H | Show or hide hidden files |
 | Ctrl+E | Show or hide file name extensions |
+| Ctrl+R, F5 | Refresh the folder |
 | Space | Space Viewer (a large view of the selected file, with thumbnails) |
 
 ## Install
@@ -172,7 +173,7 @@ deleted. When OneDrive keeps two versions of the list (two computers changed it 
   Windows applies some light/dark choices only when an app starts.
 - Only one window runs at a time; launching the app again brings the open window to the front.
 - See [CHANGELOG.md](CHANGELOG.md) for the version history, and [IDEAS.md](IDEAS.md) for suggestions kept for later. Versions are `major.minor.build` with a
-  three-digit build (1.1.037).
+  three-digit build (1.1.038).
 
 ## License
 

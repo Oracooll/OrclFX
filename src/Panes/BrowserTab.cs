@@ -266,6 +266,56 @@ namespace OrclFileExplorer
         // Auto-fit is re-applied when the folder or its item count changes.
         internal int fitCount = -1;
         internal string fitFolder;
+        internal int fitWidth = -1;      // the Name column width auto-fit set (or found right) last
+        internal int fitTick;            // when auto-fit last looked at the names
+        internal bool fitManual;         // the user set the width by hand: left alone until the folder changes or F5
+
+        static PROPERTYKEY NameKey()
+        {
+            PROPERTYKEY name = new PROPERTYKEY();
+            name.fmtid = new Guid("B725F130-47EF-101A-A5F1-02608C9EEBAC");
+            name.pid = 10; // System.ItemNameDisplay
+            return name;
+        }
+
+        internal void TestSetNameWidth(int w)
+        {
+            IColumnManager cm = View<IColumnManager>(new Guid("d8ec27bb-3f3b-4042-b10a-4acfd924d453"));
+            if (cm == null) return;
+            try
+            {
+                PROPERTYKEY name = NameKey();
+                CM_COLUMNINFO ci = new CM_COLUMNINFO();
+                ci.cbSize = (uint)Marshal.SizeOf(typeof(CM_COLUMNINFO));
+                ci.dwMask = 0x1;
+                ci.uWidth = (uint)w;
+                cm.SetColumnInfo(ref name, ref ci);
+            }
+            finally { Marshal.ReleaseComObject(cm); }
+        }
+
+        // The Name column's width in Details view, or -1 (another view, or no view yet).
+        public int NameColumnWidth()
+        {
+            IFolderView fv = View<IFolderView>(Native.IID_IFolderView);
+            if (fv == null) return -1;
+            uint mode;
+            bool details = fv.GetCurrentViewMode(out mode) == 0 && mode == 4;
+            Marshal.ReleaseComObject(fv);
+            if (!details) return -1;
+            IColumnManager cm = View<IColumnManager>(new Guid("d8ec27bb-3f3b-4042-b10a-4acfd924d453"));
+            if (cm == null) return -1;
+            try
+            {
+                PROPERTYKEY name = NameKey();
+                CM_COLUMNINFO ci = new CM_COLUMNINFO();
+                ci.cbSize = (uint)Marshal.SizeOf(typeof(CM_COLUMNINFO));
+                ci.dwMask = 0x1; // CM_MASK_WIDTH
+                return cm.GetColumnInfo(ref name, ref ci) == 0 ? (int)ci.uWidth : -1;
+            }
+            catch { return -1; }
+            finally { Marshal.ReleaseComObject(cm); }
+        }
 
         // Sizes the Name column to its ideal width (the longest name), in Details view only.
         public void AutoFitName()
@@ -280,18 +330,19 @@ namespace OrclFileExplorer
             if (cm == null) return;
             try
             {
-                PROPERTYKEY name = new PROPERTYKEY();
-                name.fmtid = new Guid("B725F130-47EF-101A-A5F1-02608C9EEBAC");
-                name.pid = 10; // System.ItemNameDisplay
+                PROPERTYKEY name = NameKey();
                 CM_COLUMNINFO ci = new CM_COLUMNINFO();
                 ci.cbSize = (uint)Marshal.SizeOf(typeof(CM_COLUMNINFO));
                 ci.dwMask = 0x1 | 0x4; // CM_MASK_WIDTH | CM_MASK_IDEALWIDTH
+                fitTick = Environment.TickCount;
                 if (cm.GetColumnInfo(ref name, ref ci) != 0 || ci.uIdealWidth == 0) return;
                 uint want = Math.Min(ci.uIdealWidth + (uint)Native.Px(12), (uint)Math.Max(Native.Px(150), Host.ClientSize.Width * 7 / 10));
+                fitWidth = (int)ci.uWidth;
                 if (Math.Abs((int)want - (int)ci.uWidth) < 3) return;
                 ci.dwMask = 0x1;
                 ci.uWidth = want;
-                cm.SetColumnInfo(ref name, ref ci);
+                if (cm.SetColumnInfo(ref name, ref ci) == 0) fitWidth = (int)want;
+                Program.Trace("auto-fit: Name column " + want);
             }
             catch { }
             finally { Marshal.ReleaseComObject(cm); }

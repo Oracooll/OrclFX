@@ -334,6 +334,7 @@ namespace OrclFileExplorer
             BrowserTab t = ActiveTab;
             AddItem(m.Items, "New tab", "Ctrl+T", delegate { NewTab(); });
             if (t != null) AddItem(m.Items, t.Locked ? "Unlock this tab" : "Lock this tab to this folder", null, delegate { ToggleLock(t); });
+            if (t != null) AddItem(m.Items, "Refresh", "Ctrl+R", delegate { Main.RefreshTab(t); });
             if (t != null) AddItem(m.Items, "Open terminal here", "Ctrl+Alt+T", delegate { Main.OpenTerminal(t); });
             m.Items.Add(Main.LayoutsMenu(m.Renderer));
             m.Items.Add(new ToolStripSeparator());

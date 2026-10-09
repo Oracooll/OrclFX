@@ -136,6 +136,27 @@ namespace OrclFileExplorer
 
         [DllImport("shell32.dll")] public static extern IntPtr ILFindLastID(IntPtr pidl);
 
+        [DllImport("oleacc.dll")]
+        static extern int AccessibleObjectFromPoint(POINT pt, [MarshalAs(UnmanagedType.IDispatch)] out object acc, out object child);
+
+        public const int ROLE_SYSTEM_LIST = 0x21;
+        [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr h, out RECT r);
+
+        // The accessibility role of what is at a screen point (an Explorer view says "list" for its empty space, and
+        // "split button" for a column header), or 0 when it can't be told.
+        public static int AccessibleRoleAt(POINT pt)
+        {
+            object acc, child;
+            try
+            {
+                if (AccessibleObjectFromPoint(pt, out acc, out child) != 0 || acc == null) return 0;
+                object role = acc.GetType().InvokeMember("accRole", System.Reflection.BindingFlags.GetProperty, null, acc, new object[] { child });
+                Marshal.ReleaseComObject(acc);
+                return role is int ? (int)role : 0;
+            }
+            catch { return 0; }
+        }
+
         public static void SetShowHidden(bool on)
         {
             IntPtr p = Marshal.AllocHGlobal(64);

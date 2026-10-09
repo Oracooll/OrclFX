@@ -3,6 +3,15 @@
 Versions are `major.minor.build` with a three-digit build number. Every release bumps the build;
 the minor number changes only for larger milestones.
 
+## 1.1.038
+- Auto-fit of the Name column works again after a refresh: it no longer waits for the folder or its number of
+  items to change, but re-fits whenever the column was changed by something else (a refresh, the view) and
+  when names change. A width you set yourself (dragging or double-clicking a divider) is kept until you open
+  another folder or refresh.
+- Double-clicking a column divider (or a column header) resizes the column as in File Explorer instead of going
+  up a level: only a double-click on empty space in the list goes up.
+- Ctrl+R refreshes the folder (also in the menu); F5 still works too.
+
 ## 1.1.037
 Fixes from an audit loop (3 rounds; the last found no problems):
 - Space Viewer: stepping back to a PDF, text or other non-picture file showed an empty pane.

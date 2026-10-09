@@ -391,6 +391,40 @@ namespace OrclFileExplorer
                 };
                 st.Start();
             }
+            // Test hook: DUALPANE_TEST_DBLCLICK=<y>[,<y>...] treats a double-click at x=300, y (in the active view) as
+            // the mouse watcher would, one every 2 seconds from 4 seconds after start.
+            string testDbl = Environment.GetEnvironmentVariable("DUALPANE_TEST_DBLCLICK");
+            if (testDbl != null)
+            {
+                Queue<int> ys = new Queue<int>();
+                foreach (string y in testDbl.Split(',')) ys.Enqueue(int.Parse(y));
+                Timer dt = new Timer();
+                dt.Interval = 4000;
+                dt.Tick += delegate
+                {
+                    dt.Interval = 2000;
+                    if (ys.Count == 0) { dt.Stop(); return; }
+                    IntPtr view = ActivePane.ActiveTab.ViewWindow();
+                    IntPtr ui = Native.FindChild(view, "DirectUIHWND");
+                    RECT r;
+                    Native.GetWindowRect(ui, out r);
+                    POINT pt = new POINT();
+                    pt.x = r.left + 300;
+                    pt.y = r.top + ys.Dequeue();
+                    Program.Trace("test: double-click at y=" + (pt.y - r.top) + " in " + ActivePane.ActiveTab.Folder);
+                    TryGoUpFromEmptySpace(ui, pt);
+                };
+                dt.Start();
+            }
+            // Test hook: DUALPANE_TEST_SHRINKNAME=1 narrows the Name column 4 seconds after start (as a refresh can), to
+            // see auto-fit widen it again.
+            if (Environment.GetEnvironmentVariable("DUALPANE_TEST_SHRINKNAME") == "1")
+            {
+                Timer sn = new Timer();
+                sn.Interval = 4000;
+                sn.Tick += delegate { sn.Stop(); BrowserTab a = ActivePane.ActiveTab; Program.Trace("test: Name column " + a.NameColumnWidth() + ", narrowing"); a.TestSetNameWidth(40); Program.Trace("test: Name column now " + a.NameColumnWidth()); };
+                sn.Start();
+            }
             // Test hook: DUALPANE_TEST_FINDBOX=1 opens the Find box 3 seconds after start (to look at it).
             if (Environment.GetEnvironmentVariable("DUALPANE_TEST_FINDBOX") == "1")
             {
@@ -687,6 +721,17 @@ namespace OrclFileExplorer
             if (ShowTree) { tree.EnsureCreated(); ActiveFolderChanged(); }
         }
 
+        // Ctrl+R (and F5, which the view handles itself): the folder is read again, and auto-fit takes over the Name
+        // column again.
+        public void RefreshTab(BrowserTab t)
+        {
+            if (t == null || !t.Created) return;
+            t.fitManual = false;
+            t.fitTick = Environment.TickCount - 1500;
+            t.RefreshView();
+            Program.Trace("refresh: " + t.Folder);
+        }
+
         public void ToggleExtensions()
         {
             bool on = !Native.GetShowExtensions();
@@ -724,9 +769,27 @@ namespace OrclFileExplorer
                 BrowserTab t = p.ActiveTab;
                 if (t == null || !t.Created) continue;
                 int n = t.Count(Native.SVGIO_ALLVIEW);
-                if (n == t.fitCount && t.fitFolder == t.Folder) continue;
+                bool changed = n != t.fitCount || t.fitFolder != t.Folder;
                 // Not while a name is being typed: resizing the column would close the rename box (tried again later).
                 if (t.Renaming) continue;
+                if (changed) t.fitManual = false; // another folder, or items added or removed
+                else
+                {
+                    if (t.fitManual) continue;
+                    int w = t.NameColumnWidth();
+                    if (w < 0) { t.fitWidth = -1; continue; } // not Details
+                    bool moved = t.fitWidth >= 0 && Math.Abs(w - t.fitWidth) >= 3;
+                    // Changed by the user (dragging or double-clicking a divider just now): their width is kept.
+                    if (moved && unchecked(Environment.TickCount - lastViewMouseDown) < 3000)
+                    {
+                        t.fitManual = true;
+                        Program.Trace("auto-fit: the user set the Name column to " + w);
+                        continue;
+                    }
+                    // Otherwise again when something else changed it (a refresh, the view), or every 2 s anyway
+                    // (renamed files, names that arrived late).
+                    if (!moved && t.fitWidth >= 0 && unchecked(Environment.TickCount - t.fitTick) < 2000) continue;
+                }
                 t.fitCount = n;
                 t.fitFolder = t.Folder;
                 t.AutoFitName();
@@ -1011,6 +1074,7 @@ namespace OrclFileExplorer
                 "Double-click a divider\tMake the panes equal width\n" +
                 "Ctrl+H\t\t\tShow / hide hidden files\n" +
                 "Ctrl+E\t\t\tShow / hide file name extensions\n" +
+                "Ctrl+R / F5\t\tRefresh the folder\n" +
                 "Space\t\t\tSpace Viewer: a large view and thumbnails (arrows: next file)\n" +
                 "Click the address bar\tCopy the folder's path (double-click: type one)\n" +
                 "Ctrl+F / F3\t\tFind in this folder and its subfolders\n" +
@@ -1192,6 +1256,12 @@ namespace OrclFileExplorer
         {
             int msg = m.Msg;
             if (msg == 0x100 || msg == 0x104 || msg == 0x201 || msg == 0x204 || msg == 0x207 || msg == 0xA1 || msg == 0xA4) LastInputTick = Environment.TickCount;
+            // F5 refreshes the view: auto-fit takes over again (also after a width set by hand).
+            if (msg == 0x100 && (int)m.WParam == 0x74 && ActivePane != null && ActivePane.ActiveTab != null)
+            {
+                ActivePane.ActiveTab.fitManual = false;
+                ActivePane.ActiveTab.fitTick = Environment.TickCount - 1500;
+            }
             // While Quick Look is open, its keys (arrows, Space, Esc) are its own wherever the focus is: in the file
             // list behind it they would move the selection there instead.
             if ((msg == 0x100 || msg == 0x104) && quickLook != null && !quickLook.IsDisposed && quickLook.Visible && Form.ActiveForm == quickLook &&
@@ -1246,6 +1316,7 @@ namespace OrclFileExplorer
             if (alt && !ctrl && key == Keys.Up) { p.Nav(Native.SBSP_PARENT); return true; }
             if (ctrl && !alt && !shift && key == Keys.H) { ToggleHidden(); return true; }
             if (ctrl && !alt && !shift && key == Keys.E) { ToggleExtensions(); return true; }
+            if (ctrl && !alt && !shift && key == Keys.R) { RefreshTab(t); return true; }
             if (alt && !ctrl && key == Keys.T) { SetShowTree(!ShowTree); return true; }
             if (alt && !ctrl && key == Keys.P) { SetShowPreview(!ShowPreview); return true; }
             if (alt && !ctrl && key == Keys.S) { SetShowShortcuts(!ShowShortcuts); return true; }
@@ -1305,6 +1376,7 @@ namespace OrclFileExplorer
             if (code == HC_ACTION && (msg == 0x201 || msg == Native.WM_LBUTTONDBLCLK))
             {
                 MOUSEHOOKSTRUCT hs = (MOUSEHOOKSTRUCT)Marshal.PtrToStructure(lParam, typeof(MOUSEHOOKSTRUCT));
+                if (Native.ClassName(hs.hwnd) == "DirectUIHWND") lastViewMouseDown = Environment.TickCount; // a column may be resized
                 // The hook runs before our message filter makes the clicked pane active,
                 // so this tells whether the pane was already active when the click arrived.
                 Pane clicked = PaneOf(hs.hwnd);
@@ -1326,7 +1398,7 @@ namespace OrclFileExplorer
                     lastDownInActivePane = inActive;
                 }
                 else dbl = inActive;
-                if (dbl && !Native.KeyDown(0x11) && !Native.KeyDown(0x10) && TryGoUpFromEmptySpace(hs.hwnd)) return (IntPtr)1;
+                if (dbl && !Native.KeyDown(0x11) && !Native.KeyDown(0x10)) TryGoUpFromEmptySpace(hs.hwnd, hs.pt);
             }
             return IntPtr.Zero;
         }
@@ -1337,21 +1409,31 @@ namespace OrclFileExplorer
             return null;
         }
 
-        bool TryGoUpFromEmptySpace(IntPtr hwnd)
+        int lastViewMouseDown = Environment.TickCount - 100000;
+
+        // The column headers are drawn inside the same window as the items, so where the double-click landed is
+        // asked after the view has handled it (a double-click on a column divider has resized the column by then):
+        // only empty space in the list goes up.
+        void TryGoUpFromEmptySpace(IntPtr hwnd, POINT pt)
         {
             string cls = Native.ClassName(hwnd);
-            if (cls != "DirectUIHWND" && cls != "SysListView32") return false;
+            if (cls != "DirectUIHWND" && cls != "SysListView32") return;
             foreach (Pane p in Panes)
             {
                 BrowserTab t = p.ActiveTab;
                 if (t == null || !t.Created) continue;
                 if (Native.IsChild(t.Host.Handle, hwnd) && t.Count(Native.SVGIO_SELECTION) == 0)
                 {
-                    BeginInvoke((MethodInvoker)t.GoUp);
-                    return true;
+                    BrowserTab tab = t;
+                    BeginInvoke((MethodInvoker)delegate
+                    {
+                        int role = Native.AccessibleRoleAt(pt);
+                        Program.Trace("double-click on " + (role == Native.ROLE_SYSTEM_LIST ? "empty space: up" : "role " + role + ": stays"));
+                        if (role == Native.ROLE_SYSTEM_LIST && tab.Created && tab.Count(Native.SVGIO_SELECTION) == 0) tab.GoUp();
+                    });
+                    return;
                 }
             }
-            return false;
         }
 
         // mode 0 = active tab, 1 = new tab in the active pane, 2 = the other pane
