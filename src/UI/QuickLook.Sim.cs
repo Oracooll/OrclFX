@@ -66,6 +66,7 @@ namespace OrclFileExplorer
             Action<string, Action> step = delegate(string what, Action a) { steps.Add(new KeyValuePair<string, Action>(what, a)); };
             Action<bool, string> check = delegate(bool ok, string what) { Program.Trace("sim " + (ok ? "ok" : "FAIL") + ": " + what + "  [" + TestState + ", " + image.TestView + "]"); };
 
+            step("zoom in at the centre first (so the picture is bigger than the window both ways)", delegate { Wheel(3, mid()); });
             step("wheel up 2 notches at the pointer", delegate
             {
                 probe = spot();
@@ -149,6 +150,34 @@ namespace OrclFileExplorer
             step("check", delegate { check(image.DrawingStatus.StartsWith("the graphics card"), "drawn by " + image.DrawingStatus); });
             step("End, wrap on, Right", delegate { ViewerSettings.Wrap = true; Key(Keys.End); Key(Keys.Right); });
             step("check", delegate { check(files != null && string.Equals(path, files[0], StringComparison.OrdinalIgnoreCase), "after the last, the first"); ViewerSettings.Wrap = false; });
+
+            step("mouse buttons step: right click", delegate { ViewerSettings.ClickSteps = true; Key(Keys.Home); });
+            string beforeClick = null;
+            step("right click", delegate { beforeClick = path; SimClick(MouseButtons.Right, mid()); });
+            step("check", delegate { check(files.FindIndex(Same(path)) == files.FindIndex(Same(beforeClick)) + 1, "right click: next picture " + System.IO.Path.GetFileName(path)); });
+            step("left click (waits for a possible double-click)", delegate { beforeClick = path; SimClick(MouseButtons.Left, mid()); });
+            step("wait", delegate { });
+            step("check", delegate { check(files.FindIndex(Same(path)) == files.FindIndex(Same(beforeClick)) - 1, "left click: previous picture " + System.IO.Path.GetFileName(path)); });
+            step("double-click: full screen, not previous", delegate { beforeClick = path; SimDoubleClick(mid()); });
+            step("wait", delegate { });
+            step("check", delegate
+            {
+                check(fullScreen && string.Equals(path, beforeClick, StringComparison.OrdinalIgnoreCase), "full screen, same picture");
+                Key(Keys.Escape);
+                ViewerSettings.ClickSteps = false;
+            });
+            step("check", delegate { check(!fullScreen, "left full screen"); });
+            step("double-click with full screen clicks off and mouse-button stepping on: 100 %, no step", delegate
+            {
+                ViewerSettings.ClickSteps = true; ViewerSettings.FullScreenClicks = false; image.FitToWindow();
+                beforeClick = path; SimDoubleClick(mid());
+            });
+            step("wait", delegate { });
+            step("check", delegate
+            {
+                check(string.Equals(path, beforeClick, StringComparison.OrdinalIgnoreCase) && Math.Abs(image.Zoom - 1) < 0.01f, "100 % on the same picture");
+                ViewerSettings.ClickSteps = false; ViewerSettings.FullScreenClicks = true; image.FitToWindow();
+            });
 
             // Touch (the gestures as Windows reports them, handed to the view's handler).
             Func<int, int, Point, int, Gestures.Info> gesture = delegate(int id, int flags, Point client, int arg)

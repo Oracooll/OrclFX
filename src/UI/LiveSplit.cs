@@ -23,6 +23,7 @@ namespace OrclFileExplorer
         public LiveSplit()
         {
             TabStop = false;
+            TouchMode.AllowDrag(this);
             SetStyle(ControlStyles.Selectable, false);
         }
 

@@ -37,8 +37,8 @@ namespace OrclFileExplorer
             }
         }
 
-        public int BarWidth { get { return Native.Px(5); } }
-        public int MinPaneWidth { get { return Native.Px(160); } }
+        public int BarWidth { get { return TouchMode.Bar; } }
+        public int MinPaneWidth { get { return Native.Px(TouchMode.On ? 310 : 160); } } // (touch: the buttons' row fits)
 
         public void ShowPanes(List<Pane> visible)
         {
@@ -138,6 +138,7 @@ namespace OrclFileExplorer
             Cursor = Cursors.VSplit;
             BackColor = Theme.Border;
             SetStyle(ControlStyles.Selectable, false);
+            TouchMode.AllowDrag(this);
         }
 
         protected override void OnMouseDown(MouseEventArgs e)

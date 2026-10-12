@@ -42,6 +42,8 @@ namespace OrclFileExplorer
         bool EnlargeNow { get { return ViewerSettings.Enlarge == 2 || ViewerSettings.Enlarge == 1 && fullScreen; } }
         // Full screen: the mouse pointer hides when it's still.
         readonly System.Windows.Forms.Timer pointerWatch = new System.Windows.Forms.Timer();
+        readonly System.Windows.Forms.Timer clickWait = new System.Windows.Forms.Timer(); // a left click, until it's clear it isn't a double-click
+        bool clickActivated; // the viewer came to the front by a click (which isn't one on the picture)
         Point pointerAt;
         int pointerStill;
         bool pointerHidden;
@@ -70,9 +72,26 @@ namespace OrclFileExplorer
             image.Enlarge = EnlargeNow;
             image.WheelStepped += delegate(int d) { Step(d); };
             image.Swiped += delegate(int d) { Program.Trace("quick look: swipe " + (d > 0 ? "left (next)" : "right (previous)")); Step(d); };
-            image.Clicked += delegate(MouseButtons b) { if (b == MouseButtons.Middle) MiddleClick(); };
+            image.Clicked += delegate(MouseButtons b)
+            {
+                // The click that brought the viewer to the front only does that.
+                if (clickActivated) { clickActivated = false; return; }
+                if (b == MouseButtons.Middle) MiddleClick();
+                else if (ViewerSettings.ClickSteps && b == MouseButtons.Right) Step(1);
+                else if (ViewerSettings.ClickSteps && b == MouseButtons.Left)
+                {
+                    // A left click waits to see if a second one follows (a double-click does something else).
+                    clickWait.Stop();
+                    clickWait.Interval = SystemInformation.DoubleClickTime;
+                    clickWait.Start();
+                }
+            };
+            image.SecondPress += delegate { clickWait.Stop(); clickActivated = false; };
+            Activated += delegate { clickActivated = Control.MouseButtons != MouseButtons.None; };
+            clickWait.Tick += delegate { clickWait.Stop(); Step(-1); };
             image.DoubleClicked += delegate
             {
+                clickWait.Stop(); // (its first click wasn't "previous")
                 Program.Trace("quick look: double-click");
                 if (ViewerSettings.FullScreenClicks) ToggleFullScreen();
                 else image.ToggleActualSize(image.PointToClient(Cursor.Position));
@@ -90,7 +109,8 @@ namespace OrclFileExplorer
             thumbs.ThumbSize = ThumbSize;
             thumbs.ItemClicked += delegate(string p) { TakeFocus(); Go(p); };
             thumbs.ThumbSizeChanged += delegate(int s) { ThumbSize = s; main.StateChanged(); };
-            splitter.Width = Native.Px(5);
+            splitter.Width = TouchMode.Bar;
+            TouchMode.AllowDrag(splitter);
             splitter.BackColor = Theme.Border;
             splitter.Cursor = Cursors.VSplit;
             int dragX = 0, startW = 0;
@@ -548,6 +568,8 @@ namespace OrclFileExplorer
             base.OnFormClosed(e);
             pointerWatch.Stop();
             pointerWatch.Dispose();
+            clickWait.Stop();
+            clickWait.Dispose();
             ShowPointer();
             refocus.Stop();
             loader.Quit();
@@ -603,7 +625,7 @@ namespace OrclFileExplorer
                 SetStyle(ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer | ControlStyles.ResizeRedraw, true);
                 SetStyle(ControlStyles.Selectable, false);
                 Dock = DockStyle.Top;
-                Height = Native.Px(34);
+                Height = TouchMode.Hit(34);
                 // Docked from the right in the order made: close first.
                 GlyphButton close = Button("", "Close (Space or Esc)", 46);
                 close.HoverBack = Color.FromArgb(196, 43, 28);
@@ -643,7 +665,7 @@ namespace OrclFileExplorer
             GlyphButton Button(string glyph, string tip, int width)
             {
                 GlyphButton b = new GlyphButton(glyph, tip, DockStyle.Right);
-                b.Width = Native.Px(width);
+                b.Width = TouchMode.Hit(width);
                 Controls.Add(b);
                 b.BringToFront();
                 return b;

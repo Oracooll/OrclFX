@@ -23,6 +23,7 @@ namespace OrclFileExplorer
         readonly TabStrip strip;
         readonly Panel addrBar = new Panel(), addrBorder = new Panel(), addrInner = new Panel(), content = new Panel();
         readonly Panel spacerL = new Panel(), spacerR = new Panel();
+        readonly Panel navBar = new Panel(); // touch mode: the buttons on a row of their own, the address under them
         readonly TextBox addr = new TextBox();
         readonly GlyphButton back, fwd, up, newFolderBtn, newFileBtn, refreshBtn, menuBtn;
         readonly Breadcrumb crumbs;
@@ -51,7 +52,7 @@ namespace OrclFileExplorer
             refreshBtn.Click += delegate { Main.RefreshTab(ActiveTab); if (ActiveTab != null) ActiveTab.Activate(); };
 
             addrBar.Dock = DockStyle.Top;
-            addrBar.Height = Native.Px(38);
+            addrBar.Height = TouchMode.Hit(38);
             addrBar.Padding = new Padding(Native.Px(4), Native.Px(5), Native.Px(4), Native.Px(5));
             spacerL.Dock = DockStyle.Left; spacerL.Width = Native.Px(6);
             spacerR.Dock = DockStyle.Right; spacerR.Width = Native.Px(4);
@@ -80,17 +81,45 @@ namespace OrclFileExplorer
             // Dock order: the last control added docks first.
             addrBar.Controls.Add(addrBorder);
             addrBar.Controls.Add(spacerR);
-            addrBar.Controls.Add(menuBtn);
-            addrBar.Controls.Add(spacerL);
-            addrBar.Controls.Add(refreshBtn);
-            addrBar.Controls.Add(newFileBtn);
-            addrBar.Controls.Add(newFolderBtn);
-            addrBar.Controls.Add(up);
-            addrBar.Controls.Add(fwd);
-            addrBar.Controls.Add(back);
+            // (Touch mode: finger-sized buttons would leave a narrow pane no room for the address.)
+            Panel buttons = TouchMode.On ? navBar : addrBar;
+            if (TouchMode.On)
+            {
+                navBar.Dock = DockStyle.Top;
+                navBar.Height = TouchMode.Hit(36);
+                navBar.Padding = new Padding(Native.Px(4), Native.Px(2), Native.Px(4), 0);
+                addrBar.Height = Native.Px(44);
+                addrBar.Padding = new Padding(Native.Px(8), Native.Px(4), Native.Px(4), Native.Px(6));
+            }
+            if (TouchMode.On)
+            {
+                foreach (GlyphButton b in new[] { back, fwd, up, newFolderBtn, newFileBtn, refreshBtn, menuBtn }) b.Width = Native.Px(42);
+                // A narrow pane: the buttons least needed step aside (all are in the menu or on the keyboard) rather
+                // than going under the menu button.
+                navBar.Resize += delegate
+                {
+                    GlyphButton[] spare = { newFileBtn, newFolderBtn, refreshBtn, up };
+                    int room = navBar.ClientSize.Width - navBar.Padding.Horizontal - Native.Px(42) * 3; // back, forward, menu
+                    for (int i = spare.Length - 1; i >= 0; i--)
+                    {
+                        bool fits = room >= Native.Px(42);
+                        if (spare[i].Visible != fits) spare[i].Visible = fits;
+                        if (fits) room -= Native.Px(42);
+                    }
+                };
+            }
+            buttons.Controls.Add(menuBtn);
+            if (!TouchMode.On) addrBar.Controls.Add(spacerL);
+            buttons.Controls.Add(refreshBtn);
+            buttons.Controls.Add(newFileBtn);
+            buttons.Controls.Add(newFolderBtn);
+            buttons.Controls.Add(up);
+            buttons.Controls.Add(fwd);
+            buttons.Controls.Add(back);
 
             Controls.Add(content);
             Controls.Add(addrBar);
+            if (TouchMode.On) Controls.Add(navBar);
             Controls.Add(strip);
         }
 
@@ -100,7 +129,7 @@ namespace OrclFileExplorer
 
         public void ApplyTheme()
         {
-            addrBar.BackColor = spacerL.BackColor = spacerR.BackColor = content.BackColor = Theme.Window;
+            addrBar.BackColor = navBar.BackColor = spacerL.BackColor = spacerR.BackColor = content.BackColor = Theme.Window;
             addrInner.BackColor = addr.BackColor = crumbs.BackColor = Theme.Input;
             foreach (BrowserTab t in Tabs) t.Host.BackColor = Theme.Window;
             ApplyActiveLook();
@@ -176,6 +205,7 @@ namespace OrclFileExplorer
             Main.StateChanged();
         }
 
+        internal int TestTabHeight { get { return strip.Height; } }
         internal void TestClickRefresh() { refreshBtn.TestClick(); }
 
         public void ShowActive()

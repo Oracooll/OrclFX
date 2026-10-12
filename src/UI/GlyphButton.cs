@@ -37,7 +37,7 @@ namespace OrclFileExplorer
             SetStyle(ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer | ControlStyles.ResizeRedraw, true);
             SetStyle(ControlStyles.Selectable, false);
             TabStop = false; Dock = dock;
-            Width = Native.Px(32) + (label == null ? 0 : TextRenderer.MeasureText(label, SystemFonts.MessageBoxFont).Width + Native.Px(4));
+            Width = TouchMode.Hit(32) + (label == null ? 0 : TextRenderer.MeasureText(label, SystemFonts.MessageBoxFont).Width + Native.Px(4));
             tips.SetToolTip(this, tip);
         }
 

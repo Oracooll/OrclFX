@@ -27,6 +27,9 @@ namespace OrclFileExplorer
         public readonly GlyphButton[] ViewButtons = new GlyphButton[ViewNames.Length];
         readonly GlyphButton min, max, close;
         public readonly GlyphButton FindButton;
+        // Touch mode on and off (a hand with its index finger up).
+        public readonly GlyphButton TouchButton;
+        Divider viewsGap, themesGap;
         Icon icon;
 
         public TitleBar(Form f)
@@ -35,14 +38,14 @@ namespace OrclFileExplorer
             SetStyle(ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer | ControlStyles.ResizeRedraw, true);
             SetStyle(ControlStyles.Selectable, false);
             Dock = DockStyle.Top;
-            Height = Native.Px(34);
+            Height = TouchMode.Hit(34);
 
             string[] glyphs = { "", "", "" };
             string[] tips = { "Theme: match Windows", "Theme: light", "Theme: dark" };
             for (int i = 0; i < 3; i++)
             {
                 ThemeButtons[i] = new GlyphButton(glyphs[i], tips[i], DockStyle.Right);
-                ThemeButtons[i].Width = Native.Px(32);
+                ThemeButtons[i].Width = TouchMode.Hit(32);
             }
             Divider gap = new Divider();
             gap.Dock = DockStyle.Right;
@@ -55,13 +58,13 @@ namespace OrclFileExplorer
             {
                 int kind = i;
                 LayoutButtons[i] = new GlyphButton("", layoutTips[i], DockStyle.Right);
-                LayoutButtons[i].Width = Native.Px(32);
+                LayoutButtons[i].Width = TouchMode.Hit(32);
                 LayoutButtons[i].Painter = delegate(Graphics g, Rectangle r, Color c) { DrawLayoutIcon(g, r, c, kind); };
             }
             min = new GlyphButton("", "Minimize", DockStyle.Right);
             max = new GlyphButton("", "Maximize", DockStyle.Right);
             close = new GlyphButton("", "Close", DockStyle.Right);
-            min.Width = max.Width = close.Width = Native.Px(46);
+            min.Width = max.Width = close.Width = TouchMode.Hit(46);
             close.HoverBack = Color.FromArgb(196, 43, 28);
             close.HoverFore = Color.White;
             min.Click += delegate { form.WindowState = FormWindowState.Minimized; };
@@ -71,7 +74,7 @@ namespace OrclFileExplorer
             // Left to right: Find | panes 1-4 | view modes | Tree, Preview, Shortcuts | themes | window buttons.
             // Left to right, before the panes: Find (magnifier) | ...
             FindButton = new GlyphButton("", "Find in this folder and its subfolders (Ctrl+F)", DockStyle.Right);
-            FindButton.Width = Native.Px(36);
+            FindButton.Width = TouchMode.Hit(36);
             Controls.Add(FindButton);
             Divider fgap = new Divider();
             fgap.Dock = DockStyle.Right;
@@ -86,7 +89,7 @@ namespace OrclFileExplorer
             {
                 int kind = i;
                 ViewButtons[i] = new GlyphButton("", "View: " + ViewNames[i] + " (Ctrl+Shift+" + new[] { 6, 5, 7, 8, 4, 3, 2, 1 }[i] + "; Ctrl+mouse wheel goes through all views)\nRight-click: make it the default view for every folder (green tick); again to stop", DockStyle.Right);
-                ViewButtons[i].Width = Native.Px(30);
+                ViewButtons[i].Width = TouchMode.Hit(30);
                 ViewButtons[i].Painter = delegate(Graphics g, Rectangle r, Color c) { DrawViewIcon(g, r, c, kind); };
                 Controls.Add(ViewButtons[i]);
             }
@@ -94,10 +97,21 @@ namespace OrclFileExplorer
             vgap2.Dock = DockStyle.Right;
             vgap2.Width = Native.Px(17);
             Controls.Add(vgap2);
+            viewsGap = vgap2;
             Controls.Add(LayoutButtons[0]);
             Controls.Add(LayoutButtons[5]);
             Controls.Add(LayoutButtons[6]);
             Controls.Add(gap2);
+            TouchButton = new GlyphButton("", "Touch mode: bigger buttons, tabs, rows and dividers for fingers (the window is rebuilt)", DockStyle.Right);
+            TouchButton.Width = TouchMode.Hit(32);
+            TouchButton.Painter = TouchMode.DrawHand;
+            TouchButton.Checked = TouchMode.On;
+            Controls.Add(TouchButton);
+            Divider tgap = new Divider();
+            tgap.Dock = DockStyle.Right;
+            tgap.Width = Native.Px(17);
+            Controls.Add(tgap);
+            themesGap = tgap;
             Controls.Add(ThemeButtons[0]);
             Controls.Add(ThemeButtons[1]);
             Controls.Add(ThemeButtons[2]);
@@ -112,6 +126,31 @@ namespace OrclFileExplorer
             };
             form.Activated += delegate { Invalidate(); };
             form.Deactivate += delegate { Invalidate(); };
+        }
+
+        // Not enough room (a narrow window, touch mode's bigger buttons on a small screen): the view buttons go, then
+        // the theme buttons (both are also in the menu), so the rest never covers the icon (the menu's own button).
+        protected override void OnResize(EventArgs e)
+        {
+            base.OnResize(e);
+            FitButtons();
+        }
+
+        void FitButtons()
+        {
+            if (viewsGap == null) return;
+            int all = 0, views = viewsGap.Width, themes = themesGap.Width;
+            foreach (Control c in Controls) all += c.Width;
+            foreach (GlyphButton b in ViewButtons) views += b.Width;
+            foreach (GlyphButton b in ThemeButtons) themes += b.Width;
+            int room = Width - IconRect.Right - Native.Px(40);
+            bool showViews = all <= room, showThemes = all - views <= room;
+            SuspendLayout();
+            foreach (GlyphButton b in ViewButtons) b.Visible = showViews;
+            viewsGap.Visible = showViews;
+            foreach (GlyphButton b in ThemeButtons) b.Visible = showThemes;
+            themesGap.Visible = showThemes;
+            ResumeLayout();
         }
 
         // Small window-layout pictograms: an outline with the relevant region filled or divided.

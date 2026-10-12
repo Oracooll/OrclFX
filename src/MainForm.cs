@@ -62,13 +62,16 @@ namespace OrclFileExplorer
         public MainForm()
         {
             Text = Program.AppName + " " + Installer.Version;
+            // Touch mode decides the sizes of what is built below.
+            try { TouchMode.ReadEarly(SettingsFile.ReadLines(StateFile)); } catch { }
             // Room for the tree, one pane and the preview; a saved narrower size is widened to this.
-            MinimumSize = new Size(Native.Px(880), Native.Px(400)); // wide enough for the title bar's buttons and icon
+            MinimumSize = new Size(Math.Min(TouchMode.Hit(900), Screen.PrimaryScreen.WorkingArea.Width), Native.Px(400)); // wide enough for the title bar's buttons and icon
             Font = new Font("Segoe UI", 9f);
             Icon = AppIcon();
             titleBar = new TitleBar(this);
             titleBar.SetIcon(Icon);
             titleBar.FindButton.Click += delegate { ShowFind(); };
+            titleBar.TouchButton.Click += delegate { SetTouchMode(!TouchMode.On); };
             titleBar.IconClick += delegate
             {
                 Rectangle r = titleBar.IconRect;
@@ -89,17 +92,17 @@ namespace OrclFileExplorer
             vsplit.Dock = DockStyle.Fill;
             vsplit.Orientation = Orientation.Horizontal;
             vsplit.FixedPanel = FixedPanel.Panel2;
-            vsplit.SplitterWidth = Native.Px(5);
+            vsplit.SplitterWidth = TouchMode.Bar;
             vsplit.TabStop = false;
             tree = new TreePane(this);
             previewSplit.Dock = DockStyle.Fill;
             previewSplit.FixedPanel = FixedPanel.Panel2;
-            previewSplit.SplitterWidth = Native.Px(5);
+            previewSplit.SplitterWidth = TouchMode.Bar;
             previewSplit.Panel1.Controls.Add(row);
             previewSplit.Panel2.Controls.Add(preview);
             treeSplit.Dock = DockStyle.Fill;
             treeSplit.FixedPanel = FixedPanel.Panel1;
-            treeSplit.SplitterWidth = Native.Px(5);
+            treeSplit.SplitterWidth = TouchMode.Bar;
             treeSplit.Panel1.Controls.Add(tree);
             treeSplit.Panel2.Controls.Add(previewSplit);
             vsplit.Panel1.Controls.Add(treeSplit);
@@ -107,7 +110,7 @@ namespace OrclFileExplorer
             vsplit.Panel2.Controls.Add(Shortcuts);
 
             status.Dock = DockStyle.Bottom;
-            status.Height = Native.Px(26);
+            status.Height = TouchMode.Hit(26);
             status.Padding = new Padding(Native.Px(10), 0, Native.Px(10), 0);
             treeBtn = titleBar.LayoutButtons[0];
             previewBtn = titleBar.LayoutButtons[5];
@@ -445,6 +448,29 @@ namespace OrclFileExplorer
             }
             // Test hook: DUALPANE_TEST_WHEEL=<notches>[,<notches>...] steps the active tab's view as Ctrl+wheel does,
             // one entry every second from 4 seconds after start.
+            // Test hook: DUALPANE_TEST_TOUCH=toggle presses the touch-mode button 4 seconds after start (once: the
+            // rebuilt window has the variable cleared); =menu opens the main menu then.
+            string testTouch = Environment.GetEnvironmentVariable("DUALPANE_TEST_TOUCH");
+            if (testTouch != null)
+            {
+                Timer tt = new Timer();
+                tt.Interval = 4000;
+                tt.Tick += delegate
+                {
+                    tt.Stop();
+                    Program.Trace("test: touch mode is " + (TouchMode.On ? "on" : "off") + ", title bar " + titleBar.Height + " px, tabs " + Panes[0].TestTabHeight + " px");
+                    if (testTouch == "toggle") { Environment.SetEnvironmentVariable("DUALPANE_TEST_TOUCH", "report"); titleBar.TouchButton.TestClick(); }
+                    else if (testTouch == "narrow")
+                    {
+                        // A small screen: narrower than the title bar's buttons need.
+                        MinimumSize = new Size(Native.Px(600), Native.Px(400));
+                        Width = Native.Px(1000);
+                        Program.Trace("test: narrow window " + Width + " px, view buttons " + (titleBar.ViewButtons[0].Visible ? "shown" : "hidden") + ", theme buttons " + (titleBar.ThemeButtons[0].Visible ? "shown" : "hidden") + ", Find button at " + titleBar.FindButton.Left + ", icon ends at " + titleBar.IconRect.Right);
+                    }
+                    else if (testTouch == "menu") { Rectangle r = titleBar.IconRect; ActivePane.ShowMainMenu(titleBar, new Point(r.Left, r.Bottom + Native.Px(2)), ToolStripDropDownDirection.BelowRight); }
+                };
+                tt.Start();
+            }
             string testWheel = Environment.GetEnvironmentVariable("DUALPANE_TEST_WHEEL");
             if (testWheel != null)
             {
@@ -963,6 +989,34 @@ namespace OrclFileExplorer
 
         // ---- theme
 
+        // Touch mode: the window is rebuilt with the new sizes (tabs and layout kept).
+        // (TouchMode.On itself stays as this window was built; touchWanted is what the rebuilt one gets.)
+        bool? touchWanted;
+
+        public void SetTouchMode(bool on)
+        {
+            if (restarting) return;
+            titleBar.TouchButton.Checked = on;
+            if (on == TouchMode.On)
+            {
+                // Pressed again while the switch waits for a copy to finish: nothing to switch any more.
+                touchWanted = null;
+                if (restartWhenIdle && restartWhy == "touch mode") { restartWhenIdle = false; Notice("Touch mode stays " + (on ? "on." : "off.")); }
+                StateChanged();
+                return;
+            }
+            touchWanted = on;
+            Program.Trace("touch mode " + (on ? "on" : "off") + " asked");
+            RestartForTheme("touch mode");
+            if (!restarting && !restartWhenIdle)
+            {
+                // Couldn't rebuild the window: nothing switched.
+                touchWanted = null;
+                titleBar.TouchButton.Checked = TouchMode.On;
+                StateChanged();
+            }
+        }
+
         public void SetThemeMode(int mode)
         {
             bool wasDark = Theme.Dark;
@@ -974,6 +1028,7 @@ namespace OrclFileExplorer
         }
 
         bool restarting;
+        string restartWhy = "theme";
         bool closeWhenIdle, restartWhenIdle;   // put off until the shell's copies and moves have finished
         Timer idleTimer;
 
@@ -1027,21 +1082,22 @@ namespace OrclFileExplorer
                 idleTimer.Dispose();
                 idleTimer = null;
                 if (closeWhenIdle) { Close(); return; }
-                if (restartWhenIdle) { restartWhenIdle = false; RestartForTheme(); }
+                if (restartWhenIdle) { restartWhenIdle = false; RestartForTheme(restartWhy); }
             };
             idleTimer.Start();
         }
 
         // Windows fixes some light/dark decisions once per running app, so switching live leaves parts
         // (Explorer's lists, menus, scrollbars) in the old mode. Restarting is the only reliable switch.
-        void RestartForTheme()
+        void RestartForTheme(string why = "theme")
         {
             if (!Ready || restarting) return;
             // Not in the middle of a copy or move: the restart waits until it has finished.
             if (ProcessReference.Busy > 0)
             {
                 restartWhenIdle = true;
-                Notice("The theme switches when the current copy or move has finished.");
+                restartWhy = why;
+                Notice((why == "touch mode" ? "Touch mode" : "The " + why) + " switches when the current copy or move has finished.");
                 WhenIdle();
                 return;
             }
@@ -1050,18 +1106,25 @@ namespace OrclFileExplorer
             string problem = SaveAll();
             if (problem != null)
             {
-                Notice(problem + " The theme will fully apply after the next restart.");
+                if (why == "touch mode") { Notice(problem + " Touch mode wasn't switched."); return; }
+                Notice(problem + " The " + why + " will fully apply after the next restart.");
                 RecreateViews();
                 return;
             }
             restarting = true;
             try
             {
-                Program.Trace("restarting for theme");
+                Program.Trace("restarting for " + why);
                 Process.Start(Application.ExecutablePath, "--restart --from " + Process.GetCurrentProcess().Id + (Program.Portable ? " --portable" : ""));
                 Close();
             }
-            catch { restarting = false; RecreateViews(); }
+            catch (Exception ex)
+            {
+                restarting = false;
+                Program.LogError(ex);
+                if (why == "touch mode") Notice("\u26A0 Couldn't rebuild the window: " + ex.Message + " Touch mode wasn't switched.");
+                else RecreateViews();
+            }
         }
 
         public void ApplyTheme()
@@ -1267,6 +1330,7 @@ namespace OrclFileExplorer
             ContextMenuStrip m = new ContextMenuStrip();
             m.Renderer = new MenuRenderer();
             m.Font = Font;
+            TouchMode.Menu(m);
             m.Closed += delegate { BeginInvoke((MethodInvoker)m.Dispose); };
             return m;
         }
@@ -1759,7 +1823,7 @@ namespace OrclFileExplorer
                             case "theme": if (int.TryParse(v, out n) && n >= 0 && n <= 2) Theme.Mode = n; break;
                             case "svthumbs": QuickLook.ShowThumbs = v != "0"; break;
                             case "svfsclicks": case "svenlarge": case "svexitmiddle": case "svconfirmexit": case "svhidecursor": case "svwheel":
-                            case "svdrag": case "svsmooth": case "svzoomstep": case "svgpu": case "svbackground": case "svwrap":
+                            case "svdrag": case "svsmooth": case "svzoomstep": case "svgpu": case "svbackground": case "svwrap": case "svclicksteps":
                                 ViewerSettings.Read(k, v); break;
                             case "svviewer": QuickLook.ShowViewer = v != "0"; break;
                             case "svinfo": QuickLook.ShowInfo = v == "1"; break;
@@ -1869,6 +1933,7 @@ namespace OrclFileExplorer
                 sb.AppendLine("svinfo=" + (QuickLook.ShowInfo ? "1" : "0"));
                 sb.AppendLine("svthumbsize=" + QuickLook.ThumbSize);
                 sb.AppendLine("svthumbwidth=" + QuickLook.ThumbWidth);
+                sb.AppendLine("touch=" + ((touchWanted ?? TouchMode.On) ? "1" : "0"));
                 ViewerSettings.Write(sb);
                 sb.AppendLine("defaultview=" + (defaultView < 0 ? "-1" : ButtonViewModes[defaultView, 0] + "/" + ButtonViewModes[defaultView, 1]));
                 sb.AppendLine("activepane=" + Array.IndexOf(Panes, ActivePane));

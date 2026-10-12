@@ -60,6 +60,7 @@ namespace OrclFileExplorer
         public event Action<int> WheelStepped;          // the wheel set to step: +1 next, -1 previous
         public event Action<MouseButtons> Clicked;       // pressed and let go without moving
         public event Action DoubleClicked;               // left double-click
+        public event Action SecondPress;                 // the second press of a left double-click (before it's let go)
         public event Action<int> Swiped;                 // touch: a swipe left (+1, next) or right (-1, previous)
 
         public ImageView()
@@ -499,6 +500,7 @@ namespace OrclFileExplorer
             if (pressed != MouseButtons.None) return;
             pressed = e.Button;
             pressClicks = e.Clicks;
+            if (e.Button == MouseButtons.Left && e.Clicks == 2 && SecondPress != null) SecondPress();
             pressAt = e.Location;
             Capture = true;
         }

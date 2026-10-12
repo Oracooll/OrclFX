@@ -20,7 +20,10 @@ namespace OrclFileExplorer
         public static int Mode;          // 0 = match Windows, 1 = light, 2 = dark
         public static bool Dark;
         public static Color Window, Bar, TabHover, Text, TextDim, Border, Hover, Input, Menu, Accent, Lock;
-        public static readonly Font IconFont = MakeIconFont(10f), SmallIconFont = MakeIconFont(7f);
+        public static readonly Font SmallIconFont = MakeIconFont(7f);
+        static Font iconFont;
+        // (A little bigger in touch mode.)
+        public static Font IconFont { get { if (iconFont == null) iconFont = MakeIconFont(TouchMode.On ? 12f : 10f); return iconFont; } }
 
         static Font MakeIconFont(float size)
         {
@@ -120,16 +123,32 @@ namespace OrclFileExplorer
         protected override void OnRenderItemText(ToolStripItemTextRenderEventArgs e)
         {
             e.TextColor = e.Item.Enabled ? Theme.Text : Theme.TextDim;
+            // (Touch mode's taller items: the text in the middle, not at the top.)
+            if (TouchMode.On && e.Item.IsOnDropDown) { Rectangle r = e.TextRectangle; r.Y = (e.Item.Height - r.Height) / 2; e.TextRectangle = r; }
             base.OnRenderItemText(e);
         }
         protected override void OnRenderArrow(ToolStripArrowRenderEventArgs e)
         {
             e.ArrowColor = Theme.Text;
+            if (TouchMode.On && e.Item != null && e.Item.IsOnDropDown) { Rectangle r = e.ArrowRectangle; r.Y = (e.Item.Height - r.Height) / 2; e.ArrowRectangle = r; }
             base.OnRenderArrow(e);
         }
+        protected override void OnRenderItemImage(ToolStripItemImageRenderEventArgs e)
+        {
+            if (TouchMode.On && e.Item.IsOnDropDown && e.Image != null)
+            {
+                Rectangle r = e.ImageRectangle;
+                e.Graphics.DrawImage(e.Image, new Rectangle(r.X, (e.Item.Height - r.Height) / 2, r.Width, r.Height));
+                return;
+            }
+            base.OnRenderItemImage(e);
+        }
+
         protected override void OnRenderItemCheck(ToolStripItemImageRenderEventArgs e)
         {
-            TextRenderer.DrawText(e.Graphics, "", Theme.IconFont, e.ImageRectangle, Theme.Text,
+            Rectangle at = e.ImageRectangle;
+            if (TouchMode.On) at = new Rectangle(at.X, 0, at.Width, e.Item.Height);
+            TextRenderer.DrawText(e.Graphics, "", Theme.IconFont, at, Theme.Text,
                 TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPadding);
         }
     }

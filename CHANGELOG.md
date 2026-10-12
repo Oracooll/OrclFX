@@ -3,6 +3,20 @@
 Versions are `major.minor.build` with a three-digit build number. Every release bumps the build;
 the minor number changes only for larger milestones.
 
+## 1.1.049
+- Touch mode, switched by the new hand button in the title bar (between the pane buttons and the theme
+  buttons): everything you tap is half as big again (title bar and its buttons, tabs, the address bar and the
+  pane's buttons, which get a row of their own, the status bar, menus, the rows of the tree and the Shortcuts
+  pane, the Space Viewer's title bar) and the dividers are thicker. Switching rebuilds the window like switching
+  light and dark does, keeping your tabs and layout; the choice is remembered. On a small screen the title bar
+  leaves out the view buttons, then the theme buttons (both are in the menu) rather than covering the menu's
+  icon, and a narrow pane leaves out New file, New folder, Refresh and Up in that order.
+- Dragging with a finger works in both modes: tabs, the dividers between panes, and the Shortcuts pane's title
+  strip (Windows used to treat a finger's drag there as scrolling).
+- Space Viewer setting: the mouse buttons step through the pictures (left click previous, right click next; off
+  by default). A left click waits a moment to tell it from a double-click, and the click that brings the viewer
+  to the front doesn't step.
+
 ## 1.1.048
 - Space Viewer: smooth zoom, as in Windows' Photos app. The picture glides to its new size (a notch turned while
   it glides changes where it goes), drawn by the graphics card (Direct2D) at the screen's own pace (120 frames a

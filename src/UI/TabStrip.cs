@@ -30,7 +30,8 @@ namespace OrclFileExplorer
             pane = p;
             SetStyle(ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer | ControlStyles.ResizeRedraw, true);
             SetStyle(ControlStyles.Selectable, false);
-            TabStop = false; Dock = DockStyle.Top; Height = Native.Px(32);
+            TabStop = false; Dock = DockStyle.Top; Height = TouchMode.Hit(32);
+            TouchMode.AllowDrag(this); // tabs dragged with a finger
         }
 
         Font Bold { get { if (bold == null) bold = new Font(Font, FontStyle.Bold); return bold; } }
@@ -43,7 +44,7 @@ namespace OrclFileExplorer
         void DoLayout(Graphics g)
         {
             rects.Clear();
-            int n = pane.Tabs.Count, pad = Native.Px(10), icon = Native.Px(16), gap = Native.Px(6), plusW = Native.Px(34);
+            int n = pane.Tabs.Count, pad = Native.Px(10), icon = Native.Px(16), gap = Native.Px(6), plusW = TouchMode.Hit(34);
             int avail = Math.Max(1, Width - plusW - Native.Px(4));
             int[] pref = new int[n];
             int total = 0;
@@ -54,7 +55,7 @@ namespace OrclFileExplorer
                 total += pref[i];
             }
             float k = total > avail ? (float)avail / total : 1f;
-            int minW = Native.Px(40);
+            int minW = TouchMode.Hit(40);
             if (n > 0 && minW * n > avail) minW = Math.Max(Native.Px(20), avail / n);
             int x = 0;
             for (int i = 0; i < n; i++)

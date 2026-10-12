@@ -19,6 +19,7 @@ namespace OrclFileExplorer
         public const int WheelStep = 0, WheelZoomCentre = 1, WheelZoomPointer = 2;
         public static int Wheel = WheelZoomPointer;
         public static MouseButtons DragButtons = MouseButtons.Left;
+        public static bool ClickSteps;                // left click: previous picture, right click: next
         // Display
         public static bool Smooth = true;             // zoom glides instead of jumping
         public static int ZoomStep = 1;               // 0: 10 %, 1: 25 %, 2: 50 % a step
@@ -62,6 +63,7 @@ namespace OrclFileExplorer
             sb.AppendLine("svgpu=" + B(Gpu));
             sb.AppendLine("svbackground=" + Background);
             sb.AppendLine("svwrap=" + B(Wrap));
+            sb.AppendLine("svclicksteps=" + B(ClickSteps));
         }
 
         static string B(bool b) { return b ? "1" : "0"; }
@@ -90,6 +92,7 @@ namespace OrclFileExplorer
                 case "svgpu": Gpu = v != "0"; return true;
                 case "svbackground": if (num && n >= 0 && n <= 4) Background = n; return true;
                 case "svwrap": Wrap = v == "1"; return true;
+                case "svclicksteps": ClickSteps = v == "1"; return true;
             }
             return false;
         }
@@ -185,6 +188,7 @@ namespace OrclFileExplorer
                 heading("Mouse");
                 ComboBox wheel = choice("Mouse wheel:", WheelNames, Wheel);
                 note("Ctrl+mouse wheel always zooms at the mouse pointer.");
+                CheckBox clickSteps = check("Mouse buttons step through the pictures: left click previous, right click next", ClickSteps);
                 Label dragLabel = note("Move a zoomed-in picture by dragging it with:");
                 dragLabel.ForeColor = Theme.Text;
                 CheckBox dragL = check("Left button", (DragButtons & MouseButtons.Left) != 0);
@@ -241,6 +245,7 @@ namespace OrclFileExplorer
                 Gpu = gpu.Checked;
                 Background = back.SelectedIndex;
                 Wrap = wrap.Checked;
+                ClickSteps = clickSteps.Checked;
                 return true;
             }
         }

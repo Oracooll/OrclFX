@@ -139,7 +139,7 @@ namespace OrclFileExplorer
             main = m;
             Dock = DockStyle.Fill;
             headerBar.Dock = DockStyle.Top;
-            headerBar.Height = Native.Px(24);
+            headerBar.Height = TouchMode.Hit(24);
             header.Dock = DockStyle.Fill;
             header.Padding = new Padding(Native.Px(8), 0, 0, 0);
             header.TextAlign = ContentAlignment.MiddleLeft;
@@ -147,6 +147,7 @@ namespace OrclFileExplorer
             header.Text = LongHeader;
             header.UseMnemonic = false;
             headerBar.Controls.Add(header);
+            TouchMode.AllowDrag(header); // dragged with a finger too
             // Dragging the title strip moves the pane to an edge of the window (like the Windows taskbar).
             Point pressed = Point.Empty;
             bool down = false;
@@ -174,7 +175,7 @@ namespace OrclFileExplorer
             {
                 int mode = i;
                 sortButtons[i] = new GlyphButton("", "Sort shortcuts: " + SortNames[i], DockStyle.Right);
-                sortButtons[i].Width = Native.Px(28);
+                sortButtons[i].Width = TouchMode.Hit(28);
                 sortButtons[i].Painter = delegate(Graphics g, Rectangle r, Color col) { DrawSortIcon(g, r, col, mode); };
                 sortButtons[i].Click += delegate { SetSortMode(mode); };
             }
@@ -182,7 +183,8 @@ namespace OrclFileExplorer
             sortButtons[0].Checked = true;
 
             icons.ColorDepth = ColorDepth.Depth32Bit;
-            icons.ImageSize = new Size(Native.Px(16), Native.Px(16));
+            // (Touch mode: taller, so the rows are; the icons are centred in them.)
+            icons.ImageSize = new Size(Native.Px(16), TouchMode.On ? Native.Px(32) : Native.Px(16));
             largeIcons.ColorDepth = ColorDepth.Depth32Bit;
             largeIcons.ImageSize = new Size(Native.Px(32), Native.Px(32));
             list.Dock = DockStyle.Fill;
@@ -333,7 +335,11 @@ namespace OrclFileExplorer
             {
                 iconsPending.Remove(r.Key);
                 // the ImageList keeps using the icon until its handle exists: don't dispose it here
-                if (r.Value != null && !icons.Images.ContainsKey(r.Key)) icons.Images.Add(r.Key, r.Value);
+                if (r.Value != null && !icons.Images.ContainsKey(r.Key))
+                {
+                    if (TouchMode.On) icons.Images.Add(r.Key, TouchMode.Padded(r.Value, icons.ImageSize));
+                    else icons.Images.Add(r.Key, r.Value);
+                }
             }
             RefreshItemIcons();
             Program.Trace("shortcut icons: " + icons.Images.Count + " of " + list.Items.Count);

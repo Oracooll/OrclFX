@@ -62,7 +62,7 @@ namespace OrclFileExplorer
             main = m;
             Dock = DockStyle.Fill;
             header.Dock = DockStyle.Top;
-            header.Height = Native.Px(24);
+            header.Height = TouchMode.Hit(24);
             header.Padding = new Padding(Native.Px(8), 0, 0, 0);
             header.TextAlign = ContentAlignment.MiddleLeft;
             header.Text = "Folders";
@@ -81,6 +81,12 @@ namespace OrclFileExplorer
             // (no FADEINOUTEXPANDOS, so the expand/collapse arrows stay visible instead of only on hover)
             uint style = 0x1 | 0x40 | 0x8 | 0x80 | 0x400 | 0x10000 | 0x20000 | 0x100000;
             tree.Initialize(host.Handle, ref rc, style);
+            // Touch mode: taller rows.
+            if (TouchMode.On)
+            {
+                IntPtr tv = Native.FindChild(host.Handle, "SysTreeView32");
+                if (tv != IntPtr.Zero) Native.SendMessage(tv, TouchMode.TVM_SETITEMHEIGHT, (IntPtr)(Native.Px(32) & ~1), IntPtr.Zero);
+            }
             sink = new TreeEventSink(this);
             tree.TreeAdvise(sink, out cookie);
             // Folders, plus hidden ones when File Explorer is set to show hidden items.
@@ -136,6 +142,7 @@ namespace OrclFileExplorer
                 Native.SendMessage(tv, TVM_SETBKCOLOR, IntPtr.Zero, (IntPtr)Native.ColorRef(Theme.Window));
                 Native.SendMessage(tv, TVM_SETTEXTCOLOR, IntPtr.Zero, (IntPtr)Native.ColorRef(Theme.Text));
                 Native.SetWindowTheme(tv, Theme.Dark ? "DarkMode_Explorer" : "Explorer", null);
+                if (TouchMode.On) Native.SendMessage(tv, TouchMode.TVM_SETITEMHEIGHT, (IntPtr)(Native.Px(32) & ~1), IntPtr.Zero);
             }
         }
 
