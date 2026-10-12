@@ -19,7 +19,9 @@ namespace OrclFileExplorer
         public const int WheelStep = 0, WheelZoomCentre = 1, WheelZoomPointer = 2;
         public static int Wheel = WheelZoomPointer;
         public static MouseButtons DragButtons = MouseButtons.Left;
-        public static bool ClickSteps;                // left click: previous picture, right click: next
+        // Mouse buttons step through the pictures: 0 no, 1 left previous / right next, 2 left next / right previous.
+        public const int ClickStepsOff = 0, ClickLeftPrevious = 1, ClickLeftNext = 2;
+        public static int ClickSteps;
         // Display
         public static bool Smooth = true;             // zoom glides instead of jumping
         public static int ZoomStep = 1;               // 0: 10 %, 1: 25 %, 2: 50 % a step
@@ -30,6 +32,7 @@ namespace OrclFileExplorer
         public static readonly string[] EnlargeNames = { "Never", "In full screen only", "Always" };
         public static readonly string[] WheelNames = { "Previous / next picture", "Zoom in / out at the centre of the picture", "Zoom in / out at the mouse pointer" };
         public static readonly string[] ZoomStepNames = { "Fine (10 %)", "Normal (25 %)", "Coarse (50 %)" };
+        public static readonly string[] ClickStepNames = { "Don't step through the pictures", "Left click: previous picture, right click: next", "Left click: next picture, right click: previous" };
         public static readonly string[] BackgroundNames = { "Same as the theme", "Black", "Dark grey", "Grey", "White" };
 
         public static float ZoomFactor { get { return ZoomStep == 0 ? 1.1f : ZoomStep == 2 ? 1.5f : 1.25f; } }
@@ -63,7 +66,7 @@ namespace OrclFileExplorer
             sb.AppendLine("svgpu=" + B(Gpu));
             sb.AppendLine("svbackground=" + Background);
             sb.AppendLine("svwrap=" + B(Wrap));
-            sb.AppendLine("svclicksteps=" + B(ClickSteps));
+            sb.AppendLine("svclicksteps=" + ClickSteps);
         }
 
         static string B(bool b) { return b ? "1" : "0"; }
@@ -92,7 +95,7 @@ namespace OrclFileExplorer
                 case "svgpu": Gpu = v != "0"; return true;
                 case "svbackground": if (num && n >= 0 && n <= 4) Background = n; return true;
                 case "svwrap": Wrap = v == "1"; return true;
-                case "svclicksteps": ClickSteps = v == "1"; return true;
+                case "svclicksteps": if (num && n >= 0 && n <= 2) ClickSteps = n; return true;
             }
             return false;
         }
@@ -188,7 +191,7 @@ namespace OrclFileExplorer
                 heading("Mouse");
                 ComboBox wheel = choice("Mouse wheel:", WheelNames, Wheel);
                 note("Ctrl+mouse wheel always zooms at the mouse pointer.");
-                CheckBox clickSteps = check("Mouse buttons step through the pictures: left click previous, right click next", ClickSteps);
+                ComboBox clickSteps = choice("Mouse buttons:", ClickStepNames, ClickSteps);
                 Label dragLabel = note("Move a zoomed-in picture by dragging it with:");
                 dragLabel.ForeColor = Theme.Text;
                 CheckBox dragL = check("Left button", (DragButtons & MouseButtons.Left) != 0);
@@ -245,7 +248,7 @@ namespace OrclFileExplorer
                 Gpu = gpu.Checked;
                 Background = back.SelectedIndex;
                 Wrap = wrap.Checked;
-                ClickSteps = clickSteps.Checked;
+                ClickSteps = clickSteps.SelectedIndex;
                 return true;
             }
         }

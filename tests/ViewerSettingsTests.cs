@@ -12,7 +12,7 @@ namespace OrclFileExplorer.Tests
             ViewerSettings.FullScreenClicks = false; ViewerSettings.Enlarge = 2; ViewerSettings.ExitMiddle = false;
             ViewerSettings.ConfirmExit = true; ViewerSettings.HideCursor = false; ViewerSettings.Wheel = ViewerSettings.WheelStep;
             ViewerSettings.DragButtons = MouseButtons.Middle | MouseButtons.Right; ViewerSettings.Smooth = false; ViewerSettings.ZoomStep = 2;
-            ViewerSettings.Gpu = false; ViewerSettings.Background = 4; ViewerSettings.Wrap = true; ViewerSettings.ClickSteps = true;
+            ViewerSettings.Gpu = false; ViewerSettings.Background = 4; ViewerSettings.Wrap = true; ViewerSettings.ClickSteps = ViewerSettings.ClickLeftNext;
             StringBuilder sb = new StringBuilder();
             ViewerSettings.Write(sb);
             string saved = sb.ToString();
@@ -30,8 +30,10 @@ namespace OrclFileExplorer.Tests
             Assert.True(!ViewerSettings.HideCursor && ViewerSettings.Wheel == ViewerSettings.WheelStep, "pointer, wheel");
             Assert.Equal(MouseButtons.Middle | MouseButtons.Right, ViewerSettings.DragButtons, "drag buttons");
             Assert.True(!ViewerSettings.Smooth && ViewerSettings.ZoomStep == 2 && !ViewerSettings.Gpu && ViewerSettings.Background == 4 && ViewerSettings.Wrap, "display");
-            Assert.True(ViewerSettings.ClickSteps, "mouse buttons step");
-            ViewerSettings.ClickSteps = false;
+            Assert.Equal(ViewerSettings.ClickLeftNext, ViewerSettings.ClickSteps, "mouse buttons step");
+            ViewerSettings.Read("svclicksteps", "1"); // (1.1.049 saved 1 for on: left previous, right next)
+            Assert.Equal(ViewerSettings.ClickLeftPrevious, ViewerSettings.ClickSteps, "1.1.049's setting");
+            ViewerSettings.ClickSteps = ViewerSettings.ClickStepsOff;
             // Out of range: ignored. Unknown keys: not these settings.
             ViewerSettings.Read("svwheel", "7");
             ViewerSettings.Read("svzoomstep", "x");

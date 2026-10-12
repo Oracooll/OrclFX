@@ -3,6 +3,10 @@
 Versions are `major.minor.build` with a three-digit build number. Every release bumps the build;
 the minor number changes only for larger milestones.
 
+## 1.1.050
+- Space Viewer settings › Mouse buttons: step through the pictures either way round, left click previous and
+  right click next (as in 1.1.049), or left click next and right click previous; or not at all (the default).
+
 ## 1.1.049
 - Touch mode, switched by the new hand button in the title bar (between the pane buttons and the theme
   buttons): everything you tap is half as big again (title bar and its buttons, tabs, the address bar and the

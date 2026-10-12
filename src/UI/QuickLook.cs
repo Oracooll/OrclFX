@@ -77,8 +77,8 @@ namespace OrclFileExplorer
                 // The click that brought the viewer to the front only does that.
                 if (clickActivated) { clickActivated = false; return; }
                 if (b == MouseButtons.Middle) MiddleClick();
-                else if (ViewerSettings.ClickSteps && b == MouseButtons.Right) Step(1);
-                else if (ViewerSettings.ClickSteps && b == MouseButtons.Left)
+                else if (ViewerSettings.ClickSteps != ViewerSettings.ClickStepsOff && b == MouseButtons.Right) Step(ClickStep(false));
+                else if (ViewerSettings.ClickSteps != ViewerSettings.ClickStepsOff && b == MouseButtons.Left)
                 {
                     // A left click waits to see if a second one follows (a double-click does something else).
                     clickWait.Stop();
@@ -88,7 +88,7 @@ namespace OrclFileExplorer
             };
             image.SecondPress += delegate { clickWait.Stop(); clickActivated = false; };
             Activated += delegate { clickActivated = Control.MouseButtons != MouseButtons.None; };
-            clickWait.Tick += delegate { clickWait.Stop(); Step(-1); };
+            clickWait.Tick += delegate { clickWait.Stop(); Step(ClickStep(true)); };
             image.DoubleClicked += delegate
             {
                 clickWait.Stop(); // (its first click wasn't "previous")
@@ -423,6 +423,13 @@ namespace OrclFileExplorer
         }
 
         public bool FullScreen { get { return fullScreen; } }
+
+        // Where a click with the left (or right) button steps, as the settings say.
+        static int ClickStep(bool left)
+        {
+            int forLeft = ViewerSettings.ClickSteps == ViewerSettings.ClickLeftNext ? 1 : -1;
+            return left ? forLeft : -forLeft;
+        }
 
         // Middle click on the picture: into full screen (when the settings say so), and out of it.
         void MiddleClick()

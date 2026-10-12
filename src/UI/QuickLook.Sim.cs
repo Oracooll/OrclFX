@@ -151,7 +151,7 @@ namespace OrclFileExplorer
             step("End, wrap on, Right", delegate { ViewerSettings.Wrap = true; Key(Keys.End); Key(Keys.Right); });
             step("check", delegate { check(files != null && string.Equals(path, files[0], StringComparison.OrdinalIgnoreCase), "after the last, the first"); ViewerSettings.Wrap = false; });
 
-            step("mouse buttons step: right click", delegate { ViewerSettings.ClickSteps = true; Key(Keys.Home); });
+            step("mouse buttons step: right click", delegate { ViewerSettings.ClickSteps = ViewerSettings.ClickLeftPrevious; Key(Keys.Home); });
             string beforeClick = null;
             step("right click", delegate { beforeClick = path; SimClick(MouseButtons.Right, mid()); });
             step("check", delegate { check(files.FindIndex(Same(path)) == files.FindIndex(Same(beforeClick)) + 1, "right click: next picture " + System.IO.Path.GetFileName(path)); });
@@ -164,19 +164,24 @@ namespace OrclFileExplorer
             {
                 check(fullScreen && string.Equals(path, beforeClick, StringComparison.OrdinalIgnoreCase), "full screen, same picture");
                 Key(Keys.Escape);
-                ViewerSettings.ClickSteps = false;
+                ViewerSettings.ClickSteps = ViewerSettings.ClickStepsOff;
             });
             step("check", delegate { check(!fullScreen, "left full screen"); });
+            step("mouse buttons the other way round: left click", delegate { ViewerSettings.ClickSteps = ViewerSettings.ClickLeftNext; beforeClick = path; SimClick(MouseButtons.Left, mid()); });
+            step("wait", delegate { });
+            step("check", delegate { check(files.FindIndex(Same(path)) == files.FindIndex(Same(beforeClick)) + 1, "left click: next picture " + System.IO.Path.GetFileName(path)); });
+            step("right click", delegate { beforeClick = path; SimClick(MouseButtons.Right, mid()); });
+            step("check", delegate { check(files.FindIndex(Same(path)) == files.FindIndex(Same(beforeClick)) - 1, "right click: previous picture " + System.IO.Path.GetFileName(path)); ViewerSettings.ClickSteps = ViewerSettings.ClickStepsOff; });
             step("double-click with full screen clicks off and mouse-button stepping on: 100 %, no step", delegate
             {
-                ViewerSettings.ClickSteps = true; ViewerSettings.FullScreenClicks = false; image.FitToWindow();
+                ViewerSettings.ClickSteps = ViewerSettings.ClickLeftPrevious; ViewerSettings.FullScreenClicks = false; image.FitToWindow();
                 beforeClick = path; SimDoubleClick(mid());
             });
             step("wait", delegate { });
             step("check", delegate
             {
                 check(string.Equals(path, beforeClick, StringComparison.OrdinalIgnoreCase) && Math.Abs(image.Zoom - 1) < 0.01f, "100 % on the same picture");
-                ViewerSettings.ClickSteps = false; ViewerSettings.FullScreenClicks = true; image.FitToWindow();
+                ViewerSettings.ClickSteps = ViewerSettings.ClickStepsOff; ViewerSettings.FullScreenClicks = true; image.FitToWindow();
             });
 
             // Touch (the gestures as Windows reports them, handed to the view's handler).
