@@ -35,6 +35,13 @@ namespace OrclFileExplorer
         static string TurnJpegData(string path, bool cw)
         {
             byte[] bytes = File.ReadAllBytes(path);
+            // More after the picture (a phone's extra pictures or motion-photo video): re-encoding would drop it.
+            if (DataAfterImage(bytes))
+                return Path.GetFileName(path) + " holds more after its picture (extra pictures or a motion-photo video) and isn't turned, so nothing is lost.";
+            // An orientation recorded in XMP (shown by Windows when EXIF has none) would turn it twice ("1", upright,
+            // as Photoshop writes, is fine).
+            if (XmpTurned(System.Text.Encoding.ASCII.GetString(bytes, 0, Math.Min(bytes.Length, 256 * 1024))))
+                return Path.GetFileName(path) + " records its orientation in XMP data; it isn't turned, so it doesn't end up turned twice.";
             using (MemoryStream ms = new MemoryStream(bytes))
             using (Image img = Image.FromStream(ms, false, false))
             {
@@ -46,8 +53,107 @@ namespace OrclFileExplorer
                 {
                     ps.Param[0] = new EncoderParameter(Encoder.Transformation, (long)(cw ? EncoderValue.TransformRotate90 : EncoderValue.TransformRotate270));
                     img.Save(outp, jpeg, ps);
-                    Util.ReplaceFileSafelyWithBytes(path, outp.ToArray());
+                    // GDI+ writes back its JFIF and EXIF blocks (the EXIF thumbnail turned too) but drops the others
+                    // (XMP ratings and keywords, comments, a colour profile …): those are added back unchanged.
+                    byte[] turned = WithMetadataOf(bytes, outp.ToArray());
+                    if (turned == null) return Path.GetFileName(path) + " can't be turned keeping all its data (camera data, colour profile …); nothing was changed.";
+                    Util.ReplaceFileSafelyWithBytes(path, turned);
                 }
+            }
+            return null;
+        }
+
+        // The JPEG "turned" (GDI+'s output) with the metadata blocks of "original" it lacks added back: its own JFIF
+        // and EXIF blocks stay (the EXIF one holds the turned thumbnail), the original's others follow (XMP, colour
+        // profile, IPTC, comments …) except its JFIF, EXIF and multi-picture index (whose offsets would be wrong).
+        // Null when either isn't understood.
+        internal static byte[] WithMetadataOf(byte[] original, byte[] turned)
+        {
+            int origEnd, turnedFrom;
+            System.Collections.Generic.List<int[]> meta = MetaSegments(original, out origEnd);
+            System.Collections.Generic.List<int[]> theirs = MetaSegments(turned, out turnedFrom);
+            if (meta == null || theirs == null) return null;
+            using (MemoryStream ms = new MemoryStream(turned.Length + original.Length / 4))
+            {
+                ms.WriteByte(0xFF); ms.WriteByte(0xD8);
+                bool hasJfif = false, hasExif = false, hasIcc = false;
+                foreach (int[] s in theirs)
+                {
+                    ms.Write(turned, s[0], s[1]);
+                    if (turned[s[0] + 1] == 0xE0) hasJfif = true;
+                    if (turned[s[0] + 1] == 0xE1 && Starts(turned, s[0] + 4, "Exif\0")) hasExif = true;
+                    if (turned[s[0] + 1] == 0xE2 && Starts(turned, s[0] + 4, "ICC_PROFILE\0")) hasIcc = true;
+                }
+                foreach (int[] s in meta)
+                {
+                    int marker = original[s[0] + 1];
+                    bool exif = marker == 0xE1 && Starts(original, s[0] + 4, "Exif\0");
+                    // GDI+ leaves the EXIF block out when another block comes before it: the original's would keep the
+                    // old thumbnail and sizes, so such a file isn't turned.
+                    if (exif && !hasExif) return null;
+                    if (marker == 0xE0 && hasJfif) continue;                                          // JFIF
+                    if (exif) continue;                                                               // EXIF (GDI+'s)
+                    if (marker == 0xE2 && hasIcc && Starts(original, s[0] + 4, "ICC_PROFILE\0")) continue; // colour profile (GDI+ kept it)
+                    if (marker == 0xE2 && Starts(original, s[0] + 4, "MPF\0")) continue;       // multi-picture index
+                    ms.Write(original, s[0], s[1]);
+                }
+                ms.Write(turned, turnedFrom, turned.Length - turnedFrom);
+                return ms.ToArray();
+            }
+        }
+
+        // Whether something other than padding follows the main picture's end (the first end-of-image marker after
+        // its image data: inside the data, 0xFF bytes are always followed by 0x00 or a restart/table marker).
+        internal static bool DataAfterImage(byte[] b)
+        {
+            int i = 2;
+            while (i + 4 <= b.Length && b[i] == 0xFF)
+            {
+                int marker = b[i + 1];
+                if (marker == 0xFF) { i++; continue; }
+                if (marker == 0xDA) break;
+                i += 2 + ((b[i + 2] << 8) | b[i + 3]);
+            }
+            for (; i + 1 < b.Length; i++)
+                if (b[i] == 0xFF && b[i + 1] == 0xD9)
+                {
+                    for (int k = i + 2; k < b.Length; k++) if (b[k] != 0 && b[k] != 0xFF) return true;
+                    return false;
+                }
+            return false;
+        }
+
+        static bool XmpTurned(string text)
+        {
+            System.Text.RegularExpressions.Match m = System.Text.RegularExpressions.Regex.Match(text, @"tiff:Orientation\s*(=\s*[""']|>)\s*(\d)");
+            return text.Contains("tiff:Orientation") && (!m.Success || m.Groups[2].Value != "1");
+        }
+
+        static bool Starts(byte[] b, int at, string s)
+        {
+            if (at + s.Length > b.Length) return false;
+            for (int i = 0; i < s.Length; i++) if (b[at + i] != s[i]) return false;
+            return true;
+        }
+
+        // The metadata segments at the start of a JPEG ({offset, length} with their markers), and where the first
+        // other segment (the tables, the frame, the image data) starts. Null when the structure isn't understood.
+        static System.Collections.Generic.List<int[]> MetaSegments(byte[] b, out int rest)
+        {
+            rest = -1;
+            System.Collections.Generic.List<int[]> list = new System.Collections.Generic.List<int[]>();
+            if (b.Length < 4 || b[0] != 0xFF || b[1] != 0xD8) return null;
+            int i = 2;
+            while (i + 4 <= b.Length && b[i] == 0xFF)
+            {
+                int marker = b[i + 1];
+                if (marker == 0xFF) { i++; continue; }
+                bool isMeta = marker >= 0xE0 && marker <= 0xEF || marker == 0xFE;
+                if (!isMeta) { rest = i; return list; }
+                int len = (b[i + 2] << 8) | b[i + 3];
+                if (len < 2 || i + 2 + len > b.Length) return null;
+                list.Add(new int[] { i, 2 + len });
+                i += 2 + len;
             }
             return null;
         }
@@ -78,6 +184,10 @@ namespace OrclFileExplorer
             byte[] bytes = File.ReadAllBytes(path);
             if (format == ImageFormat.Png && !PlainPng(bytes))
                 return Path.GetFileName(path) + " can't be turned without changing it (it holds an animation, a colour profile or other data that saving it again would drop).";
+            // Only 8-bit colour PNGs (RGB or RGBA): GDI+ reads 16-bit and grey ones as 8-bit colour, and saving would
+            // lose the extra precision or change the kind of file.
+            if (format == ImageFormat.Png && (bytes.Length < 26 || bytes[24] != 8 || bytes[25] != 2 && bytes[25] != 6))
+                return Path.GetFileName(path) + " can't be turned without changing it (16-bit, grey or palette PNGs aren't turned).";
             using (MemoryStream ms = new MemoryStream(bytes))
             using (Image img = Image.FromStream(ms, false, false))
             {

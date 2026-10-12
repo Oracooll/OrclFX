@@ -47,7 +47,9 @@ namespace OrclFileExplorer
                     {
                         int e = (int)ifd + 2 + k * 12;
                         if (e + 12 > i + 2 + len) break;
-                        if (U16(b, e, bigEndian) == 0x0112 && U16(b, e + 2, bigEndian) == 3) return e + 8;
+                        // (An orientation entry of another type isn't understood: turning the image data under it
+                        // would leave it turning the picture again.)
+                        if (U16(b, e, bigEndian) == 0x0112) return U16(b, e + 2, bigEndian) == 3 ? e + 8 : -3;
                     }
                     return -1;
                 }

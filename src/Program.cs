@@ -52,6 +52,11 @@ namespace OrclFileExplorer
             Application.SetCompatibleTextRenderingDefault(false);
             // An unexpected error shows a message instead of closing the app (and losing unsaved state).
             Application.SetUnhandledExceptionMode(UnhandledExceptionMode.CatchException);
+            // An error on another thread ends the app (that can't be stopped): at least it's in errors.log.
+            AppDomain.CurrentDomain.UnhandledException += delegate(object s, UnhandledExceptionEventArgs e)
+            {
+                try { Exception ex = e.ExceptionObject as Exception; if (ex != null) LogError(ex); } catch { }
+            };
             Application.ThreadException += delegate(object s, System.Threading.ThreadExceptionEventArgs e)
             {
                 LogError(e.Exception);

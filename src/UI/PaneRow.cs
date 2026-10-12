@@ -166,6 +166,15 @@ namespace OrclFileExplorer
             row.BarDropped();
         }
 
+        // The mouse was taken away mid-drag (Alt+Tab, a dialog): the drag ends where it is.
+        protected override void OnMouseCaptureChanged(EventArgs e)
+        {
+            base.OnMouseCaptureChanged(e);
+            if (!dragging || Capture) return;
+            dragging = false;
+            row.BarDropped();
+        }
+
         // Double-click a divider to make all visible panes the same width.
         protected override void OnMouseDoubleClick(MouseEventArgs e)
         {

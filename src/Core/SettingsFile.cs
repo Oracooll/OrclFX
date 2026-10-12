@@ -7,20 +7,34 @@ namespace OrclFileExplorer
     static class SettingsFile
     {
         // The settings lines, or those of the .bak copy when the file is missing, unreadable or has no usable tab.
+        // A file that is there but can't be read (another program holding it a moment) is tried again for a few
+        // seconds; if the main file couldn't be read, Unreadable says so (and the settings mustn't be saved over it,
+        // even when the backup was read).
         public static string[] ReadLines(string file)
         {
+            Unreadable = false;
             foreach (string f in new string[] { file, file + ".bak" })
             {
-                try
+                for (int attempt = 0; attempt < 10; attempt++)
                 {
-                    if (!File.Exists(f)) continue;
-                    string[] lines = File.ReadAllLines(f);
-                    foreach (string l in lines) if (IsUsableTabLine(l)) return lines;
+                    try
+                    {
+                        if (!File.Exists(f)) break;
+                        string[] lines = File.ReadAllLines(f);
+                        foreach (string l in lines) if (IsUsableTabLine(l)) return lines;
+                        break;
+                        // (Unreadable stays as the main file left it.)
+                    }
+                    catch (IOException) { if (attempt == 9) { if (f == file) Unreadable = true; } else System.Threading.Thread.Sleep(300); }
+                    catch (UnauthorizedAccessException) { if (f == file) Unreadable = true; break; }
+                    catch { break; }
                 }
-                catch { }
             }
             return null;
         }
+
+        // The last ReadLines found a settings file it couldn't read.
+        public static bool Unreadable;
 
         // A "pane<i>.tab=L|folder" line that would actually open a tab.
         public static bool IsUsableTabLine(string line)

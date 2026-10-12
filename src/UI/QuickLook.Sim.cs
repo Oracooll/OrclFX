@@ -184,6 +184,15 @@ namespace OrclFileExplorer
                 ViewerSettings.ClickSteps = ViewerSettings.ClickStepsOff; ViewerSettings.FullScreenClicks = true; image.FitToWindow();
             });
 
+            step("a wheel sent to the window itself (scroll inactive windows off) reaches the picture", delegate
+            {
+                image.FitToWindow();
+                zoomBefore = image.Zoom;
+                Point s = image.PointToScreen(mid());
+                Native.PostMessage(Handle, WM_MOUSEWHEEL, (IntPtr)(120 << 16), XY(s.X, s.Y));
+            });
+            step("check", delegate { check(image.Zoom > zoomBefore * 1.1f, "zoomed (" + zoomBefore + " -> " + image.Zoom + "), no loop"); image.FitToWindow(); });
+
             // Touch (the gestures as Windows reports them, handed to the view's handler).
             Func<int, int, Point, int, Gestures.Info> gesture = delegate(int id, int flags, Point client, int arg)
             {

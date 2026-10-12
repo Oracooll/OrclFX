@@ -204,6 +204,9 @@ namespace OrclFileExplorer
         {
             string folder = parts[i].Value, next = i + 1 < parts.Count ? parts[i + 1].Value : null;
             Point at = new Point(arrowRects[i].Left, Height);
+            // One at a time (a slow share mustn't stack up menus that all open later).
+            int request = ++childrenRequest; // (the newest click wins: an older, slower answer is dropped)
+            int asked = Environment.TickCount;
             bool hidden = Native.GetShowHidden();
             System.Threading.Thread th = new System.Threading.Thread(delegate()
             {
@@ -225,7 +228,10 @@ namespace OrclFileExplorer
                 {
                     BeginInvoke((MethodInvoker)delegate
                     {
+                        if (request != childrenRequest) return;
                         if (IsDisposed || folder != (i < parts.Count ? parts[i].Value : null)) return; // moved on meanwhile
+                        // Much later (a slow share) and the user is elsewhere: not popped up out of nowhere.
+                        if (unchecked(Environment.TickCount - asked) > 5000 && Form.ActiveForm != FindForm()) return;
                         ContextMenuStrip m = pane.Main.NewMenu();
                         if (error != null) m.Items.Add(new ToolStripMenuItem(error) { Enabled = false });
                         else if (dirs.Count == 0) m.Items.Add(new ToolStripMenuItem("No subfolders") { Enabled = false });
@@ -246,5 +252,7 @@ namespace OrclFileExplorer
             th.IsBackground = true;
             th.Start();
         }
+
+        int childrenRequest;
     }
 }

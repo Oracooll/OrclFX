@@ -481,6 +481,8 @@ namespace OrclFileExplorer
         protected override void OnMouseWheel(MouseEventArgs e)
         {
             base.OnMouseWheel(e);
+            HandledMouseEventArgs h = e as HandledMouseEventArgs;
+            if (h != null) h.Handled = true; // (used here: not passed on to the window around it)
             int mode = (ModifierKeys & Keys.Control) != 0 ? ViewerSettings.WheelZoomPointer : ViewerSettings.Wheel;
             if (mode == ViewerSettings.WheelStep)
             {
@@ -500,6 +502,8 @@ namespace OrclFileExplorer
             if (pressed != MouseButtons.None) return;
             pressed = e.Button;
             pressClicks = e.Clicks;
+            pressActivated = activatingPress && unchecked(Environment.TickCount - activatingTick) < 500; // (this press only)
+            activatingPress = false;
             if (e.Button == MouseButtons.Left && e.Clicks == 2 && SecondPress != null) SecondPress();
             pressAt = e.Location;
             Capture = true;
@@ -550,6 +554,7 @@ namespace OrclFileExplorer
             Cursor = HasImage && !fit && (ViewerSettings.DragButtons & MouseButtons.Left) != 0 ? Cursors.Hand : Cursors.Default;
             if (wasDrag) { Invalidate(); return; } // the still picture drawn sharp
             Size slop = SystemInformation.DragSize;
+            if (pressActivated) return;
             if (Math.Abs(e.X - pressAt.X) > slop.Width || Math.Abs(e.Y - pressAt.Y) > slop.Height) return;
             // The second press of a double-click comes as one with Clicks = 2. (Not WinForms' own double-click
             // event: it only comes when this window is the one under the pointer on screen.)
@@ -577,8 +582,14 @@ namespace OrclFileExplorer
             lastDistance = 0;
         }
 
+        bool activatingPress; // the next press brings the window to the front: it isn't a click on the picture
+        bool pressActivated;  // the press now down did
+        int activatingTick;
+
         protected override void WndProc(ref Message m)
         {
+            const int WM_MOUSEACTIVATE = 0x21;
+            if (m.Msg == WM_MOUSEACTIVATE && Form.ActiveForm != FindForm()) { activatingPress = true; activatingTick = Environment.TickCount; }
             if (m.Msg == Gestures.WM_GESTURENOTIFY) { Gestures.Configure(Handle); base.WndProc(ref m); return; }
             Gestures.Info g;
             if (m.Msg == Gestures.WM_GESTURE && Gestures.Read(ref m, out g))

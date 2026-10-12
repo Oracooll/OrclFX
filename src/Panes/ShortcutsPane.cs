@@ -27,6 +27,7 @@ namespace OrclFileExplorer
         int sortMode, nextSeq;
         readonly ListView list = new ListView();
         readonly ImageList icons = new ImageList(), largeIcons = new ImageList();
+        readonly List<Image> paddedIcons = new List<Image>(); // touch mode's taller icon pictures
         int widthValue;        // 0 = fit the longest name
         bool widthInChars;
         readonly Label notice = new Label();
@@ -106,6 +107,7 @@ namespace OrclFileExplorer
             if (v == 3) list.TileSize = new Size(Native.Px(220), Native.Px(40));
             list.View = Views[v];
             list.EndUpdate();
+            RefreshItemIcons(); // (the icons looked up again in the list this view uses)
             if (v == 0) FitRowColumn();
             if (v == 1) ApplyWidth();
             // Again once the pane has its new size (it's still the old one while the window rearranges).
@@ -328,19 +330,32 @@ namespace OrclFileExplorer
                 ready = new List<KeyValuePair<string, Icon>>(iconsReady); iconsReady.Clear();
                 readyLarge = new List<KeyValuePair<string, Icon>>(largeReady); largeReady.Clear();
             }
-            foreach (KeyValuePair<string, Icon> r in readyLarge)
-                if (!largeIcons.Images.ContainsKey(r.Key)) largeIcons.Images.Add(r.Key, r.Value);
-            if (ready.Count == 0 || IsDisposed) return;
+            // Both image lists hold the same folders in the same order: an item's icon is a position, looked up in
+            // whichever list the view uses (a folder without a large icon gets its small one, enlarged).
+            Dictionary<string, Icon> large = new Dictionary<string, Icon>(StringComparer.OrdinalIgnoreCase);
+            foreach (KeyValuePair<string, Icon> r in readyLarge) if (r.Value != null) large[r.Key] = r.Value;
+            if (IsDisposed) return;
             foreach (KeyValuePair<string, Icon> r in ready)
             {
                 iconsPending.Remove(r.Key);
+                Icon big;
+                large.TryGetValue(r.Key, out big);
                 // the ImageList keeps using the icon until its handle exists: don't dispose it here
                 if (r.Value != null && !icons.Images.ContainsKey(r.Key))
                 {
-                    if (TouchMode.On) icons.Images.Add(r.Key, TouchMode.Padded(r.Value, icons.ImageSize));
+                    if (TouchMode.On)
+                    {
+                        // (Kept until the pane goes: an image list without a window yet still uses the picture.)
+                        Image padded = TouchMode.Padded(r.Value, icons.ImageSize);
+                        paddedIcons.Add(padded);
+                        icons.Images.Add(r.Key, padded);
+                    }
                     else icons.Images.Add(r.Key, r.Value);
+                    if (largeIcons.Images.ContainsKey(r.Key)) largeIcons.Images.RemoveByKey(r.Key);
+                    largeIcons.Images.Add(r.Key, big ?? r.Value);
                 }
             }
+            if (ready.Count == 0) return;
             RefreshItemIcons();
             Program.Trace("shortcut icons: " + icons.Images.Count + " of " + list.Items.Count);
         }
@@ -423,6 +438,8 @@ namespace OrclFileExplorer
                 }
                 icons.Dispose();
                 largeIcons.Dispose();
+                foreach (Image i in paddedIcons) i.Dispose();
+                paddedIcons.Clear();
             }
             base.Dispose(disposing);
         }
@@ -993,6 +1010,7 @@ namespace OrclFileExplorer
             if (icons.Images.ContainsKey((string)it.Tag))
             {
                 icons.Images.RemoveByKey((string)it.Tag);
+                if (largeIcons.Images.ContainsKey((string)it.Tag)) largeIcons.Images.RemoveByKey((string)it.Tag);
                 RefreshItemIcons(); // the icons after it moved up one place
             }
             unavailable.Remove((string)it.Tag);

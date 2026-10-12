@@ -43,7 +43,6 @@ namespace OrclFileExplorer
         // Full screen: the mouse pointer hides when it's still.
         readonly System.Windows.Forms.Timer pointerWatch = new System.Windows.Forms.Timer();
         readonly System.Windows.Forms.Timer clickWait = new System.Windows.Forms.Timer(); // a left click, until it's clear it isn't a double-click
-        bool clickActivated; // the viewer came to the front by a click (which isn't one on the picture)
         Point pointerAt;
         int pointerStill;
         bool pointerHidden;
@@ -74,8 +73,7 @@ namespace OrclFileExplorer
             image.Swiped += delegate(int d) { Program.Trace("quick look: swipe " + (d > 0 ? "left (next)" : "right (previous)")); Step(d); };
             image.Clicked += delegate(MouseButtons b)
             {
-                // The click that brought the viewer to the front only does that.
-                if (clickActivated) { clickActivated = false; return; }
+                // (The click that brought the viewer to the front only did that: ImageView doesn't report it.)
                 if (b == MouseButtons.Middle) MiddleClick();
                 else if (ViewerSettings.ClickSteps != ViewerSettings.ClickStepsOff && b == MouseButtons.Right) Step(ClickStep(false));
                 else if (ViewerSettings.ClickSteps != ViewerSettings.ClickStepsOff && b == MouseButtons.Left)
@@ -86,8 +84,7 @@ namespace OrclFileExplorer
                     clickWait.Start();
                 }
             };
-            image.SecondPress += delegate { clickWait.Stop(); clickActivated = false; };
-            Activated += delegate { clickActivated = Control.MouseButtons != MouseButtons.None; };
+            image.SecondPress += delegate { clickWait.Stop(); };
             clickWait.Tick += delegate { clickWait.Stop(); Step(ClickStep(true)); };
             image.DoubleClicked += delegate
             {
@@ -131,13 +128,16 @@ namespace OrclFileExplorer
             preview.ApplyTheme();
             ApplyPanes();
 
-            loader = new PictureLoader(this);
-            HandleCreated += delegate
+            MethodInvoker darkFrame = delegate
             {
                 int dark = Theme.Dark ? 1 : 0;
                 Native.DwmSetWindowAttribute(Handle, 20, ref dark, 4);
                 Native.SetWindowPos(Handle, IntPtr.Zero, 0, 0, 0, 0, 0x0001 | 0x0002 | 0x0004 | 0x0010 | 0x0020); // frame changed
             };
+            HandleCreated += delegate { darkFrame(); };
+            // (PictureLoader asks which screen the window is on, which makes the window's handle already.)
+            loader = new PictureLoader(this);
+            if (IsHandleCreated) darkFrame();
             // Windows' preview handlers (PDF, Office …) run in another process and may take the keyboard focus
             // when they load: take it back shortly after each file.
             refocus.Interval = 400;
@@ -222,6 +222,7 @@ namespace OrclFileExplorer
             UpdateTitle();
             Program.Trace("quick look shows " + p);
             if (!ViewerOn) return;
+            loader.DropFull(p);
             if (Pictures.IsPictureKind(p))
             {
                 preview.Unload();
@@ -267,14 +268,21 @@ namespace OrclFileExplorer
                 onScreen = p;
                 return;
             }
+            string size = d.Bitmap.Width + "x" + d.Bitmap.Height; // (before the bitmap goes to the view, which may let it go)
             if (full)
             {
                 // Only onto the same picture's screen-sized copy (not one still on screen from before).
                 if (!string.Equals(onScreen, p, StringComparison.OrdinalIgnoreCase) || d.Original != image.Original && d.Original != Size.Empty) { PictureLoader.Dispose(d); return; }
                 image.SetFullSize(d.Bitmap, d.Half);
             }
-            else { image.SetImage(d.Bitmap, d.Original, d.Info); onScreen = p; }
-            Program.Trace("quick look picture " + Path.GetFileName(p) + (full ? " (full size) " : " ") + d.Bitmap.Width + "x" + d.Bitmap.Height);
+            else
+            {
+                // The same picture again (asked for twice while going back and forth): kept as it is, zoom and all.
+                if (string.Equals(onScreen, p, StringComparison.OrdinalIgnoreCase) && image.HasImage && image.Original == d.Original) { PictureLoader.Dispose(d); return; }
+                image.SetImage(d.Bitmap, d.Original, d.Info);
+                onScreen = p;
+            }
+            Program.Trace("quick look picture " + Path.GetFileName(p) + (full ? " (full size) " : " ") + size);
         }
 
         void UpdateTitle()
@@ -336,6 +344,7 @@ namespace OrclFileExplorer
 
         public void DeleteCurrent()
         {
+            clickWait.Stop();
             string gone = ActOn();
             if (gone == null) return;
             int i = files == null ? -1 : files.FindIndex(Same(gone));
@@ -372,6 +381,7 @@ namespace OrclFileExplorer
 
         public void Turn(bool cw)
         {
+            clickWait.Stop();
             if (ActOn() == null) return;
             if (!Pictures.IsPictureKind(path)) { System.Media.SystemSounds.Beep.Play(); return; }
             string problem = Rotation.Turn(path, cw);
@@ -379,6 +389,7 @@ namespace OrclFileExplorer
             Program.Trace("quick look turned " + Path.GetFileName(path) + (cw ? " right" : " left"));
             loader.Forget(path);
             thumbs.Refresh(path);
+            onScreen = null; // (the turned one is new: not "the same picture again", even when square)
             ShowFile(path);
         }
 
@@ -493,7 +504,9 @@ namespace OrclFileExplorer
             TextBox box = Control.FromHandle(target) as TextBox;
             if (box != null ? !box.ReadOnly : target != IntPtr.Zero && Native.ClassName(target).IndexOf("Edit", StringComparison.OrdinalIgnoreCase) >= 0) return false;
             // A held key repeats: never for the ones that change files.
-            if (repeat && (key == Keys.Delete || key == Keys.OemOpenBrackets || key == Keys.OemCloseBrackets)) return true;
+            if (repeat && (key == Keys.Delete || key == Keys.OemOpenBrackets || key == Keys.OemCloseBrackets || key == Keys.Space || key == Keys.Escape ||
+                key == Keys.Enter || key == Keys.F || key == Keys.I || key == Keys.T || key == Keys.V)) return true;
+            clickWait.Stop(); // (a click still waiting to step comes after nothing else)
             bool shift = (Control.ModifierKeys & Keys.Shift) != 0;
             Point centre = image.Centre;
             bool picture = ViewerOn && image.Visible && image.HasImage;
@@ -540,9 +553,30 @@ namespace OrclFileExplorer
 
         // ---- frame: our own title bar instead of Windows' caption (as in the main window)
 
+        bool forwardingWheel;
+
         protected override void WndProc(ref Message m)
         {
-            const int WM_NCCALCSIZE = 0x83, WM_NCHITTEST = 0x84;
+            const int WM_NCCALCSIZE = 0x83, WM_NCHITTEST = 0x84, WM_MOUSEWHEEL = 0x20A;
+            // With "scroll inactive windows" off, Windows sends the wheel to the window with the focus (this one):
+            // passed on to the pane under the pointer.
+            if (m.Msg == WM_MOUSEWHEEL && m.HWnd == Handle && !forwardingWheel)
+            {
+                int lp = unchecked((int)(long)m.LParam);
+                Point pt = new Point((short)(lp & 0xFFFF), (short)((lp >> 16) & 0xFFFF));
+                IntPtr under = IntPtr.Zero;
+                if (image.Visible && image.RectangleToScreen(image.ClientRectangle).Contains(pt)) under = image.Handle;
+                else if (thumbs.Visible && thumbs.RectangleToScreen(thumbs.ClientRectangle).Contains(pt)) under = thumbs.Handle;
+                if (under != IntPtr.Zero)
+                {
+                    // (Guarded: a pane that doesn't use it passes it back up to this window.)
+                    forwardingWheel = true;
+                    try { Native.SendMessage(under, WM_MOUSEWHEEL, m.WParam, m.LParam); }
+                    finally { forwardingWheel = false; }
+                    m.Result = IntPtr.Zero;
+                    return;
+                }
+            }
             if (m.Msg == WM_NCCALCSIZE && m.WParam != IntPtr.Zero && FormBorderStyle != FormBorderStyle.None)
             {
                 RECT before = (RECT)Marshal.PtrToStructure(m.LParam, typeof(RECT));
@@ -851,6 +885,8 @@ namespace OrclFileExplorer
 
         public void Load(string p) { lock (gate) { want = p; full = null; } wake.Set(); }
         public void LoadFull(string p, Size original) { lock (gate) { full = p; fullOriginal = original; } wake.Set(); }
+        // Another picture is shown: a full-size one still waiting for the one before isn't made.
+        public void DropFull(string unless) { lock (gate) if (full != null && !string.Equals(full, unless, StringComparison.OrdinalIgnoreCase)) full = null; }
         public void Preload(List<string> ps) { lock (gate) preload = ps; wake.Set(); }
         public void Quit() { quit = true; wake.Set(); }
 

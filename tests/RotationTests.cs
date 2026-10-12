@@ -33,6 +33,144 @@ namespace OrclFileExplorer.Tests
             return b;
         }
 
+        // A JPEG with camera data but no orientation entry has its image data turned; its other blocks (XMP ratings
+        // and keywords, comments) must come through unchanged.
+        [Test]
+        static void JpegDataTurnKeepsTheOtherBlocks()
+        {
+            using (TempDir d = new TempDir())
+            {
+                string path = Path.Combine(d.Path, "tagged.jpg");
+                using (Bitmap bmp = new Bitmap(64, 48))
+                {
+                    using (Graphics g = Graphics.FromImage(bmp)) { g.Clear(Color.Red); g.FillRectangle(Brushes.Blue, 0, 0, 32, 48); }
+                    PropertyItem p = (PropertyItem)System.Runtime.Serialization.FormatterServices.GetUninitializedObject(typeof(PropertyItem));
+                    p.Id = 0x010F; p.Type = 2; p.Value = System.Text.Encoding.ASCII.GetBytes("TestCam\0"); p.Len = p.Value.Length;
+                    bmp.SetPropertyItem(p);
+                    bmp.Save(path, ImageFormat.Jpeg);
+                }
+                // An XMP block, a colour profile and a comment after the camera data (where editors put them).
+                byte[] all = InsertAfterExif(File.ReadAllBytes(path),
+                    Segment(0xE1, "http://ns.adobe.com/xap/1.0/\0<x:xmpmeta tiff:Orientation=\"1\">Rating 5, keyword Holiday</x:xmpmeta>"),
+                    Segment(0xE2, "ICC_PROFILE\0\u0001\u0001fake profile data"),
+                    Segment(0xFE, "A comment to keep"));
+                File.WriteAllBytes(path, all);
+                Assert.Equal(1, Exif.ReadOrientation(all), "no orientation entry");
+                Assert.Equal(null, Rotation.Turn(path, true), "turned");
+                string text = System.Text.Encoding.ASCII.GetString(File.ReadAllBytes(path));
+                Assert.True(text.Contains("Rating 5, keyword Holiday"), "XMP kept");
+                Assert.True(text.Contains("A comment to keep"), "comment kept");
+                Assert.True(text.Contains("TestCam"), "camera data kept");
+                int icc = 0;
+                for (int at = text.IndexOf("ICC_PROFILE"); at >= 0; at = text.IndexOf("ICC_PROFILE", at + 1)) icc++;
+                Assert.Equal(1, icc, "one colour profile");
+                using (Image img = Image.FromFile(path)) Assert.Equal("48x64", img.Width + "x" + img.Height, "turned");
+            }
+        }
+
+        // An XMP block before the camera data: GDI+ would drop the camera data, so the file isn't turned.
+        [Test]
+        static void JpegWithXmpBeforeExifIsLeftAlone()
+        {
+            using (TempDir d = new TempDir())
+            {
+                string path = Path.Combine(d.Path, "xmpfirst.jpg");
+                using (Bitmap bmp = new Bitmap(64, 48))
+                {
+                    PropertyItem p = (PropertyItem)System.Runtime.Serialization.FormatterServices.GetUninitializedObject(typeof(PropertyItem));
+                    p.Id = 0x010F; p.Type = 2; p.Value = System.Text.Encoding.ASCII.GetBytes("TestCam\0"); p.Len = p.Value.Length;
+                    bmp.SetPropertyItem(p);
+                    bmp.Save(path, ImageFormat.Jpeg);
+                }
+                byte[] b = File.ReadAllBytes(path);
+                byte[] xmp = Segment(0xE1, "http://ns.adobe.com/xap/1.0/\0<x:xmpmeta>Rating 5</x:xmpmeta>");
+                byte[] all = new byte[b.Length + xmp.Length];
+                Array.Copy(b, 0, all, 0, 2);
+                Array.Copy(xmp, 0, all, 2, xmp.Length);
+                Array.Copy(b, 2, all, 2 + xmp.Length, b.Length - 2);
+                File.WriteAllBytes(path, all);
+                Assert.True(Rotation.Turn(path, true) != null, "not turned");
+                Assert.Equal(all.Length, File.ReadAllBytes(path).Length, "file unchanged");
+            }
+        }
+
+        // A photo with more after its picture (a phone's motion-photo video): not turned through its image data.
+        [Test]
+        static void JpegWithDataAfterThePictureIsLeftAlone()
+        {
+            using (TempDir d = new TempDir())
+            {
+                string path = Path.Combine(d.Path, "motion.jpg");
+                using (Bitmap bmp = new Bitmap(64, 48))
+                {
+                    PropertyItem p = (PropertyItem)System.Runtime.Serialization.FormatterServices.GetUninitializedObject(typeof(PropertyItem));
+                    p.Id = 0x010F; p.Type = 2; p.Value = System.Text.Encoding.ASCII.GetBytes("TestCam\0"); p.Len = p.Value.Length;
+                    bmp.SetPropertyItem(p);
+                    bmp.Save(path, ImageFormat.Jpeg);
+                }
+                byte[] b = File.ReadAllBytes(path);
+                Assert.True(!Rotation.DataAfterImage(b), "a plain JPEG ends with its picture");
+                byte[] video = System.Text.Encoding.ASCII.GetBytes("....ftypmp42 video data");
+                byte[] all = new byte[b.Length + video.Length];
+                Array.Copy(b, all, b.Length);
+                Array.Copy(video, 0, all, b.Length, video.Length);
+                File.WriteAllBytes(path, all);
+                Assert.True(Rotation.DataAfterImage(all), "found");
+                Assert.True(Rotation.Turn(path, true) != null, "not turned");
+                Assert.Equal(all.Length, File.ReadAllBytes(path).Length, "file unchanged");
+            }
+        }
+
+        // The JPEG with these segments put right after its EXIF block.
+        static byte[] InsertAfterExif(byte[] b, params byte[][] segments)
+        {
+            int i = 2;
+            while (i + 4 <= b.Length && b[i] == 0xFF)
+            {
+                int len = (b[i + 2] << 8) | b[i + 3];
+                bool exif = b[i + 1] == 0xE1 && b[i + 4] == 'E' && b[i + 5] == 'x';
+                i += 2 + len;
+                if (exif) break;
+            }
+            using (MemoryStream ms = new MemoryStream())
+            {
+                ms.Write(b, 0, i);
+                foreach (byte[] s in segments) ms.Write(s, 0, s.Length);
+                ms.Write(b, i, b.Length - i);
+                return ms.ToArray();
+            }
+        }
+
+        static byte[] Segment(int marker, string content)
+        {
+            byte[] c = System.Text.Encoding.ASCII.GetBytes(content);
+            byte[] s = new byte[4 + c.Length];
+            s[0] = 0xFF; s[1] = (byte)marker; s[2] = (byte)((c.Length + 2) >> 8); s[3] = (byte)((c.Length + 2) & 0xFF);
+            Array.Copy(c, 0, s, 4, c.Length);
+            return s;
+        }
+
+        // 16-bit PNGs come into GDI+ as 8-bit colour: turning would lose precision, so they're left alone.
+        [Test]
+        static void SixteenBitPngIsLeftAlone()
+        {
+            using (TempDir d = new TempDir())
+            {
+                string path = Path.Combine(d.Path, "deep.png");
+                byte[] px = new byte[8 * 4 * 6];
+                for (int i = 0; i < px.Length; i++) px[i] = (byte)(i * 7);
+                System.Windows.Media.Imaging.BitmapSource src = System.Windows.Media.Imaging.BitmapSource.Create(8, 4, 96, 96, System.Windows.Media.PixelFormats.Rgb48, null, px, 8 * 6);
+                System.Windows.Media.Imaging.PngBitmapEncoder enc = new System.Windows.Media.Imaging.PngBitmapEncoder();
+                enc.Frames.Add(System.Windows.Media.Imaging.BitmapFrame.Create(src));
+                using (FileStream fs = File.Create(path)) enc.Save(fs);
+                byte[] before = File.ReadAllBytes(path);
+                Assert.Equal(16, (int)before[24], "a 16-bit PNG");
+                string problem = Rotation.Turn(path, true);
+                Assert.True(problem != null, "not turned: " + problem);
+                Assert.True(before.Length == File.ReadAllBytes(path).Length, "file unchanged");
+            }
+        }
+
         [Test]
         static void OrientationCycles()
         {

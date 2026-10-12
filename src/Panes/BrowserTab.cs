@@ -401,7 +401,8 @@ namespace OrclFileExplorer
                 if (lastAutoWidth > 0 && Util.SameFolder(lastAutoFolder, Folder) && NameColumnWidth() != lastAutoWidth) SetNameWidth(lastAutoWidth);
                 return;
             }
-            fitNeed = LongestNameWidth();
+            // (For the later check whether renamed files need another fit, made only for folders of up to 3000 items.)
+            fitNeed = Count(Native.SVGIO_ALLVIEW) <= 3000 ? LongestNameWidth() : 0;
             // What a double-click on the Name column's divider does: Windows sizes the column to the names itself
             // (CM_WIDTH_AUTOSIZE).
             IColumnManager am = View<IColumnManager>(new Guid("d8ec27bb-3f3b-4042-b10a-4acfd924d453"));

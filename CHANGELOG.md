@@ -3,6 +3,29 @@
 Versions are `major.minor.build` with a three-digit build number. Every release bumps the build;
 the minor number changes only for larger milestones.
 
+## 1.1.051
+Fixes from an audit of the whole app:
+- USB sticks, memory cards and USB disks can be ejected while a pane shows a folder on them (the instant
+  folder updates kept the drive in use).
+- Copying many files into a folder on screen no longer slows the window down: the Name column is fitted at most
+  every 1.5 s while files keep coming (and once more when they stop), and the folder is read again at most once a
+  second. Changes made by other programs during the app's own copies are no longer missed.
+- If the settings file can't be read at startup (another program holding it), the app tries again, and if it
+  still can't, it doesn't save over it (before, two saves could replace your tabs and settings with defaults).
+- Turning pictures (Space Viewer [ and ]): 16-bit, grey and palette PNGs are left alone instead of being saved as
+  8-bit colour; turning a JPEG's image data keeps its XMP (ratings, keywords), comments, colour profile and other
+  data, and the camera's thumbnail is turned too; files that can't be turned that way (including phone photos
+  with extra pictures or a motion-photo video after the picture) are left unchanged; an orientation entry the app
+  doesn't understand stops the turn.
+- Space Viewer: turning a square picture shows it turned; the click that brings the viewer to the front only does
+  that (and no longer swallows a later click); held keys don't toggle again and again; a picture shown twice keeps
+  its zoom; the mouse wheel works with Windows' "scroll inactive windows" off; the window frame is dark in the dark
+  theme; a full-size picture still being made for a picture left behind no longer delays the next one.
+- The window is restored maximized when it was closed while minimized; dragging a divider ends cleanly when the
+  mouse is taken away (Alt+Tab); a light/dark switch waits until open boxes are closed; breadcrumb menus of slow
+  shares don't pile up; Shortcuts pane icons in the Large icons and Tiles views match their folders; errors on
+  background threads are written to errors.log.
+
 ## 1.1.050
 - Space Viewer settings › Mouse buttons: step through the pictures either way round, left click previous and
   right click next (as in 1.1.049), or left click next and right click previous; or not at all (the default).

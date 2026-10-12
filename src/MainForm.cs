@@ -63,7 +63,7 @@ namespace OrclFileExplorer
         {
             Text = Program.AppName + " " + Installer.Version;
             // Touch mode decides the sizes of what is built below.
-            try { TouchMode.ReadEarly(SettingsFile.ReadLines(StateFile)); } catch { }
+            try { earlyLines = SettingsFile.ReadLines(StateFile); earlyUnreadable = SettingsFile.Unreadable; TouchMode.ReadEarly(earlyLines); } catch { }
             // Room for the tree, one pane and the preview; a saved narrower size is widened to this.
             MinimumSize = new Size(Math.Min(TouchMode.Hit(900), Screen.PrimaryScreen.WorkingArea.Width), Native.Px(400)); // wide enough for the title bar's buttons and icon
             Font = new Font("Segoe UI", 9f);
@@ -619,7 +619,8 @@ namespace OrclFileExplorer
             while (true)
             {
                 string problem = SaveAll();
-                if (problem == null || !userClose) break;
+                // (Restarting: the new window is already starting, and the settings were saved a moment ago.)
+                if (problem == null || !userClose || restarting) break;
                 if (!Visible) Show(); // closing after waiting hidden: the question needs a visible window
                 DialogResult r = MessageBox.Show(this, problem + "\n\nYes: try again\nNo: close anyway (changes since the last save are lost)\nCancel: keep the window open",
                     Program.AppName, MessageBoxButtons.YesNoCancel, MessageBoxIcon.Warning);
@@ -673,6 +674,14 @@ namespace OrclFileExplorer
                 }
                 return;
             }
+            // A drive is about to be removed (Eject, Safely remove): the folder watch lets go of its folders on it.
+            const int WM_DEVICECHANGE = 0x219, DBT_DEVICEQUERYREMOVE = 0x8001, DBT_DEVICEREMOVECOMPLETE = 0x8004;
+            // (Also when it was pulled out without ejecting: the folder's handle is let go at once.)
+            if (m.Msg == WM_DEVICECHANGE && ((long)m.WParam == DBT_DEVICEQUERYREMOVE || (long)m.WParam == DBT_DEVICEREMOVECOMPLETE))
+            {
+                IntPtr h = Native.DeviceBroadcastHandle(m.LParam);
+                if (h != IntPtr.Zero && folderWatch.DeviceQueryRemove(h)) { m.Result = (IntPtr)1; return; }
+            }
             base.WndProc(ref m);
             const int WM_SETTINGCHANGE = 0x1A;
             if (m.Msg == WM_SETTINGCHANGE && m.LParam != IntPtr.Zero && Theme.Mode == 0 &&
@@ -681,8 +690,32 @@ namespace OrclFileExplorer
                 bool wasDark = Theme.Dark;
                 Theme.Update();
                 ApplyTheme();
-                if (wasDark != Theme.Dark) RestartForTheme();
+                if (wasDark != Theme.Dark) RestartWhenNoDialog();
             }
+        }
+
+        // No box open over the main window or the Space Viewer (a box disables the window it belongs to).
+        bool NoBoxOpen()
+        {
+            return Native.IsWindowEnabled(Handle) && (quickLook == null || quickLook.IsDisposed || !quickLook.IsHandleCreated || Native.IsWindowEnabled(quickLook.Handle));
+        }
+
+        // Windows switched light/dark while a box of this app may be open: the restart waits until none is.
+        void RestartWhenNoDialog()
+        {
+            // (A box open makes Windows disable the window; WinForms' Enabled doesn't show that.)
+            if (NoBoxOpen()) { RestartForTheme(); return; }
+            Timer t = new Timer();
+            t.Interval = 500;
+            t.Tick += delegate
+            {
+                if (IsDisposed) { t.Dispose(); return; }
+                if (!NoBoxOpen()) return;
+                t.Stop();
+                t.Dispose();
+                RestartForTheme();
+            };
+            t.Start();
         }
 
         // The panes currently on screen, left to right.
@@ -884,6 +917,7 @@ namespace OrclFileExplorer
                 BrowserTab t = p.ActiveTab;
                 if (t != null && t.Created && !t.IsFindResults && !t.WaitingForNetwork) watched.Add(t.Address);
             }
+            folderWatch.SetOwner(Handle);
             folderWatch.WatchOnly(watched);
         }
         int lastTimedCount = -2;
@@ -934,10 +968,14 @@ namespace OrclFileExplorer
             if (!AutoFit) return;
             foreach (Pane p in Panes)
             {
+                if (!p.Visible) continue; // (a pane hidden by fewer panes side by side)
                 BrowserTab t = p.ActiveTab;
                 if (t == null || !t.Created) continue;
                 int n = t.Count(Native.SVGIO_ALLVIEW);
                 bool changed = n != t.fitCount || t.fitFolder != t.Folder;
+                // Items keep coming (a copy into this folder): fitted at most every 1.5 s meanwhile, and once more when
+                // they stop (fitting measures every name: each tick would hold up the window).
+                if (changed && t.fitFolder == t.Folder && t.fitCount >= 0 && unchecked(Environment.TickCount - t.fitTick) < 1500) continue;
                 // Not while a name is being typed: resizing the column would close the rename box (tried again later).
                 if (t.Renaming) continue;
                 // The second fit after a refresh.
@@ -1092,6 +1130,9 @@ namespace OrclFileExplorer
         void RestartForTheme(string why = "theme")
         {
             if (!Ready || restarting) return;
+            // The settings file couldn't be read at the start (so nothing is saved over it): a new window would open
+            // with what it holds, not with this session's tabs.
+            if (stateUnreadable) { Notice("\u26A0 The " + why + " switches after OrclFX is restarted (its settings file couldn't be read)."); return; }
             // Not in the middle of a copy or move: the restart waits until it has finished.
             if (ProcessReference.Busy > 0)
             {
@@ -1755,7 +1796,15 @@ namespace OrclFileExplorer
             int[] sel = { 0, 0, 0, 0 };
             try
             {
-                string[] stateLines = SettingsFile.ReadLines(StateFile);
+                // (Read once already, before the window was built.)
+                string[] stateLines = earlyLines;
+                // There but unreadable: what was read (the backup, or the defaults) is shown, but never saved over
+                // the real settings.
+                if (earlyUnreadable)
+                {
+                    stateUnreadable = true;
+                    Program.LogError(new IOException("The settings file couldn't be read: " + StateFile));
+                }
                 if (stateLines != null)
                 {
                     foreach (string line in stateLines)
@@ -1886,6 +1935,8 @@ namespace OrclFileExplorer
         }
 
         // Saves the settings and pending shortcut changes. Null when both are saved, otherwise what failed.
+        bool stateUnreadableShown;
+
         string SaveAll()
         {
             bool state = SaveState(), shortcuts = Shortcuts.FlushPending();
@@ -1894,14 +1945,31 @@ namespace OrclFileExplorer
                 : "Your shortcut changes couldn't be saved.";
         }
 
+        bool wasMaximized; // the state before minimizing (saved as maximized when closed while minimized)
+
+        protected override void OnResize(EventArgs e)
+        {
+            base.OnResize(e);
+            if (WindowState != FormWindowState.Minimized) wasMaximized = WindowState == FormWindowState.Maximized;
+        }
+
+        string[] earlyLines;
+        bool earlyUnreadable;
+        bool stateUnreadable; // the settings file was there but couldn't be read at the start: it isn't overwritten
+
         bool SaveState()
         {
+            if (stateUnreadable)
+            {
+                if (!stateUnreadableShown) { stateUnreadableShown = true; Notice("\u26A0 Your settings file couldn't be read, so this session's changes aren't saved over it. Restart OrclFX to load it."); }
+                return true;
+            }
             try
             {
                 StringBuilder sb = new StringBuilder();
                 Rectangle b = WindowState == FormWindowState.Normal ? Bounds : RestoreBounds;
                 sb.AppendLine("window=" + b.X + "," + b.Y + "," + b.Width + "," + b.Height);
-                sb.AppendLine("maximized=" + (WindowState == FormWindowState.Maximized ? "1" : "0"));
+                sb.AppendLine("maximized=" + (WindowState == FormWindowState.Maximized || WindowState == FormWindowState.Minimized && wasMaximized ? "1" : "0"));
                 sb.AppendLine("panes=" + PaneCount);
                 sb.AppendLine("multipanes=" + multiCount);
                 string[] wsOut = new string[row.Weights.Length];

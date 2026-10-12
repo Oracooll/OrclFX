@@ -142,6 +142,7 @@ namespace OrclFileExplorer
         public const int ROLE_SYSTEM_LIST = 0x21;
         [DllImport("user32.dll")] public static extern IntPtr WindowFromPoint(POINT pt);
         [DllImport("user32.dll")] public static extern bool IsWindow(IntPtr h);
+        [DllImport("user32.dll")] public static extern bool IsWindowEnabled(IntPtr h);
         [DllImport("shell32.dll", CharSet = CharSet.Unicode)] public static extern void SHChangeNotify(int eventId, int flags, string item1, string item2);
         [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr h, out RECT r);
 
@@ -230,6 +231,35 @@ namespace OrclFileExplorer
         [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
         public static extern uint GetFinalPathNameByHandle(IntPtr file, StringBuilder path, uint size, uint flags);
         [DllImport("kernel32.dll")] public static extern bool CloseHandle(IntPtr h);
+        [DllImport("user32.dll")] public static extern bool UnregisterDeviceNotification(IntPtr h);
+        [DllImport("user32.dll", SetLastError = true)] static extern IntPtr RegisterDeviceNotification(IntPtr recipient, ref DEV_BROADCAST_HANDLE filter, uint flags);
+        [StructLayout(LayoutKind.Sequential)]
+        struct DEV_BROADCAST_HANDLE
+        {
+            public int dbch_size, dbch_devicetype, dbch_reserved;
+            public IntPtr dbch_handle, dbch_hdevnotify;
+            public Guid dbch_eventguid;
+            public int dbch_nameoffset;
+            public byte dbch_data;
+        }
+        public const int DBT_DEVTYP_HANDLE = 6;
+
+        // The window hears (WM_DEVICECHANGE) when the device under this open handle is about to be removed.
+        public static IntPtr RegisterDeviceHandleNotification(IntPtr window, IntPtr handle)
+        {
+            DEV_BROADCAST_HANDLE f = new DEV_BROADCAST_HANDLE();
+            f.dbch_size = Marshal.SizeOf(typeof(DEV_BROADCAST_HANDLE));
+            f.dbch_devicetype = DBT_DEVTYP_HANDLE;
+            f.dbch_handle = handle;
+            return RegisterDeviceNotification(window, ref f, 0); // DEVICE_NOTIFY_WINDOW_HANDLE
+        }
+
+        // The handle in a DEV_BROADCAST_HANDLE (WM_DEVICECHANGE's lParam), or zero for another kind of device.
+        public static IntPtr DeviceBroadcastHandle(IntPtr lParam)
+        {
+            if (lParam == IntPtr.Zero || Marshal.ReadInt32(lParam, 4) != DBT_DEVTYP_HANDLE) return IntPtr.Zero;
+            return Marshal.ReadIntPtr(lParam, IntPtr.Size == 8 ? 16 : 12);
+        }
         [DllImport("kernel32.dll", CharSet = CharSet.Unicode)] public static extern uint GetDriveType(string root);
         [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)] public static extern bool DeleteFile(string name);
         [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)] public static extern uint GetFileAttributes(string name);

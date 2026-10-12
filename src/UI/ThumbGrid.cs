@@ -289,6 +289,8 @@ namespace OrclFileExplorer
         protected override void OnMouseWheel(MouseEventArgs e)
         {
             base.OnMouseWheel(e);
+            HandledMouseEventArgs h = e as HandledMouseEventArgs;
+            if (h != null) h.Handled = true; // (used here: not passed on to the window around it)
             if ((ModifierKeys & Keys.Control) != 0)
             {
                 int k = Array.IndexOf(Sizes, thumbSize);
