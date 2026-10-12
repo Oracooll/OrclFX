@@ -52,6 +52,69 @@ namespace OrclFileExplorer.Tests
             }
         }
 
+        // Every camera orientation (1-8) comes out as GDI+'s RotateFlip makes it (the pictures are decoded with WIC).
+        [Test]
+        static void EveryOrientationMatchesRotateFlip()
+        {
+            RotateFlipType[] turns = { RotateFlipType.RotateNoneFlipNone, RotateFlipType.RotateNoneFlipX, RotateFlipType.Rotate180FlipNone,
+                RotateFlipType.Rotate180FlipX, RotateFlipType.Rotate90FlipX, RotateFlipType.Rotate90FlipNone, RotateFlipType.Rotate270FlipX, RotateFlipType.Rotate270FlipNone };
+            using (TempDir d = new TempDir())
+                for (int o = 1; o <= 8; o++)
+                {
+                    string path = Path.Combine(d.Path, "o" + o + ".jpg");
+                    using (Bitmap b = Quadrants())
+                    {
+                        PropertyItem p = (PropertyItem)System.Runtime.Serialization.FormatterServices.GetUninitializedObject(typeof(PropertyItem));
+                        p.Id = 0x0112; p.Type = 3; p.Len = 2; p.Value = BitConverter.GetBytes((ushort)o);
+                        b.SetPropertyItem(p);
+                        b.Save(path, ImageFormat.Jpeg);
+                    }
+                    using (Bitmap want = Quadrants())
+                    using (Bitmap got = Pictures.Load(path, new Size(1000, 1000)))
+                    {
+                        want.RotateFlip(turns[o - 1]);
+                        Assert.Equal(want.Width + "x" + want.Height, got.Width + "x" + got.Height, "size, orientation " + o);
+                        foreach (Point at in new[] { new Point(10, 10), new Point(want.Width - 10, 10), new Point(10, want.Height - 10), new Point(want.Width - 10, want.Height - 10) })
+                        {
+                            Color w = want.GetPixel(at.X, at.Y), g = got.GetPixel(at.X, at.Y);
+                            // (JPEG shifts colours a little.)
+                            Assert.True(Math.Abs(w.R - g.R) < 40 && Math.Abs(w.G - g.G) < 40 && Math.Abs(w.B - g.B) < 40, "orientation " + o + " at " + at + ": expected " + w + ", got " + g);
+                        }
+                    }
+                }
+        }
+
+        // Four colours in the four corners, so every turn and flip looks different.
+        static Bitmap Quadrants()
+        {
+            Bitmap b = new Bitmap(120, 80);
+            using (Graphics g = Graphics.FromImage(b))
+            {
+                g.FillRectangle(Brushes.Red, 0, 0, 60, 40);
+                g.FillRectangle(Brushes.Lime, 60, 0, 60, 40);
+                g.FillRectangle(Brushes.Blue, 0, 40, 60, 40);
+                g.FillRectangle(Brushes.Yellow, 60, 40, 60, 40);
+            }
+            return b;
+        }
+
+        [Test]
+        static void HalfSizeForTheViewer()
+        {
+            using (TempDir d = new TempDir())
+            {
+                Pictures.PictureData p = Pictures.LoadEx(Save(d, "big.jpg", 800, 400, ImageFormat.Jpeg, 6), new Size(1000, 1000), false, new Size(500, 500));
+                try
+                {
+                    Assert.Equal("400x800", p.Bitmap.Width + "x" + p.Bitmap.Height, "full, upright");
+                    Assert.True(p.Half != null, "half made");
+                    Assert.Equal("250x500", p.Half.Width + "x" + p.Half.Height, "half, upright");
+                    Assert.Equal(PixelFormat.Format32bppPArgb, p.Bitmap.PixelFormat, "fast format");
+                }
+                finally { p.Bitmap.Dispose(); if (p.Half != null) p.Half.Dispose(); }
+            }
+        }
+
         [Test]
         static void NotAPictureIsLeftToTheShell()
         {

@@ -31,9 +31,12 @@ a single `orclfx.exe`, no installer package and no admin rights needed.
 - **New folder** and **New text file** buttons next to Up create the item and let you type its name; the
   **Refresh** button next to them reads the folder again (Ctrl+R, F5).
 - **Space Viewer**: press Space on a file for a large view with thumbnails on its left of the folder's pictures (each pane
-  can be turned off in its title bar; Ctrl+wheel resizes the thumbnails up to 512 px). Wheel to zoom, drag to
-  move, 1 for 100 %, F for full screen, I for the picture's details, [ and ] to turn it without losing quality,
-  Del to move it to the Recycle Bin; the arrows step through the folder, Space or Esc closes it.
+  can be turned off in its title bar; Ctrl+wheel resizes the thumbnails up to 512 px). Wheel or Up / Down to
+  zoom (it glides, drawn by the graphics card), drag to move, 1 for 100 %, F, middle click or double-click for
+  full screen, I for the picture's details, [ and ] to turn it without losing quality, Del to move it to the
+  Recycle Bin; Left / Right step through the folder, Space or Esc closes it. Touch: pinch to zoom, swipe to step,
+  a finger moves a zoomed-in picture. The OrclFX icon at its top left opens its settings (mouse, wheel, full
+  screen, background …).
 - The status bar shows how big the selection is, folders included (counted in the background).
 - Double-click empty space in a file list to go up one level.
 - A tab on an unplugged drive or an offline share keeps its folder: it shows This PC until the folder is back,
@@ -177,7 +180,7 @@ deleted. When OneDrive keeps two versions of the list (two computers changed it 
   Windows applies some light/dark choices only when an app starts.
 - Only one window runs at a time; launching the app again brings the open window to the front.
 - See [CHANGELOG.md](CHANGELOG.md) for the version history, and [IDEAS.md](IDEAS.md) for suggestions kept for later. Versions are `major.minor.build` with a
-  three-digit build (1.1.047).
+  three-digit build (1.1.048).
 
 ## License
 

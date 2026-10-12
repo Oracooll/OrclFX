@@ -7,6 +7,7 @@ $ErrorActionPreference = 'Stop'
 $root = $PSScriptRoot
 $csc = Join-Path $env:WINDIR 'Microsoft.NET\Framework64\v4.0.30319\csc.exe'
 if (-not (Test-Path $csc)) { $csc = Join-Path $env:WINDIR 'Microsoft.NET\Framework\v4.0.30319\csc.exe' }
+$wpf = Join-Path (Split-Path $csc) 'WPF' # WicDecode.cs decodes pictures with WPF's imaging classes
 
 $outDir = Join-Path $root 'dist\tests'
 $app = Join-Path $outDir 'orclfx.exe'
@@ -14,7 +15,7 @@ $tests = Join-Path $outDir 'orclfx.tests.exe'
 
 & (Join-Path $root 'build.ps1') -Out $app
 $sources = Get-ChildItem (Join-Path $root 'tests') -Recurse -Filter *.cs | ForEach-Object { $_.FullName }
-& $csc /nologo /target:exe /platform:anycpu "/out:$tests" "/r:$app" /r:System.Windows.Forms.dll /r:System.Drawing.dll /r:System.Web.Extensions.dll $sources
+& $csc /nologo /target:exe /platform:anycpu "/out:$tests" "/r:$app" /r:System.Windows.Forms.dll /r:System.Drawing.dll /r:System.Web.Extensions.dll "/r:$wpf\PresentationCore.dll" "/r:$wpf\WindowsBase.dll" /r:System.Xaml.dll $sources
 if ($LASTEXITCODE -ne 0) { throw "Test build failed" }
 
 Write-Host ""

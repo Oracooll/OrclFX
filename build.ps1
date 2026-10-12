@@ -4,6 +4,7 @@ $ErrorActionPreference = 'Stop'
 $root = $PSScriptRoot
 $csc = Join-Path $env:WINDIR 'Microsoft.NET\Framework64\v4.0.30319\csc.exe'
 if (-not (Test-Path $csc)) { $csc = Join-Path $env:WINDIR 'Microsoft.NET\Framework\v4.0.30319\csc.exe' }
+$wpf = Join-Path (Split-Path $csc) 'WPF' # WicDecode.cs decodes pictures with WPF's imaging classes
 
 # Regenerate the icon whenever Icon.png is newer than src\app.ico.
 $png = Join-Path $root 'Icon.png'
@@ -18,7 +19,7 @@ New-Item -ItemType Directory -Force (Split-Path $Out) | Out-Null
 $sources = Get-ChildItem (Join-Path $root 'src') -Recurse -Filter *.cs | ForEach-Object { $_.FullName }
 & $csc /nologo /target:winexe /platform:anycpu /optimize+ `
     "/out:$Out" "/win32manifest:$root\src\app.manifest" "/win32icon:$ico" "/resource:$ico,app.ico" `
-    /r:System.Windows.Forms.dll /r:System.Drawing.dll /r:System.Web.Extensions.dll $sources
+    /r:System.Windows.Forms.dll /r:System.Drawing.dll /r:System.Web.Extensions.dll "/r:$wpf\PresentationCore.dll" "/r:$wpf\WindowsBase.dll" /r:System.Xaml.dll $sources
 if ($LASTEXITCODE -ne 0) { throw "Build failed" }
 Write-Host "Built $Out"
 

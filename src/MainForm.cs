@@ -365,6 +365,7 @@ namespace OrclFileExplorer
                 Timer st = new Timer();
                 st.Interval = 3000;
                 int stage = 0;
+                Queue<string> svSteps = null; // "wait" in DUALPANE_TEST_SV: the rest a moment later
                 bool ql = testSelect.StartsWith("ql:");
                 string[] items = (ql ? testSelect.Substring(3) : testSelect).Split('|');
                 st.Tick += delegate
@@ -378,7 +379,11 @@ namespace OrclFileExplorer
                     }
                     else if (ql && stage == 1)
                     {
-                        if (quickLook != null) foreach (string step in (Environment.GetEnvironmentVariable("DUALPANE_TEST_SV") ?? "next").Split(','))
+                        if (svSteps == null) svSteps = new Queue<string>((Environment.GetEnvironmentVariable("DUALPANE_TEST_SV") ?? "next").Split(','));
+                        while (quickLook != null && svSteps.Count > 0)
+                        {
+                            string step = svSteps.Dequeue();
+                            if (step == "wait") { st.Interval = 900; break; }
                             switch (step)
                             {
                                 case "next": quickLook.Step(1); break;
@@ -390,8 +395,19 @@ namespace OrclFileExplorer
                                 case "viewer": quickLook.TogglePane(false); break;
                                 case "full": quickLook.ToggleFullScreen(); break;
                                 case "zoom": quickLook.HandleKey(Keys.D1, IntPtr.Zero, false); break;
+                                case "up": quickLook.HandleKey(Keys.Up, IntPtr.Zero, false); break;
+                                case "down": quickLook.HandleKey(Keys.Down, IntPtr.Zero, false); break;
+                                case "esc": quickLook.HandleKey(Keys.Escape, IntPtr.Zero, false); break;
+                                case "middle": quickLook.TestMiddleClick(); break;
+                                case "double": quickLook.TestDoubleClick(); break;
+                                case "glide": quickLook.TestGlide(); break;
+                                case "settings": quickLook.OpenSettings(); break;
+                                case "sim": quickLook.TestSimulate(); break;
+                                case "state": Program.Trace("quick look state: " + quickLook.TestState); break;
                             }
+                        }
                         Program.Trace("quick look shows " + (quickLook == null ? "nothing" : quickLook.ShownPath));
+                        if (quickLook != null && svSteps.Count > 0) return; // more after the wait
                     }
                     else
                     {
@@ -1453,7 +1469,9 @@ namespace OrclFileExplorer
             if (msg == 0x100 || msg == 0x104 || msg == 0x201 || msg == 0x204 || msg == 0x207 || msg == 0xA1 || msg == 0xA4) LastInputTick = Environment.TickCount;
             // While Quick Look is open, its keys (arrows, Space, Esc) are its own wherever the focus is: in the file
             // list behind it they would move the selection there instead.
-            if ((msg == 0x100 || msg == 0x104) && quickLook != null && !quickLook.IsDisposed && quickLook.Visible && Form.ActiveForm == quickLook &&
+            // (Also a key sent to the viewer's own window while it isn't the active one.)
+            if ((msg == 0x100 || msg == 0x104) && quickLook != null && !quickLook.IsDisposed && quickLook.Visible &&
+                (Form.ActiveForm == quickLook || Native.Contains(quickLook.Handle, m.HWnd)) &&
                 quickLook.HandleKey((Keys)(int)m.WParam & Keys.KeyCode, m.HWnd, ((long)m.LParam & 0x40000000) != 0)) return true;
             if (msg == 0x201 || msg == 0x204 || msg == 0x207)
             {
@@ -1740,6 +1758,9 @@ namespace OrclFileExplorer
                                 break;
                             case "theme": if (int.TryParse(v, out n) && n >= 0 && n <= 2) Theme.Mode = n; break;
                             case "svthumbs": QuickLook.ShowThumbs = v != "0"; break;
+                            case "svfsclicks": case "svenlarge": case "svexitmiddle": case "svconfirmexit": case "svhidecursor": case "svwheel":
+                            case "svdrag": case "svsmooth": case "svzoomstep": case "svgpu": case "svbackground": case "svwrap":
+                                ViewerSettings.Read(k, v); break;
                             case "svviewer": QuickLook.ShowViewer = v != "0"; break;
                             case "svinfo": QuickLook.ShowInfo = v == "1"; break;
                             case "svthumbsize": if (int.TryParse(v, out n) && n >= 64 && n <= 512) QuickLook.ThumbSize = n; break;
@@ -1848,6 +1869,7 @@ namespace OrclFileExplorer
                 sb.AppendLine("svinfo=" + (QuickLook.ShowInfo ? "1" : "0"));
                 sb.AppendLine("svthumbsize=" + QuickLook.ThumbSize);
                 sb.AppendLine("svthumbwidth=" + QuickLook.ThumbWidth);
+                ViewerSettings.Write(sb);
                 sb.AppendLine("defaultview=" + (defaultView < 0 ? "-1" : ButtonViewModes[defaultView, 0] + "/" + ButtonViewModes[defaultView, 1]));
                 sb.AppendLine("activepane=" + Array.IndexOf(Panes, ActivePane));
                 for (int i = 0; i < Panes.Length; i++)

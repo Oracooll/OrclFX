@@ -41,9 +41,11 @@ namespace OrclFileExplorer
             public Bitmap Bitmap;
             public Size Original;
             public string[] Info;
+            public Bitmap Half;   // the Space Viewer's full-size pictures: also at half size (for the zooms in between)
         }
 
-        public static PictureData LoadEx(string path, Size box, bool withInfo)
+        // halfBox (when not empty): the picture also scaled to fit it, as data.Half.
+        public static PictureData LoadEx(string path, Size box, bool withInfo, Size halfBox = default(Size))
         {
             FileInfo fi = new FileInfo(path);
             if (!fi.Exists || fi.Length == 0 || fi.Length > MaxFileBytes) return null;
@@ -69,7 +71,20 @@ namespace OrclFileExplorer
                 PictureData data = new PictureData();
                 data.Original = new Size(w, h);
                 if (withInfo) data.Info = Details(img, fi, w, h);
-                Bitmap result = new Bitmap(fit.Width, fit.Height, PixelFormat.Format32bppArgb);
+                // WIC first (it doesn't hold up the app's drawing while it works: WicDecode); GDI+ when it can't.
+                Size pre = sideways ? new Size(fit.Height, fit.Width) : fit;
+                data.Bitmap = WicDecode.Decode(bytes, pre, turn);
+                if (data.Bitmap != null)
+                {
+                    if (halfBox.Width > 0 && halfBox.Height > 0)
+                    {
+                        Size hf = Fit(new Size(w, h), halfBox);
+                        data.Half = WicDecode.Decode(bytes, sideways ? new Size(hf.Height, hf.Width) : hf, turn);
+                    }
+                    return data;
+                }
+                // Premultiplied: the format GDI+ draws fastest, and the one the graphics card takes as it is.
+                Bitmap result = new Bitmap(fit.Width, fit.Height, PixelFormat.Format32bppPArgb);
                 try
                 {
                     using (Graphics g = Graphics.FromImage(result))
@@ -86,7 +101,6 @@ namespace OrclFileExplorer
                         else
                         {
                             // Turn a scaled copy (cheaper than turning the full picture).
-                            Size pre = sideways ? new Size(fit.Height, fit.Width) : fit;
                             using (Bitmap scaled = new Bitmap(pre.Width, pre.Height, PixelFormat.Format32bppArgb))
                             {
                                 using (Graphics sg = Graphics.FromImage(scaled))

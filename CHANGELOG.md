@@ -3,6 +3,31 @@
 Versions are `major.minor.build` with a three-digit build number. Every release bumps the build;
 the minor number changes only for larger milestones.
 
+## 1.1.048
+- Space Viewer: smooth zoom, as in Windows' Photos app. The picture glides to its new size (a notch turned while
+  it glides changes where it goes), drawn by the graphics card (Direct2D) at the screen's own pace (120 frames a
+  second on a 120 Hz screen). Where the graphics card can't (remote sessions, some drivers), the processor draws,
+  quickly while moving and sharp when still. The picture is kept at a few sizes, so each frame scales the
+  nearest one.
+- Pictures are decoded with WIC (Windows Imaging Component) instead of GDI+: a 24-megapixel photo at full size
+  now takes about 70 ms instead of 1.7 s, and the window no longer freezes while a picture is read in the
+  background (GDI+ held up all of the app's drawing meanwhile).
+- Space Viewer settings, from the OrclFX icon at its top left:
+  - Full screen: middle click or double-click switches it on and off; it shows the picture alone, fitted to the
+    screen's width or height (small pictures enlarged, or not); leave with Esc (always) and middle click (can be
+    turned off); ask before leaving (off by default); the mouse pointer hides while it's still.
+  - Mouse wheel: zoom at the pointer (default), zoom at the centre, or previous / next picture (Ctrl+wheel then
+    zooms). Moving a zoomed-in picture with the left, middle and/or right button.
+  - Smooth zoom on or off, zoom step (10, 25 or 50 %), graphics card on or off (the screen shows which one draws),
+    background (theme, black, greys, white), and stepping round from the last file to the first.
+- Up / Down zoom in and out at the centre of the picture (Left / Right step through the folder, as before).
+- Touch (Surface and other touch screens): pinch to zoom, swipe left for the next picture and right for the
+  previous one, a finger moves a zoomed-in picture (and it glides on when flicked), two fingers tapped fit it to
+  the window, double-tap as double-click. In the thumbnail pane a finger scrolls and a pinch resizes the
+  thumbnails.
+- The two pane buttons in the viewer's title bar swapped places: the thumbnail pane's is first, as the pane is.
+- A drag now moves the picture from the first pixel (it used to lag behind the mouse at the start).
+
 ## 1.1.047
 - The Shortcuts pane can sit at the bottom (as before), left, right or top of the window, like the Windows
   taskbar: drag its title strip towards an edge and let go (a see-through outline shows where it will go; it

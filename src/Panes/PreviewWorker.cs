@@ -84,6 +84,12 @@ namespace OrclFileExplorer
 
         void Run()
         {
+            try { RunLoop(); }
+            finally { WicDecode.EndThread(); } // (pictures are decoded on this thread)
+        }
+
+        void RunLoop()
+        {
             while (true)
             {
                 wake.WaitOne();

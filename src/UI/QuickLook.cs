@@ -1,8 +1,9 @@
-// OrclFX: the Space Viewer (Space in a file list): a large view of the selected file, with a pane on its
+﻿// OrclFX: the Space Viewer (Space in a file list): a large view of the selected file, with a pane on its
 // left holding thumbnails of every picture in the folder. Either pane can be turned off from the title bar (viewer only, or
-// thumbnails only). Pictures can be zoomed (wheel, 1 = 100 %), moved, shown full screen (F), turned without losing
-// quality ([ and ]), deleted to the Recycle Bin (Del) and described (I). Arrows step through the folder; Space or
-// Esc closes. While it's open it gets those keys wherever the keyboard focus is in the app (MainForm.FilterMessage).
+// thumbnails only). Pictures can be zoomed (wheel, Up / Down, 1 = 100 %), moved, shown full screen (F, or middle
+// click / double-click), turned without losing quality ([ and ]), deleted to the Recycle Bin (Del) and described (I).
+// Left / Right step through the folder; Space or Esc closes. The OrclFX icon at the top left opens its settings
+// (ViewerSettings). While it's open it gets those keys wherever the keyboard focus is in the app (MainForm.FilterMessage).
 using System;
 using System.Collections.Generic;
 using System.Drawing;
@@ -14,7 +15,7 @@ using System.Windows.Forms;
 
 namespace OrclFileExplorer
 {
-    class QuickLook : Form
+    partial class QuickLook : Form
     {
         // Remembered between uses (and in the settings file).
         public static bool ShowThumbs = true, ShowViewer = true, ShowInfo;
@@ -35,6 +36,15 @@ namespace OrclFileExplorer
         bool fullScreen;
         FormWindowState stateBefore;
         Rectangle boundsBefore;
+        // Full screen shows the picture alone: the panes as set are kept for afterwards.
+        bool ThumbsOn { get { return ShowThumbs && !fullScreen; } }
+        bool ViewerOn { get { return ShowViewer || fullScreen; } }
+        bool EnlargeNow { get { return ViewerSettings.Enlarge == 2 || ViewerSettings.Enlarge == 1 && fullScreen; } }
+        // Full screen: the mouse pointer hides when it's still.
+        readonly System.Windows.Forms.Timer pointerWatch = new System.Windows.Forms.Timer();
+        Point pointerAt;
+        int pointerStill;
+        bool pointerHidden;
 
         public QuickLook(MainForm main, BrowserTab tab, string path)
         {
@@ -54,9 +64,21 @@ namespace OrclFileExplorer
 
             bar = new ViewerBar(this);
             image.Dock = preview.Dock = DockStyle.Fill;
-            image.BackColor = Theme.Dark ? Color.FromArgb(12, 12, 12) : Color.FromArgb(235, 235, 235);
+            image.BackColor = ViewerSettings.BackColor;
             image.Font = Font;
             image.ShowInfo = ShowInfo;
+            image.Enlarge = EnlargeNow;
+            image.WheelStepped += delegate(int d) { Step(d); };
+            image.Swiped += delegate(int d) { Program.Trace("quick look: swipe " + (d > 0 ? "left (next)" : "right (previous)")); Step(d); };
+            image.Clicked += delegate(MouseButtons b) { if (b == MouseButtons.Middle) MiddleClick(); };
+            image.DoubleClicked += delegate
+            {
+                Program.Trace("quick look: double-click");
+                if (ViewerSettings.FullScreenClicks) ToggleFullScreen();
+                else image.ToggleActualSize(image.PointToClient(Cursor.Position));
+            };
+            pointerWatch.Interval = 250;
+            pointerWatch.Tick += delegate { WatchPointer(); };
             // (Only for the picture really on screen: the next one may still be loading.)
             image.WantsFullSize += delegate { if (string.Equals(onScreen, this.path, StringComparison.OrdinalIgnoreCase)) loader.LoadFull(this.path, image.Original); };
             image.ZoomChanged += delegate { UpdateTitle(); };
@@ -128,10 +150,10 @@ namespace OrclFileExplorer
         {
             if (!ShowThumbs && !ShowViewer) ShowViewer = true;
             body.SuspendLayout();
-            thumbs.Visible = ShowThumbs;
-            viewerHost.Visible = ShowViewer;
-            splitter.Visible = ShowThumbs && ShowViewer;
-            thumbs.Dock = ShowViewer ? DockStyle.Left : DockStyle.Fill;
+            thumbs.Visible = ThumbsOn;
+            viewerHost.Visible = ViewerOn;
+            splitter.Visible = ThumbsOn && ViewerOn;
+            thumbs.Dock = ViewerOn ? DockStyle.Left : DockStyle.Fill;
             FitThumbs();
             splitter.Dock = DockStyle.Left;
             viewerHost.Dock = DockStyle.Fill;
@@ -145,13 +167,14 @@ namespace OrclFileExplorer
         // bigger screen).
         void FitThumbs()
         {
-            if (!ShowViewer || !ShowThumbs) return;
+            if (!ViewerOn || !ThumbsOn) return;
             int w = Math.Max(Native.Px(120), Math.Min(Native.Px(ThumbWidth), body.Width - Native.Px(200)));
             if (thumbs.Width != w) thumbs.Width = w;
         }
 
         public void TogglePane(bool thumbsPane)
         {
+            if (fullScreen) return; // the picture alone until full screen is left
             if (thumbsPane) ShowThumbs = !ShowThumbs; else ShowViewer = !ShowViewer;
             // At least one pane stays: turning off the last one shows the other.
             if (!ShowThumbs && !ShowViewer) { if (thumbsPane) ShowViewer = true; else ShowThumbs = true; }
@@ -178,7 +201,7 @@ namespace OrclFileExplorer
             thumbs.Select(p);
             UpdateTitle();
             Program.Trace("quick look shows " + p);
-            if (!ShowViewer) return;
+            if (!ViewerOn) return;
             if (Pictures.IsPictureKind(p))
             {
                 preview.Unload();
@@ -213,7 +236,7 @@ namespace OrclFileExplorer
         // d's bitmap is this window's own copy: used or disposed here.
         internal void Loaded(string p, Pictures.PictureData d, bool full)
         {
-            if (IsDisposed || p != path || !ShowViewer || !image.Visible) { if (d != null) d.Bitmap.Dispose(); return; }
+            if (IsDisposed || p != path || !ViewerOn || !image.Visible) { PictureLoader.Dispose(d); return; }
             if (d == null)
             {
                 if (full) return;
@@ -224,7 +247,12 @@ namespace OrclFileExplorer
                 onScreen = p;
                 return;
             }
-            if (full) image.SetFullSize(d.Bitmap);
+            if (full)
+            {
+                // Only onto the same picture's screen-sized copy (not one still on screen from before).
+                if (!string.Equals(onScreen, p, StringComparison.OrdinalIgnoreCase) || d.Original != image.Original && d.Original != Size.Empty) { PictureLoader.Dispose(d); return; }
+                image.SetFullSize(d.Bitmap, d.Half);
+            }
             else { image.SetImage(d.Bitmap, d.Original, d.Info); onScreen = p; }
             Program.Trace("quick look picture " + Path.GetFileName(p) + (full ? " (full size) " : " ") + d.Bitmap.Width + "x" + d.Bitmap.Height);
         }
@@ -234,7 +262,7 @@ namespace OrclFileExplorer
             int i = files == null ? -1 : files.FindIndex(Same(path));
             string t = Path.GetFileName(path.TrimEnd('\\'));
             if (i >= 0) t += "   " + (i + 1) + " / " + files.Count;
-            if (ShowViewer && image.Visible && image.HasImage) t += "   " + Math.Round(image.Zoom * 100) + " %";
+            if (ViewerOn && image.Visible && image.HasImage) t += "   " + Math.Round(image.Zoom * 100) + " %";
             Text = t;
             bar.Invalidate();
         }
@@ -260,7 +288,7 @@ namespace OrclFileExplorer
         // page: Page Up / Page Down, which stop at the first or last item instead of beeping.
         void Step(int d, bool page)
         {
-            if (!ShowViewer)
+            if (!ViewerOn)
             {
                 // Thumbnails only: the arrows move around the grid.
                 Go(thumbs.Neighbour(Pictures.IsImageFile(path) ? path : null, d, page));
@@ -268,6 +296,8 @@ namespace OrclFileExplorer
             }
             int i = files == null ? -1 : files.FindIndex(Same(path));
             int n = i + d;
+            // After the last file the first, and before the first the last (when the settings say so).
+            if (ViewerSettings.Wrap && !page && files != null && files.Count > 0 && i >= 0) n = ((n % files.Count) + files.Count) % files.Count;
             Go(files != null && n >= 0 && n < files.Count ? files[n] : null);
         }
 
@@ -277,7 +307,7 @@ namespace OrclFileExplorer
         string ActOn()
         {
             // With the viewer: the picture really on screen. Thumbnails only: the thumbnail that is selected.
-            bool shown = ShowViewer ? onScreen != null && string.Equals(onScreen, path, StringComparison.OrdinalIgnoreCase)
+            bool shown = ViewerOn ? onScreen != null && string.Equals(onScreen, path, StringComparison.OrdinalIgnoreCase)
                                     : string.Equals(thumbs.Selected, path, StringComparison.OrdinalIgnoreCase);
             if (!shown) { System.Media.SystemSounds.Beep.Play(); return null; }
             if (Directory.Exists(path) || !File.Exists(path)) { System.Media.SystemSounds.Beep.Play(); return null; }
@@ -307,7 +337,7 @@ namespace OrclFileExplorer
             thumbs.Remove(gone);
             if (i >= 0) files.RemoveAt(i);
             if (files == null || files.Count == 0) { Close(); return; }
-            if (!ShowViewer)
+            if (!ViewerOn)
             {
                 // Thumbnails only: the next picture (or the one before, at the end).
                 string next = null;
@@ -336,6 +366,11 @@ namespace OrclFileExplorer
 
         public void ToggleFullScreen()
         {
+            if (fullScreen && ViewerSettings.ConfirmExit)
+            {
+                ShowPointer();
+                if (MessageBox.Show(this, "Leave full screen?", "Space Viewer", MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes) { TakeFocus(); return; }
+            }
             fullScreen = !fullScreen;
             if (fullScreen)
             {
@@ -353,9 +388,65 @@ namespace OrclFileExplorer
                 WindowState = stateBefore;
                 bar.Visible = true;
             }
+            // The picture alone, fitted to the screen's width or height; afterwards the panes as they were.
+            ApplyPanes();
+            image.Enlarge = EnlargeNow;
+            if (fullScreen) { image.FitToWindow(); if (!ShowViewer) ShowFile(path); }
+            else if (!ShowViewer) { preview.Unload(); image.Clear(null); }
+            image.Invalidate();
             bar.FullButton.Checked = fullScreen;
+            pointerStill = 0;
+            pointerAt = Cursor.Position;
+            if (fullScreen) pointerWatch.Start(); else { pointerWatch.Stop(); ShowPointer(); }
+            UpdateTitle();
             TakeFocus();
         }
+
+        public bool FullScreen { get { return fullScreen; } }
+
+        // Middle click on the picture: into full screen (when the settings say so), and out of it.
+        void MiddleClick()
+        {
+            Program.Trace("quick look: middle click");
+            if (fullScreen ? ViewerSettings.ExitMiddle : ViewerSettings.FullScreenClicks) ToggleFullScreen();
+        }
+
+        void WatchPointer()
+        {
+            if (!fullScreen || !ViewerSettings.HideCursor || Form.ActiveForm != this) { ShowPointer(); return; }
+            Point p = Cursor.Position;
+            if (p != pointerAt) { pointerAt = p; pointerStill = 0; ShowPointer(); return; }
+            pointerStill += pointerWatch.Interval;
+            if (pointerStill >= 2000 && !pointerHidden && image.Visible && image.ClientRectangle.Contains(image.PointToClient(p))) { Cursor.Hide(); pointerHidden = true; }
+        }
+
+        void ShowPointer()
+        {
+            if (!pointerHidden) return;
+            Cursor.Show();
+            pointerHidden = false;
+        }
+
+        // ---- settings
+
+        public void OpenSettings()
+        {
+            ShowPointer();
+            if (!ViewerSettings.ShowDialog(this, image.DrawingStatus)) { TakeFocus(); return; }
+            image.BackColor = ViewerSettings.BackColor;
+            image.Enlarge = EnlargeNow;
+            image.SettingsChanged();
+            UpdateTitle();
+            main.StateChanged();
+            Program.Trace("quick look settings changed");
+            TakeFocus();
+        }
+
+        // Test hooks.
+        internal void TestMiddleClick() { MiddleClick(); }
+        internal void TestDoubleClick() { if (ViewerSettings.FullScreenClicks) ToggleFullScreen(); else image.ToggleActualSize(image.Centre); }
+        internal void TestGlide() { image.TestGlide(delegate(string s) { Program.Trace("glide: " + s); }); }
+        internal string TestState { get { return "full screen " + fullScreen + ", thumbnails " + thumbs.Visible + ", viewer " + viewerHost.Visible + ", zoom " + Math.Round(image.Zoom * 100) + " %" + (image.IsFit ? " (fit)" : ""); } }
 
         // ---- keys
 
@@ -369,6 +460,7 @@ namespace OrclFileExplorer
         // the viewer used it. Typing in the text preview's Search box is left alone.
         public bool HandleKey(Keys key, IntPtr target, bool repeat)
         {
+            Program.Trace("quick look key " + key + (repeat ? " (held)" : ""));
             if ((Control.ModifierKeys & (Keys.Control | Keys.Alt)) != 0) return false;
             // Anything editable gets its keys (only the read-only text preview is the viewer's).
             TextBox box = Control.FromHandle(target) as TextBox;
@@ -376,22 +468,24 @@ namespace OrclFileExplorer
             // A held key repeats: never for the ones that change files.
             if (repeat && (key == Keys.Delete || key == Keys.OemOpenBrackets || key == Keys.OemCloseBrackets)) return true;
             bool shift = (Control.ModifierKeys & Keys.Shift) != 0;
-            Point centre = new Point(image.Width / 2, image.Height / 2);
-            bool picture = ShowViewer && image.Visible && image.HasImage;
+            Point centre = image.Centre;
+            bool picture = ViewerOn && image.Visible && image.HasImage;
+            float step = ViewerSettings.ZoomFactor;
             switch (key)
             {
                 case Keys.Escape: if (fullScreen) ToggleFullScreen(); else Close(); return true;
                 case Keys.Space: if (shift) return false; Close(); return true;
                 case Keys.Right: Step(1); return true;
                 case Keys.Left: Step(-1); return true;
-                case Keys.Down: Step(ShowViewer ? 1 : thumbs.Columns); return true;
-                case Keys.Up: Step(ShowViewer ? -1 : -thumbs.Columns); return true;
-                case Keys.PageDown: if (ShowViewer) Step(1); else Step(thumbs.Columns * thumbs.VisibleRows, true); return true;
-                case Keys.PageUp: if (ShowViewer) Step(-1); else Step(-thumbs.Columns * thumbs.VisibleRows, true); return true;
+                // Up / Down zoom at the centre of the picture (with thumbnails only, they move around the grid).
+                case Keys.Down: if (!ViewerOn) Step(thumbs.Columns); else if (picture) image.ZoomBy(1 / step, centre); return true;
+                case Keys.Up: if (!ViewerOn) Step(-thumbs.Columns); else if (picture) image.ZoomBy(step, centre); return true;
+                case Keys.PageDown: if (ViewerOn) Step(1); else Step(thumbs.Columns * thumbs.VisibleRows, true); return true;
+                case Keys.PageUp: if (ViewerOn) Step(-1); else Step(-thumbs.Columns * thumbs.VisibleRows, true); return true;
                 case Keys.Home:
                 case Keys.End:
                     {
-                        IList<string> list = ShowViewer ? (IList<string>)files : thumbs.Items;
+                        IList<string> list = ViewerOn ? (IList<string>)files : thumbs.Items;
                         if (list != null && list.Count > 0) Go(list[key == Keys.Home ? 0 : list.Count - 1]);
                         return true;
                     }
@@ -404,8 +498,8 @@ namespace OrclFileExplorer
                 case Keys.OemCloseBrackets: Turn(true); return true;
                 case Keys.D1: case Keys.NumPad1: if (picture) image.ToggleActualSize(centre); return true;
                 case Keys.D0: case Keys.NumPad0: if (picture) image.FitToWindow(); return true;
-                case Keys.Oemplus: case Keys.Add: if (picture) image.ZoomBy(1.25f, centre); return true;
-                case Keys.OemMinus: case Keys.Subtract: if (picture) image.ZoomBy(0.8f, centre); return true;
+                case Keys.Oemplus: case Keys.Add: if (picture) image.ZoomBy(step, centre); return true;
+                case Keys.OemMinus: case Keys.Subtract: if (picture) image.ZoomBy(1 / step, centre); return true;
             }
             return false;
         }
@@ -452,6 +546,9 @@ namespace OrclFileExplorer
         protected override void OnFormClosed(FormClosedEventArgs e)
         {
             base.OnFormClosed(e);
+            pointerWatch.Stop();
+            pointerWatch.Dispose();
+            ShowPointer();
             refocus.Stop();
             loader.Quit();
             preview.Shutdown();
@@ -468,6 +565,37 @@ namespace OrclFileExplorer
         {
             readonly QuickLook form;
             public readonly GlyphButton ThumbsButton, ViewerButton, InfoButton, FullButton;
+            readonly ToolTip tip = new ToolTip();
+            bool iconHot;
+
+            // The OrclFX icon at the left: a button that opens the settings.
+            Rectangle IconSpot { get { return new Rectangle(Native.Px(4), Native.Px(6), Native.Px(32), Height - Native.Px(10)); } }
+
+            protected override void OnMouseMove(MouseEventArgs e)
+            {
+                base.OnMouseMove(e);
+                bool hot = IconSpot.Contains(e.Location);
+                if (hot != iconHot) { iconHot = hot; Invalidate(); }
+                Cursor = hot ? Cursors.Hand : Cursors.Default;
+            }
+
+            protected override void OnMouseLeave(EventArgs e)
+            {
+                base.OnMouseLeave(e);
+                if (iconHot) { iconHot = false; Invalidate(); }
+            }
+
+            protected override void OnMouseClick(MouseEventArgs e)
+            {
+                base.OnMouseClick(e);
+                if (e.Button == MouseButtons.Left && IconSpot.Contains(e.Location)) { iconHot = false; Invalidate(); form.OpenSettings(); }
+            }
+
+            protected override void Dispose(bool disposing)
+            {
+                if (disposing) tip.Dispose();
+                base.Dispose(disposing);
+            }
 
             public ViewerBar(QuickLook f)
             {
@@ -500,12 +628,14 @@ namespace OrclFileExplorer
                 InfoButton = Button("", "Picture details (I)", 36);
                 InfoButton.Click += delegate { form.ToggleInfo(); };
                 Gap();
-                ThumbsButton = Button("", "Thumbnail pane (T). Ctrl+mouse wheel over it makes the thumbnails bigger or smaller", 36);
-                ThumbsButton.Painter = delegate(Graphics g, Rectangle r, Color c) { DrawPane(g, r, c, true); };
-                ThumbsButton.Click += delegate { form.TogglePane(true); };
+                // (Made from the right: the thumbnail pane's button ends up at the left, as the pane does.)
                 ViewerButton = Button("", "Viewer pane (V)", 36);
                 ViewerButton.Painter = delegate(Graphics g, Rectangle r, Color c) { DrawPane(g, r, c, false); };
                 ViewerButton.Click += delegate { form.TogglePane(false); };
+                ThumbsButton = Button("", "Thumbnail pane (T). Ctrl+mouse wheel over it makes the thumbnails bigger or smaller", 36);
+                ThumbsButton.Painter = delegate(Graphics g, Rectangle r, Color c) { DrawPane(g, r, c, true); };
+                ThumbsButton.Click += delegate { form.TogglePane(true); };
+                tip.SetToolTip(this, "Space Viewer settings");
                 form.Activated += delegate { Invalidate(); };
                 form.Deactivate += delegate { Invalidate(); };
             }
@@ -590,6 +720,7 @@ namespace OrclFileExplorer
             {
                 Graphics g = e.Graphics;
                 g.Clear(Theme.Bar);
+                if (iconHot) using (SolidBrush hb = new SolidBrush(Theme.Hover)) g.FillRectangle(hb, IconSpot);
                 int s = Native.Px(16), x = Native.Px(12);
                 if (form.Icon != null) g.DrawIcon(form.Icon, new Rectangle(x, (Height - s) / 2, s, s));
                 int right = Width;
@@ -601,7 +732,14 @@ namespace OrclFileExplorer
 
             protected override void WndProc(ref Message m)
             {
-                if (m.Msg == 0x84) { m.Result = (IntPtr)(-1); return; } // HTTRANSPARENT: the form treats it as its caption
+                if (m.Msg == 0x84)
+                {
+                    // The icon is a button (HTCLIENT); the rest is HTTRANSPARENT: the form treats it as its caption.
+                    int lp = unchecked((int)(long)m.LParam);
+                    Point p = PointToClient(new Point((short)(lp & 0xFFFF), (short)((lp >> 16) & 0xFFFF)));
+                    m.Result = (IntPtr)(IconSpot.Contains(p) ? 1 : -1);
+                    return;
+                }
                 base.WndProc(ref m);
             }
         }
@@ -649,12 +787,38 @@ namespace OrclFileExplorer
         static Pictures.PictureData CopyOf(Pictures.PictureData d)
         {
             Pictures.PictureData c = new Pictures.PictureData();
-            c.Bitmap = new Bitmap(d.Bitmap);
+            c.Bitmap = Copy(d.Bitmap);
             c.Original = d.Original;
             c.Info = d.Info;
             return c;
         }
 
+
+        // A copy in the fast premultiplied format (new Bitmap(b) would make it plain ARGB).
+        // (Copied as memory, not drawn: drawing would hold GDI+'s lock, and with it the windows' drawing.)
+        static Bitmap Copy(Bitmap b)
+        {
+            const System.Drawing.Imaging.PixelFormat pf = System.Drawing.Imaging.PixelFormat.Format32bppPArgb;
+            Rectangle all = new Rectangle(0, 0, b.Width, b.Height);
+            Bitmap c = new Bitmap(b.Width, b.Height, pf);
+            try
+            {
+                System.Drawing.Imaging.BitmapData from = b.LockBits(all, System.Drawing.Imaging.ImageLockMode.ReadOnly, pf);
+                try
+                {
+                    System.Drawing.Imaging.BitmapData to = c.LockBits(all, System.Drawing.Imaging.ImageLockMode.WriteOnly, pf);
+                    try
+                    {
+                        if (from.Stride == to.Stride) Native.CopyMemory(to.Scan0, from.Scan0, (UIntPtr)((long)from.Stride * b.Height));
+                        else for (int y = 0; y < b.Height; y++) Native.CopyMemory(to.Scan0 + y * to.Stride, from.Scan0 + y * from.Stride, (UIntPtr)(b.Width * 4));
+                    }
+                    finally { c.UnlockBits(to); }
+                }
+                finally { b.UnlockBits(from); }
+                return c;
+            }
+            catch { c.Dispose(); throw; }
+        }
 
         public void Load(string p) { lock (gate) { want = p; full = null; } wake.Set(); }
         public void LoadFull(string p, Size original) { lock (gate) { full = p; fullOriginal = original; } wake.Set(); }
@@ -676,6 +840,7 @@ namespace OrclFileExplorer
             try { Work(); }
             finally
             {
+                WicDecode.EndThread();
                 lock (gate)
                 {
                     foreach (Pictures.PictureData d in cache.Values) d.Bitmap.Dispose();
@@ -717,8 +882,14 @@ namespace OrclFileExplorer
                             // Up to about 60 megapixels: bigger pictures are shown a little below 100 %.
                             Size o = original;
                             double k = Math.Min(1.0, Math.Sqrt(60e6 / Math.Max(1.0, (double)o.Width * o.Height)));
-                            d = Pictures.LoadEx(p, new Size((int)(o.Width * k), (int)(o.Height * k)), false);
-                            lock (gate) if (d != null && epoch != started) { d.Bitmap.Dispose(); continue; } // turned meanwhile
+                            // Half of it too when that's still well above the screen-sized copy.
+                            Size fullBox = new Size((int)(o.Width * k), (int)(o.Height * k));
+                            double ks = Math.Min(1.0, Math.Min((double)screenBox.Width / Math.Max(1, o.Width), (double)screenBox.Height / Math.Max(1, o.Height)));
+                            Size halfBox = fullBox.Width / 2 > o.Width * ks * 1.2 ? new Size(fullBox.Width / 2, fullBox.Height / 2) : Size.Empty;
+                            DateTime t0 = DateTime.UtcNow;
+                            d = Pictures.LoadEx(p, fullBox, false, halfBox);
+                            Program.Trace("picture loader: full size in " + (DateTime.UtcNow - t0).TotalMilliseconds.ToString("0") + " ms" + (d != null && d.Half != null ? " (and half)" : ""));
+                            lock (gate) if (d != null && epoch != started) { d.Bitmap.Dispose(); if (d.Half != null) d.Half.Dispose(); continue; } // turned meanwhile
                         }
                         else
                         {
@@ -738,13 +909,20 @@ namespace OrclFileExplorer
                     }
                     catch { d = null; }
                     // d is a copy the window owns from here on.
-                    if (quit) { if (d != null) d.Bitmap.Dispose(); return; }
+                    if (quit) { Dispose(d); return; }
                     Pictures.PictureData result = d;
                     bool f = isFull;
                     try { owner.BeginInvoke((MethodInvoker)delegate { owner.Loaded(p, result, f); }); }
-                    catch { if (result != null) result.Bitmap.Dispose(); return; }
+                    catch { Dispose(result); return; }
                 }
             }
+        }
+
+        internal static void Dispose(Pictures.PictureData d)
+        {
+            if (d == null) return;
+            d.Bitmap.Dispose();
+            if (d.Half != null) d.Half.Dispose();
         }
 
         void Keep(string p, Pictures.PictureData d)

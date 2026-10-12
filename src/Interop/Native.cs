@@ -1,4 +1,4 @@
-// OrclFX: P/Invoke declarations and thin wrappers around Windows and Shell APIs.
+﻿// OrclFX: P/Invoke declarations and thin wrappers around Windows and Shell APIs.
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -295,6 +295,8 @@ namespace OrclFileExplorer
         [DllImport("kernel32.dll")] public static extern uint GetCurrentThreadId();
         [DllImport("kernel32.dll", CharSet = CharSet.Unicode)]
         public static extern bool GetDiskFreeSpaceEx(string dir, out ulong freeToCaller, out ulong total, out ulong totalFree);
+        [DllImport("dwmapi.dll")] public static extern int DwmFlush();
+        [DllImport("kernel32.dll", EntryPoint = "RtlMoveMemory")] public static extern void CopyMemory(IntPtr dest, IntPtr src, UIntPtr count);
         [DllImport("dwmapi.dll")] public static extern int DwmSetWindowAttribute(IntPtr hwnd, int attr, ref int value, int size);
         [DllImport("uxtheme.dll", EntryPoint = "#135")] public static extern int SetPreferredAppMode(int mode);
         [DllImport("uxtheme.dll", CharSet = CharSet.Unicode)] public static extern int SetWindowTheme(IntPtr hwnd, string app, string idList);

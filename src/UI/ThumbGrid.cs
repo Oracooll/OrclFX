@@ -251,6 +251,41 @@ namespace OrclFileExplorer
             if (ItemClicked != null) ItemClicked(items[i]);
         }
 
+        // Touch: a finger scrolls (and keeps going a little when flicked), a pinch makes the thumbnails bigger or
+        // smaller (a step each time the fingers' distance changes by a quarter).
+        int panY, pinchFrom;
+
+        protected override void WndProc(ref Message m)
+        {
+            if (m.Msg == Gestures.WM_GESTURENOTIFY) { Gestures.Configure(Handle); base.WndProc(ref m); return; }
+            Gestures.Info g;
+            if (m.Msg == Gestures.WM_GESTURE && Gestures.Read(ref m, out g))
+            {
+                Point at = PointToClient(g.Screen);
+                if (g.Id == Gestures.GID_PAN)
+                {
+                    if (!g.Begins) SetScroll(scroll - (at.Y - panY));
+                    panY = at.Y;
+                    Gestures.Done(ref m);
+                    return;
+                }
+                if (g.Id == Gestures.GID_ZOOM)
+                {
+                    if (g.Begins || pinchFrom <= 0) pinchFrom = (int)g.Argument;
+                    else if (g.Argument > pinchFrom * 1.25 || g.Argument < pinchFrom * 0.8)
+                    {
+                        int k = Array.IndexOf(Sizes, thumbSize);
+                        if (k < 0) k = 4;
+                        ThumbSize = Sizes[Math.Max(0, Math.Min(Sizes.Length - 1, k + (g.Argument > pinchFrom ? 1 : -1)))];
+                        pinchFrom = (int)g.Argument;
+                    }
+                    Gestures.Done(ref m);
+                    return;
+                }
+            }
+            base.WndProc(ref m);
+        }
+
         protected override void OnMouseWheel(MouseEventArgs e)
         {
             base.OnMouseWheel(e);
@@ -319,6 +354,12 @@ namespace OrclFileExplorer
         }
 
         void Run()
+        {
+            try { RunLoop(); }
+            finally { WicDecode.EndThread(); }
+        }
+
+        void RunLoop()
         {
             while (!quit)
             {
