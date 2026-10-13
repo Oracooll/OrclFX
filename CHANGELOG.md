@@ -3,6 +3,14 @@
 Versions are `major.minor.build` with a three-digit build number. Every release bumps the build;
 the minor number changes only for larger milestones.
 
+## 1.1.052
+- Space Viewer full screen can always be left, also while it shows a PDF, an Office file or anything else shown by
+  Windows' previews (which take the keyboard and mouse for themselves):
+  - moving the pointer to the top edge of the screen brings the title bar over the top, with the full-screen and
+    close buttons (it also shows for two seconds when full screen starts, as a hint);
+  - Esc works even while such a preview has the keyboard (only Esc is taken from it: the arrows, Space and the
+    rest still page through the document).
+
 ## 1.1.051
 Fixes from an audit of the whole app:
 - USB sticks, memory cards and USB disks can be ejected while a pane shows a folder on them (the instant

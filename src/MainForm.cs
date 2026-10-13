@@ -406,6 +406,8 @@ namespace OrclFileExplorer
                                 case "glide": quickLook.TestGlide(); break;
                                 case "settings": quickLook.OpenSettings(); break;
                                 case "sim": quickLook.TestSimulate(); break;
+                                case "bar": Program.Trace("quick look " + quickLook.TestBar + ", Esc would go to another program: " + quickLook.TestEscElsewhere); break;
+                                case "top": quickLook.TestPointerAtTop(); break;
                                 case "state": Program.Trace("quick look state: " + quickLook.TestState); break;
                             }
                         }

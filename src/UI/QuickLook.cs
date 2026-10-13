@@ -3,7 +3,8 @@
 // thumbnails only). Pictures can be zoomed (wheel, Up / Down, 1 = 100 %), moved, shown full screen (F, or middle
 // click / double-click), turned without losing quality ([ and ]), deleted to the Recycle Bin (Del) and described (I).
 // Left / Right step through the folder; Space or Esc closes. The OrclFX icon at the top left opens its settings
-// (ViewerSettings). While it's open it gets those keys wherever the keyboard focus is in the app (MainForm.FilterMessage).
+// (ViewerSettings). While it's open it gets those keys wherever the keyboard focus is in the app (MainForm.FilterMessage);
+// in full screen the title bar comes over the top edge and Esc works over Windows' previews too (QuickLook.FullScreen).
 using System;
 using System.Collections.Generic;
 using System.Drawing;
@@ -93,6 +94,7 @@ namespace OrclFileExplorer
                 if (ViewerSettings.FullScreenClicks) ToggleFullScreen();
                 else image.ToggleActualSize(image.PointToClient(Cursor.Position));
             };
+            FullScreenBarStart();
             pointerWatch.Interval = 250;
             pointerWatch.Tick += delegate { WatchPointer(); };
             // (Only for the picture really on screen: the next one may still be loading.)
@@ -146,6 +148,7 @@ namespace OrclFileExplorer
             // (Not in FormClosing: closing the main window asks this one first, and may then be cancelled.)
             Shown += delegate
             {
+                KeyHookStart();
                 ShowFile(this.path);
                 // The folder's list after the first picture is on screen (a big folder takes a moment).
                 BeginInvoke((MethodInvoker)delegate
@@ -414,6 +417,7 @@ namespace OrclFileExplorer
             }
             else
             {
+                FullScreenBar(false);
                 FormBorderStyle = FormBorderStyle.Sizable;
                 Bounds = boundsBefore;
                 WindowState = stateBefore;
@@ -429,6 +433,7 @@ namespace OrclFileExplorer
             pointerStill = 0;
             pointerAt = Cursor.Position;
             if (fullScreen) pointerWatch.Start(); else { pointerWatch.Stop(); ShowPointer(); }
+            if (fullScreen) FullScreenBar(true); // (over the top a moment, then when the pointer touches the top edge)
             UpdateTitle();
             TakeFocus();
         }
@@ -609,6 +614,9 @@ namespace OrclFileExplorer
             base.OnFormClosed(e);
             pointerWatch.Stop();
             pointerWatch.Dispose();
+            KeyHookStop();
+            barWatch.Stop();
+            barWatch.Dispose();
             clickWait.Stop();
             clickWait.Dispose();
             ShowPointer();
