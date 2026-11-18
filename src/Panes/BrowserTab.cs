@@ -669,11 +669,18 @@ namespace OrclFileExplorer
         // the reason if it fails.
         public void CreateNew(bool folder, Action<string> failed)
         {
+            CreateItem(delegate(string dir) { return Util.CreateNewItem(dir, folder); }, failed);
+        }
+
+        // Makes an item in this tab's folder with make(folder) on a background thread (it returns the item's path),
+        // then selects it in the view with its name ready to be typed over.
+        public void CreateItem(Func<string, string> make, Action<string> failed)
+        {
             string dir = Address;
             System.Threading.Thread th = new System.Threading.Thread(delegate()
             {
                 string path = null, error = null;
-                try { path = Util.CreateNewItem(dir, folder); }
+                try { path = make(dir); }
                 catch (Exception ex) { error = ex.Message; }
                 try
                 {

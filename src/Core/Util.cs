@@ -90,6 +90,42 @@ namespace OrclFileExplorer
             throw new IOException("there are too many new items already");
         }
 
+        // Saves a picture pasted from the clipboard (PNG bytes) in dir as "Pasted image 2026-11-18 143005.png",
+        // numbered when the name is taken ("... (2).png"); never overwrites a file. Returns its path.
+        public static string SavePastedImage(string dir, byte[] png, DateTime when)
+        {
+            lock (newItemLock)
+            {
+                string name = PastedImageName(when);
+                for (int i = 1; i < 1000; i++)
+                {
+                    string p = Path.Combine(dir, name + (i == 1 ? "" : " (" + i + ")") + ".png");
+                    if (File.Exists(p) || Directory.Exists(p)) continue;
+                    FileStream fs;
+                    try { fs = new FileStream(p, FileMode.CreateNew, FileAccess.Write); }
+                    catch (IOException) { if (File.Exists(p)) continue; throw; } // made by someone else just now
+                    try { using (fs) fs.Write(png, 0, png.Length); }
+                    catch { try { File.Delete(p); } catch { } throw; } // no half-written picture left behind
+                    return p;
+                }
+                throw new IOException("there are too many pasted images with this name already");
+            }
+        }
+
+        public static string PastedImageName(DateTime when)
+        {
+            return "Pasted image " + when.ToString("yyyy-MM-dd HHmmss", System.Globalization.CultureInfo.InvariantCulture);
+        }
+
+        // PNG files start with these eight bytes.
+        public static bool IsPng(byte[] data)
+        {
+            byte[] sig = { 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A };
+            if (data == null || data.Length < sig.Length) return false;
+            for (int i = 0; i < sig.Length; i++) if (data[i] != sig[i]) return false;
+            return true;
+        }
+
         public static bool SameFolder(string a, string b)
         {
             return a != null && b != null && string.Equals(a.TrimEnd('\\'), b.TrimEnd('\\'), StringComparison.OrdinalIgnoreCase);

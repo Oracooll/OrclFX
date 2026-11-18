@@ -333,14 +333,19 @@ namespace OrclFileExplorer
                 };
                 lt.Start();
             }
-            // Test hook: DUALPANE_TEST_NEW=folder|file creates a new folder or text file in the active tab 3 seconds
-            // after start (the trace says whether renaming started).
+            // Test hook: DUALPANE_TEST_NEW=folder|file|image creates a new folder or text file, or pastes the clipboard's
+            // picture, in the active tab 3 seconds after start (the trace says whether renaming started).
             string testNew = Environment.GetEnvironmentVariable("DUALPANE_TEST_NEW");
             if (testNew != null)
             {
                 Timer nwt = new Timer();
                 nwt.Interval = 3000;
-                nwt.Tick += delegate { nwt.Stop(); CreateNew(ActivePane, testNew == "folder"); };
+                nwt.Tick += delegate
+                {
+                    nwt.Stop();
+                    if (testNew == "image") { if (!PasteImage(ActivePane.ActiveTab)) Program.Trace("paste image: no picture on the clipboard"); }
+                    else CreateNew(ActivePane, testNew == "folder");
+                };
                 nwt.Start();
             }
             // Test hook: DUALPANE_TEST_PREVIEW=<file>[|<search>] shows that file in the preview pane 3 seconds after
@@ -1568,6 +1573,7 @@ namespace OrclFileExplorer
 
         // The last key press or mouse click anywhere in the app (a rename box opened for the user stops being guarded).
         public static int LastInputTick = Environment.TickCount - 100000;
+        bool keyRepeat; // the key being handled is an auto-repeat of a held key
 
         bool FilterMessage(ref Message m)
         {
@@ -1595,6 +1601,7 @@ namespace OrclFileExplorer
                 if (!p.Visible) continue; // a pane hidden by single-pane mode
                 if (t != null && t.Created && Native.Contains(t.Host.Handle, focus)) { ft = t; if (ActivePane != p) SetActivePane(p); }
             }
+            keyRepeat = ((long)m.LParam & 0x40000000) != 0; // the key was already down (held)
             if ((msg == 0x100 || msg == 0x104) && Shortcut((Keys)(int)m.WParam & Keys.KeyCode, ft, focus)) return true;
             if (ft != null)
             {
@@ -1643,6 +1650,12 @@ namespace OrclFileExplorer
             if (alt && !ctrl && key >= Keys.D1 && key <= Keys.D4) { SetPaneCount(key - Keys.D0); return true; }
             if ((ctrl && !alt && key == Keys.L) || (alt && !ctrl && key == Keys.D) || (!ctrl && !alt && key == Keys.F4)) { p.FocusAddress(); return true; }
             bool renaming = ft != null && Native.ClassName(focus) == "Edit";
+            // Ctrl+V / Shift+Insert with a picture (and no files) on the clipboard: save it here as a PNG file.
+            if (ft != null && !renaming && !alt && (ctrl && !shift && key == Keys.V || shift && !ctrl && key == Keys.Insert))
+            {
+                if (keyRepeat) { if (ClipboardHasImageOnly()) return true; } // one picture per key press, however long it's held
+                else if (PasteImage(ft)) return true;
+            }
             if (ft != null && !renaming && !ctrl && !alt)
             {
                 if (key == Keys.Back) { p.Nav(Native.SBSP_PARENT); return true; }

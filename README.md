@@ -41,6 +41,8 @@ a single `orclfx.exe`, no installer package and no admin rights needed.
   the tree and the Shortcuts pane become finger-sized, and the pane's buttons get a row of their own. Switching
   rebuilds the window, keeping your tabs. Tabs, dividers and the Shortcuts pane can be dragged with a finger in
   either mode.
+- **Paste a picture as a file**: Ctrl+V with a picture on the clipboard (a screenshot, an image copied in a browser
+  or an editor) saves it in the folder as a PNG named `Pasted image <date> <time>.png`, ready to be renamed.
 - The status bar shows how big the selection is, folders included (counted in the background).
 - Double-click empty space in a file list to go up one level.
 - A tab on an unplugged drive or an offline share keeps its folder: it shows This PC until the folder is back,
@@ -99,6 +101,7 @@ a single `orclfx.exe`, no installer package and no admin rights needed.
 | Ctrl+H | Show or hide hidden files |
 | Ctrl+E | Show or hide file name extensions |
 | Ctrl+R, F5 | Refresh the folder |
+| Ctrl+V, Shift+Insert | With a picture (not files) on the clipboard: save it here as a PNG file |
 | Ctrl+mouse wheel | Step through all views, smallest to largest (Details, List, Tiles, Content, Small, Medium, Large, Extra large icons) |
 | Space | Space Viewer (a large view of the selected file, with thumbnails) |
 
@@ -184,7 +187,7 @@ deleted. When OneDrive keeps two versions of the list (two computers changed it 
   Windows applies some light/dark choices only when an app starts.
 - Only one window runs at a time; launching the app again brings the open window to the front.
 - See [CHANGELOG.md](CHANGELOG.md) for the version history, and [IDEAS.md](IDEAS.md) for suggestions kept for later. Versions are `major.minor.build` with a
-  three-digit build (1.1.052).
+  three-digit build (1.1.053).
 
 ## License
 

@@ -189,16 +189,21 @@ namespace OrclFileExplorer
         public void CreateNew(Pane p, bool folder)
         {
             BrowserTab t = p.ActiveTab;
-            string dir = t == null ? null : t.Address;
-            bool usable = t != null && t.Created && !t.IsFindResults && PathParts.Split(dir).Count > 0 &&
-                (Util.IsNetworkPath(dir) || Directory.Exists(dir));
-            if (!usable)
+            if (!CanMakeItemsIn(t))
             {
                 SystemSounds.Beep.Play();
                 Notice("New " + (folder ? "folders" : "files") + " can be made in a folder on a disk or network share" + (t != null ? " (" + t.Title + " isn't one)." : "."));
                 return;
             }
             t.CreateNew(folder, delegate(string error) { Notice("\u26A0 Couldn't create a new " + (folder ? "folder" : "text file") + " here: " + error); });
+        }
+
+        // The tab shows a folder on a disk or network share (not This PC, a library or Find results).
+        static bool CanMakeItemsIn(BrowserTab t)
+        {
+            string dir = t == null ? null : t.Address;
+            return t != null && t.Created && !t.IsFindResults && PathParts.Split(dir).Count > 0 &&
+                (Util.IsNetworkPath(dir) || Directory.Exists(dir));
         }
 
         // ---- terminal

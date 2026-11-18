@@ -3,6 +3,13 @@
 Versions are `major.minor.build` with a three-digit build number. Every release bumps the build;
 the minor number changes only for larger milestones.
 
+## 1.1.053
+- **Paste a picture as a file**: with a picture on the clipboard (a screenshot, an image copied in a browser, Paint or
+  Office), Ctrl+V (or Shift+Insert) in a file list saves it in that folder as `Pasted image <date> <time>.png`, with
+  its name ready to be typed over. Transparency is kept when the program that copied it provides a PNG. Also in the
+  pane's ☰ menu while there's a picture to paste. With files on the clipboard, Ctrl+V is Explorer's own paste as
+  before.
+
 ## 1.1.052
 - Space Viewer full screen can always be left, also while it shows a PDF, an Office file or anything else shown by
   Windows' previews (which take the keyboard and mouse for themselves):

@@ -371,6 +371,7 @@ namespace OrclFileExplorer
             if (t != null) AddItem(m.Items, t.Locked ? "Unlock this tab" : "Lock this tab to this folder", null, delegate { ToggleLock(t); });
             if (t != null) AddItem(m.Items, "Refresh", "Ctrl+R", delegate { Main.RefreshTab(t); });
             if (t != null) AddItem(m.Items, "Open terminal here", "Ctrl+Alt+T", delegate { Main.OpenTerminal(t); });
+            if (t != null && MainForm.ClipboardHasImageOnly()) AddItem(m.Items, "Paste picture as PNG file", "Ctrl+V", delegate { Main.PasteImage(t); });
             m.Items.Add(Main.LayoutsMenu(m.Renderer));
             m.Items.Add(new ToolStripSeparator());
 

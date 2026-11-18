@@ -150,5 +150,29 @@ namespace OrclFileExplorer.Tests
                 Assert.Equal(0, Directory.GetFiles(d.Path, "*.tmp").Length, "temporary files left");
             }
         }
+
+        [Test]
+        static void PastedImagesAreNumberedNotOverwritten()
+        {
+            using (TempDir d = new TempDir())
+            {
+                DateTime when = new DateTime(2026, 11, 18, 14, 30, 5);
+                byte[] a = { 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 1 }, b = { 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 2 };
+                string p1 = Util.SavePastedImage(d.Path, a, when);
+                string p2 = Util.SavePastedImage(d.Path, b, when);
+                Assert.Equal(Path.Combine(d.Path, "Pasted image 2026-11-18 143005.png"), p1, "first name");
+                Assert.Equal(Path.Combine(d.Path, "Pasted image 2026-11-18 143005 (2).png"), p2, "same second: numbered");
+                Assert.Equal(1, (int)File.ReadAllBytes(p1)[8], "the first picture is kept");
+                Assert.Equal(2, (int)File.ReadAllBytes(p2)[8], "the second picture is written");
+            }
+        }
+
+        [Test]
+        static void RecognisesPng()
+        {
+            Assert.True(Util.IsPng(new byte[] { 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0 }), "PNG signature");
+            Assert.True(!Util.IsPng(new byte[] { 0x42, 0x4D, 0, 0, 0, 0, 0, 0, 0 }), "a BMP");
+            Assert.True(!Util.IsPng(null) && !Util.IsPng(new byte[3]), "nothing or too short");
+        }
     }
 }
