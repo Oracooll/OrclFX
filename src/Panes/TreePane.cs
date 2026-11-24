@@ -81,6 +81,7 @@ namespace OrclFileExplorer
             // (no FADEINOUTEXPANDOS, so the expand/collapse arrows stay visible instead of only on hover)
             uint style = 0x1 | 0x40 | 0x8 | 0x80 | 0x400 | 0x10000 | 0x20000 | 0x100000;
             tree.Initialize(host.Handle, ref rc, style);
+            BoldText.Window(Native.FindChild(host.Handle, "SysTreeView32"));
             // Touch mode: taller rows.
             if (TouchMode.On)
             {

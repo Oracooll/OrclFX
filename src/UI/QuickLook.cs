@@ -636,7 +636,7 @@ namespace OrclFileExplorer
         {
             readonly QuickLook form;
             public readonly GlyphButton ThumbsButton, ViewerButton, InfoButton, FullButton;
-            readonly ToolTip tip = new ToolTip();
+            readonly ToolTip tip = BoldText.NewTips();
             bool iconHot;
 
             // The OrclFX icon at the left: a button that opens the settings.

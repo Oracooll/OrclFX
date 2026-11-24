@@ -29,6 +29,8 @@ namespace OrclFileExplorer
         public readonly GlyphButton FindButton;
         // Touch mode on and off (a hand with its index finger up).
         public readonly GlyphButton TouchButton;
+        // Bold text on and off (a bold B), right of the theme buttons.
+        public readonly GlyphButton BoldButton;
         Divider viewsGap, themesGap;
         Icon icon;
 
@@ -116,6 +118,11 @@ namespace OrclFileExplorer
             Controls.Add(ThemeButtons[1]);
             Controls.Add(ThemeButtons[2]);
             Controls.Add(ThemeButtons[3]);
+            BoldButton = new GlyphButton("B", "Bold text: all of the app's text in bold, easier to read (the window is rebuilt)", DockStyle.Right);
+            BoldButton.Width = TouchMode.Hit(32);
+            BoldButton.Painter = DrawBold;
+            BoldButton.Checked = BoldText.On;
+            Controls.Add(BoldButton);
             Controls.Add(gap);
             Controls.Add(min);
             Controls.Add(max);
@@ -145,12 +152,14 @@ namespace OrclFileExplorer
             foreach (Control c in Controls) all += c.Width;
             foreach (GlyphButton b in ViewButtons) views += b.Width;
             foreach (GlyphButton b in ThemeButtons) themes += b.Width;
+            themes += BoldButton.Width;
             int room = Width - IconRect.Right - Native.Px(40);
             bool showViews = all <= room, showThemes = all - views <= room;
             SuspendLayout();
             foreach (GlyphButton b in ViewButtons) b.Visible = showViews;
             viewsGap.Visible = showViews;
             foreach (GlyphButton b in ThemeButtons) b.Visible = showThemes;
+            BoldButton.Visible = showThemes;
             themesGap.Visible = showThemes;
             ResumeLayout();
         }
@@ -250,6 +259,15 @@ namespace OrclFileExplorer
                         break;
                 }
             }
+        }
+
+        // A bold "B" the size of the other pictograms.
+        static Font boldGlyph;
+        static void DrawBold(Graphics g, Rectangle r, Color c)
+        {
+            if (boldGlyph == null) boldGlyph = new Font("Segoe UI", TouchMode.On ? 13f : 11f, FontStyle.Bold);
+            Rectangle box = new Rectangle(r.X - Native.Px(6), r.Y - Native.Px(6), r.Width + Native.Px(12), r.Height + Native.Px(12));
+            TextRenderer.DrawText(g, "B", boldGlyph, box, c, TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPadding);
         }
 
         public void SetIcon(Icon i) { icon = i == null ? null : new Icon(i, Native.Px(16), Native.Px(16)); Invalidate(); }

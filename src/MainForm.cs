@@ -63,15 +63,16 @@ namespace OrclFileExplorer
         {
             Text = Program.AppName + " " + Installer.Version;
             // Touch mode decides the sizes of what is built below.
-            try { earlyLines = SettingsFile.ReadLines(StateFile); earlyUnreadable = SettingsFile.Unreadable; TouchMode.ReadEarly(earlyLines); } catch { }
+            try { earlyLines = SettingsFile.ReadLines(StateFile); earlyUnreadable = SettingsFile.Unreadable; TouchMode.ReadEarly(earlyLines); BoldText.ReadEarly(earlyLines); } catch { }
             // Room for the tree, one pane and the preview; a saved narrower size is widened to this.
             MinimumSize = new Size(Math.Min(TouchMode.Hit(900), Screen.PrimaryScreen.WorkingArea.Width), Native.Px(400)); // wide enough for the title bar's buttons and icon
-            Font = new Font("Segoe UI", 9f);
+            Font = new Font("Segoe UI", 9f, BoldText.Style);
             Icon = AppIcon();
             titleBar = new TitleBar(this);
             titleBar.SetIcon(Icon);
             titleBar.FindButton.Click += delegate { ShowFind(); };
             titleBar.TouchButton.Click += delegate { SetTouchMode(!TouchMode.On); };
+            titleBar.BoldButton.Click += delegate { SetBoldText(!BoldText.On); };
             titleBar.IconClick += delegate
             {
                 Rectangle r = titleBar.IconRect;
@@ -1062,6 +1063,31 @@ namespace OrclFileExplorer
             }
         }
 
+        // Bold text: the window is rebuilt with bold fonts (tabs and layout kept), as for touch mode.
+        bool? boldWanted;
+
+        public void SetBoldText(bool on)
+        {
+            if (restarting) return;
+            titleBar.BoldButton.Checked = on;
+            if (on == BoldText.On)
+            {
+                boldWanted = null;
+                if (restartWhenIdle && restartWhy == "bold text") { restartWhenIdle = false; Notice("Bold text stays " + (on ? "on." : "off.")); }
+                StateChanged();
+                return;
+            }
+            boldWanted = on;
+            Program.Trace("bold text " + (on ? "on" : "off") + " asked");
+            RestartForTheme("bold text");
+            if (!restarting && !restartWhenIdle)
+            {
+                boldWanted = null;
+                titleBar.BoldButton.Checked = BoldText.On;
+                StateChanged();
+            }
+        }
+
         public void SetThemeMode(int mode)
         {
             bool wasDark = Theme.Dark;
@@ -1145,7 +1171,7 @@ namespace OrclFileExplorer
             {
                 restartWhenIdle = true;
                 restartWhy = why;
-                Notice((why == "touch mode" ? "Touch mode" : "The " + why) + " switches when the current copy or move has finished.");
+                Notice((Rebuilds(why) ? Capital(why) : "The " + why) + " switches when the current copy or move has finished.");
                 WhenIdle();
                 return;
             }
@@ -1154,7 +1180,7 @@ namespace OrclFileExplorer
             string problem = SaveAll();
             if (problem != null)
             {
-                if (why == "touch mode") { Notice(problem + " Touch mode wasn't switched."); return; }
+                if (Rebuilds(why)) { Notice(problem + " " + Capital(why) + " wasn't switched."); return; }
                 Notice(problem + " The " + why + " will fully apply after the next restart.");
                 RecreateViews();
                 return;
@@ -1170,10 +1196,14 @@ namespace OrclFileExplorer
             {
                 restarting = false;
                 Program.LogError(ex);
-                if (why == "touch mode") Notice("\u26A0 Couldn't rebuild the window: " + ex.Message + " Touch mode wasn't switched.");
+                if (Rebuilds(why)) Notice("\u26A0 Couldn't rebuild the window: " + ex.Message + " " + Capital(why) + " wasn't switched.");
                 else RecreateViews();
             }
         }
+
+        // Touch mode and bold text are only switched by rebuilding the window (no live switch to fall back on).
+        static bool Rebuilds(string why) { return why == "touch mode" || why == "bold text"; }
+        static string Capital(string s) { return char.ToUpper(s[0]) + s.Substring(1); }
 
         public void ApplyTheme()
         {
@@ -2020,6 +2050,7 @@ namespace OrclFileExplorer
                 sb.AppendLine("svthumbsize=" + QuickLook.ThumbSize);
                 sb.AppendLine("svthumbwidth=" + QuickLook.ThumbWidth);
                 sb.AppendLine("touch=" + ((touchWanted ?? TouchMode.On) ? "1" : "0"));
+                sb.AppendLine("bold=" + ((boldWanted ?? BoldText.On) ? "1" : "0"));
                 ViewerSettings.Write(sb);
                 sb.AppendLine("defaultview=" + (defaultView < 0 ? "-1" : ButtonViewModes[defaultView, 0] + "/" + ButtonViewModes[defaultView, 1]));
                 sb.AppendLine("activepane=" + Array.IndexOf(Panes, ActivePane));

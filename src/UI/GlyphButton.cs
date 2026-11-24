@@ -29,7 +29,7 @@ namespace OrclFileExplorer
             get { return glyph; }
             set { glyph = value; Invalidate(); }
         }
-        static readonly ToolTip tips = new ToolTip();
+        static readonly ToolTip tips = BoldText.NewTips();
 
         public GlyphButton(string glyph, string tip, DockStyle dock, string label = null)
         {
@@ -38,7 +38,7 @@ namespace OrclFileExplorer
             SetStyle(ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer | ControlStyles.ResizeRedraw, true);
             SetStyle(ControlStyles.Selectable, false);
             TabStop = false; Dock = dock;
-            Width = TouchMode.Hit(32) + (label == null ? 0 : TextRenderer.MeasureText(label, SystemFonts.MessageBoxFont).Width + Native.Px(4));
+            Width = TouchMode.Hit(32) + (label == null ? 0 : TextRenderer.MeasureText(label, BoldText.Ui(SystemFonts.MessageBoxFont)).Width + Native.Px(4));
             tips.SetToolTip(this, tip);
         }
 

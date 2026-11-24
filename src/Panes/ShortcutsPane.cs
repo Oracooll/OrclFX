@@ -74,7 +74,7 @@ namespace OrclFileExplorer
         public string NoticeText { get { return notice.Visible ? notice.Text : null; } }
 
         const string LongHeader = "Shortcuts  ·  drop folders here to add them, double-click to open (Ctrl+double-click or middle-click: new tab), F2 renames the folder, right-click for more";
-        readonly ToolTip hintTip = new ToolTip();
+        readonly ToolTip hintTip = BoldText.NewTips();
         bool sideways;
 
         // The pane's own view (settings key "shortcutsview"), independent of the file panes' views: -1 = automatic

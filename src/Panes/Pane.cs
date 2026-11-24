@@ -433,6 +433,8 @@ namespace OrclFileExplorer
             }
             theme.DropDown.Renderer = m.Renderer;
             m.Items.Add(theme);
+            ToolStripMenuItem bold = AddItem(m.Items, "Bold text", null, delegate { Main.SetBoldText(!BoldText.On); });
+            bold.Checked = BoldText.On;
             m.Items.Add(new ToolStripSeparator());
 
             if (!Installer.IsRunningInstalledCopy())

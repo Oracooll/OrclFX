@@ -23,7 +23,7 @@ namespace OrclFileExplorer
             ShowInTaskbar = false;
             StartPosition = FormStartPosition.Manual;
             KeyPreview = true;
-            Font = SystemFonts.MessageBoxFont;
+            Font = BoldText.Ui(SystemFonts.MessageBoxFont);
             BackColor = Theme.Menu;
             ForeColor = Theme.Text;
             Padding = new Padding(Native.Px(12));

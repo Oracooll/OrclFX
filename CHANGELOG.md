@@ -3,6 +3,12 @@
 Versions are `major.minor.build` with a three-digit build number. Every release bumps the build;
 the minor number changes only for larger milestones.
 
+## 1.1.055
+- **Bold text** for easier reading: a B button next to the theme buttons (also ☰ › Bold text) turns all of the app's
+  own text bold: tabs, the address bar, the window title, the tree, the Shortcuts list, the status bar, menus,
+  tooltips, Find, the preview's text and the Space Viewer. Switching it rebuilds the window, keeping your tabs (as
+  touch mode does). The Explorer file lists keep Windows' own font: Windows 11 doesn't let a program change it.
+
 ## 1.1.054
 - **Paper theme**: warm beige with a brown title bar and an orange line under it, brown accents and a brown window
   frame. A fourth theme button (a page) in the title bar, and ☰ › Theme › Paper. The active pane's file list is
