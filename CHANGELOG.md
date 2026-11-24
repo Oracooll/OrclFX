@@ -3,6 +3,13 @@
 Versions are `major.minor.build` with a three-digit build number. Every release bumps the build;
 the minor number changes only for larger milestones.
 
+## 1.1.054
+- **Paper theme**: warm beige with a brown title bar and an orange line under it, brown accents and a brown window
+  frame. A fourth theme button (a page) in the title bar, and ☰ › Theme › Paper. The active pane's file list is
+  white and the other panes' lists are beige, so the active one stands out. (Windows 11 doesn't let a program
+  change a file list's background, so the beige is a see-through tint laid over it; clicks, drags and drops go
+  straight through to the list.)
+
 ## 1.1.053
 - **Paste a picture as a file**: with a picture on the clipboard (a screenshot, an image copied in a browser, Paint or
   Office), Ctrl+V (or Shift+Insert) in a file list saves it in that folder as `Pasted image <date> <time>.png`, with

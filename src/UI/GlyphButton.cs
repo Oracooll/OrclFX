@@ -21,6 +21,7 @@ namespace OrclFileExplorer
         readonly string label;
         bool hover, down, isChecked;
         public Color? HoverBack, HoverFore;
+        public bool OnTitle; // in the title bar: drawn in its colours (brown with light writing in the Paper theme)
         public Action<Graphics, Rectangle, Color> Painter;
 
         public string Glyph
@@ -72,20 +73,21 @@ namespace OrclFileExplorer
         protected override void OnPaint(PaintEventArgs e)
         {
             Graphics g = e.Graphics;
-            g.Clear(Parent != null ? Parent.BackColor : Theme.Window);
+            g.Clear(OnTitle && Theme.Paper ? Theme.Title : Parent != null ? Parent.BackColor : Theme.Window);
+            Color text = OnTitle ? Theme.TitleText : Theme.Text, dim = OnTitle ? Theme.TitleTextDim : Theme.TextDim;
             Rectangle r = new Rectangle(Native.Px(2), Native.Px(2), Width - Native.Px(4), Height - Native.Px(4));
             if (hover && HoverBack.HasValue)
             {
                 using (SolidBrush b = new SolidBrush(HoverBack.Value)) g.FillRectangle(b, ClientRectangle);
-                TextRenderer.DrawText(g, glyph, Theme.IconFont, ClientRectangle, HoverFore ?? Theme.Text,
+                TextRenderer.DrawText(g, glyph, Theme.IconFont, ClientRectangle, HoverFore ?? text,
                     TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPadding);
                 return;
             }
             if (hover || isChecked)
-                using (SolidBrush b = new SolidBrush(down ? Theme.Border : Theme.Hover)) g.FillRectangle(b, r);
+                using (SolidBrush b = new SolidBrush(OnTitle ? (down ? Theme.TitleDown : Theme.TitleHover) : (down ? Theme.Border : Theme.Hover))) g.FillRectangle(b, r);
             if (isChecked)
-                using (SolidBrush b = new SolidBrush(Theme.Accent)) g.FillRectangle(b, r.X, r.Bottom - Native.Px(2), r.Width, Native.Px(2));
-            Color fg = !Enabled ? Theme.TextDim : isChecked ? Theme.Text : (label != null ? Theme.TextDim : Theme.Text);
+                using (SolidBrush b = new SolidBrush(OnTitle ? Theme.TitleAccent : Theme.Accent)) g.FillRectangle(b, r.X, r.Bottom - Native.Px(2), r.Width, Native.Px(2));
+            Color fg = !Enabled ? dim : isChecked ? text : (label != null ? dim : text);
             Rectangle gr = label == null ? ClientRectangle : new Rectangle(0, 0, Native.Px(30), Height);
             if (Painter != null)
             {

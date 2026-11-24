@@ -77,7 +77,7 @@ namespace OrclFileExplorer
                 Rectangle r = titleBar.IconRect;
                 ActivePane.ShowMainMenu(titleBar, new Point(r.Left, r.Bottom + Native.Px(2)), ToolStripDropDownDirection.BelowRight);
             };
-            for (int i = 0; i < 3; i++)
+            for (int i = 0; i < Theme.Modes; i++)
             {
                 int mode = i;
                 titleBar.ThemeButtons[i].Click += delegate { SetThemeMode(mode); };
@@ -1189,7 +1189,7 @@ namespace OrclFileExplorer
             Shortcuts.ApplyTheme();
             tree.ApplyTheme();
             preview.ApplyTheme();
-            for (int i = 0; i < 3; i++) titleBar.ThemeButtons[i].Checked = Theme.Mode == i;
+            for (int i = 0; i < Theme.Modes; i++) titleBar.ThemeButtons[i].Checked = Theme.Mode == i;
             titleBar.Invalidate(true);
             status.BackColor = Theme.Bar;
             statusLeft.ForeColor = statusRight.ForeColor = Theme.TextDim;
@@ -1203,6 +1203,9 @@ namespace OrclFileExplorer
             if (!IsHandleCreated) return;
             int dark = Theme.Dark ? 1 : 0;
             try { Native.DwmSetWindowAttribute(Handle, 20, ref dark, 4); } catch { }
+            // The window's thin frame: brown in Paper, Windows' own otherwise (DWMWA_BORDER_COLOR, Windows 11).
+            int border = Theme.Paper ? (int)Native.ColorRef(Theme.Title) : unchecked((int)0xFFFFFFFF);
+            try { Native.DwmSetWindowAttribute(Handle, 34, ref border, 4); } catch { }
         }
 
         // The Explorer view picks its colors when it is created, so rebuild open views after a theme or tree change.
@@ -1884,7 +1887,7 @@ namespace OrclFileExplorer
                                 int bar = v.IndexOf('|');
                                 if (bar > 0) legacyShortcuts.Add(new KeyValuePair<string, string>(v.Substring(0, bar), v.Substring(bar + 1)));
                                 break;
-                            case "theme": if (int.TryParse(v, out n) && n >= 0 && n <= 2) Theme.Mode = n; break;
+                            case "theme": if (int.TryParse(v, out n) && n >= 0 && n < Theme.Modes) Theme.Mode = n; break;
                             case "svthumbs": QuickLook.ShowThumbs = v != "0"; break;
                             case "svfsclicks": case "svenlarge": case "svexitmiddle": case "svconfirmexit": case "svhidecursor": case "svwheel":
                             case "svdrag": case "svsmooth": case "svzoomstep": case "svgpu": case "svbackground": case "svwrap": case "svclicksteps":

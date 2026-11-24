@@ -1,4 +1,4 @@
-// OrclFX: Light/dark colours and the themed menu renderer.
+// OrclFX: Light, dark and Paper colours and the themed menu renderer.
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -17,9 +17,16 @@ namespace OrclFileExplorer
 {
     static class Theme
     {
-        public static int Mode;          // 0 = match Windows, 1 = light, 2 = dark
+        public static int Mode;          // 0 = match Windows, 1 = light, 2 = dark, 3 = Paper
+        public const int Modes = 4;
         public static bool Dark;
+        // Paper: warm beige with a brown title bar. It's a light theme to Windows: the Explorer file lists are white
+        // (Windows 11 doesn't let a program change their background: IVisualProperties takes the colour, then ignores
+        // it); inactive panes get a beige tint laid over them (PaperShade). The rest of the app is beige.
+        public static bool Paper;
         public static Color Window, Bar, TabHover, Text, TextDim, Border, Hover, Input, Menu, Accent, Lock;
+        // The title bar (the same as Bar, Text ... except in Paper, where it's brown with light writing).
+        public static Color Title, TitleText, TitleTextDim, TitleHover, TitleDown, TitleLine, TitleAccent;
         public static readonly Font SmallIconFont = MakeIconFont(7f);
         static Font iconFont;
         // (A little bigger in touch mode.)
@@ -80,8 +87,15 @@ namespace OrclFileExplorer
         public static void Update()
         {
             Dark = Mode == 2 || (Mode == 0 && WindowsPrefersDark());
+            Paper = Mode == 3;
             Accent = ReadAccent();
-            if (Dark)
+            if (Paper)
+            {
+                Window = C(0xeee9df); Bar = C(0xe2dbcc); TabHover = C(0xd8cfbd); Text = C(0x2b2118); TextDim = C(0x6e6150);
+                Border = C(0xcdc3af); Hover = C(0xdcd2bf); Input = C(0xf5f1e9); Menu = C(0xefeae0); Lock = C(0x9a6510);
+                Accent = C(0x8a5a2b);
+            }
+            else if (Dark)
             {
                 Window = C(0x191919); Bar = C(0x202020); TabHover = C(0x2d2d2d); Text = C(0xffffff); TextDim = C(0xa0a0a0);
                 Border = C(0x3a3a3a); Hover = C(0x383838); Input = C(0x2b2b2b); Menu = C(0x2b2b2b); Lock = C(0xf0c050);
@@ -90,6 +104,15 @@ namespace OrclFileExplorer
             {
                 Window = C(0xffffff); Bar = C(0xf0f0f0); TabHover = C(0xe2e2e2); Text = C(0x1a1a1a); TextDim = C(0x606060);
                 Border = C(0xd4d4d4); Hover = C(0xdedede); Input = C(0xffffff); Menu = C(0xf9f9f9); Lock = C(0xb07d00);
+            }
+            if (Paper)
+            {
+                Title = C(0x7a5230); TitleText = C(0xf7efe2); TitleTextDim = C(0xd6c6ae); TitleHover = C(0x8e6640);
+                TitleDown = C(0xa27a52); TitleLine = C(0xe07b24); TitleAccent = C(0xf0a040);
+            }
+            else
+            {
+                Title = Bar; TitleText = Text; TitleTextDim = TextDim; TitleHover = Hover; TitleDown = Border; TitleLine = Border; TitleAccent = Accent;
             }
             // Tell Windows which mode this app wants and drop its cached decision, so Explorer views
             // created after a live switch pick up the new mode (not just the ones created at startup).

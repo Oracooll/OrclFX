@@ -22,6 +22,7 @@ namespace OrclFileExplorer
         int active = -1;
         readonly TabStrip strip;
         readonly Panel addrBar = new Panel(), addrBorder = new Panel(), addrInner = new Panel(), content = new Panel();
+        readonly PaperShade shade = new PaperShade(); // Paper theme: beige over the file list while the pane is inactive
         readonly Panel spacerL = new Panel(), spacerR = new Panel();
         readonly Panel navBar = new Panel(); // touch mode: the buttons on a row of their own, the address under them
         readonly TextBox addr = new TextBox();
@@ -35,6 +36,7 @@ namespace OrclFileExplorer
             Padding = new Padding(Native.Px(2));
             strip = new TabStrip(this);
             content.Dock = DockStyle.Fill;
+            content.Controls.Add(shade);
 
             back = new GlyphButton("", "Back (Alt+Left)", DockStyle.Left);
             fwd = new GlyphButton("", "Forward (Alt+Right)", DockStyle.Left);
@@ -144,6 +146,9 @@ namespace OrclFileExplorer
             BackColor = on ? Theme.Accent : Theme.Window;
             addrBorder.BackColor = on ? Theme.Accent : Theme.Border;
             addr.ForeColor = on ? Theme.Text : Theme.TextDim;
+            bool shaded = Theme.Paper && !on;
+            if (shade.Visible != shaded) shade.Visible = shaded;
+            if (shaded) shade.BringToFront();
             crumbs.Invalidate();
             strip.Invalidate();
         }
@@ -214,6 +219,7 @@ namespace OrclFileExplorer
             if (t == null || !Main.Ready) return;
             t.Host.Visible = true;
             t.Host.BringToFront();
+            if (shade.Visible) shade.BringToFront();
             t.EnsureCreated();
             t.Resize();
             ShowAddress(t);
@@ -418,7 +424,7 @@ namespace OrclFileExplorer
             view.DropDown.Renderer = m.Renderer;
             m.Items.Add(view);
             ToolStripMenuItem theme = new ToolStripMenuItem("Theme");
-            string[] names = { "Match Windows", "Light", "Dark" };
+            string[] names = { "Match Windows", "Light", "Dark", "Paper" };
             for (int i = 0; i < names.Length; i++)
             {
                 int mode = i;

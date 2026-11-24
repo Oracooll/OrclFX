@@ -18,7 +18,7 @@ namespace OrclFileExplorer
     class TitleBar : Control
     {
         readonly Form form;
-        public readonly GlyphButton[] ThemeButtons = new GlyphButton[3];
+        public readonly GlyphButton[] ThemeButtons = new GlyphButton[Theme.Modes];
         // Tree, 1 pane, 2 panes, 3 panes, 4 panes, Preview, Shortcuts
         public readonly GlyphButton[] LayoutButtons = new GlyphButton[7];
         // Details, List, Tiles, Content, Medium icons, Large icons (for the active pane)
@@ -40,9 +40,9 @@ namespace OrclFileExplorer
             Dock = DockStyle.Top;
             Height = TouchMode.Hit(34);
 
-            string[] glyphs = { "", "", "" };
-            string[] tips = { "Theme: match Windows", "Theme: light", "Theme: dark" };
-            for (int i = 0; i < 3; i++)
+            string[] glyphs = { "", "", "", "" }; // the last: Paper (a page)
+            string[] tips = { "Theme: match Windows", "Theme: light", "Theme: dark", "Theme: Paper (warm beige with a brown title bar)" };
+            for (int i = 0; i < Theme.Modes; i++)
             {
                 ThemeButtons[i] = new GlyphButton(glyphs[i], tips[i], DockStyle.Right);
                 ThemeButtons[i].Width = TouchMode.Hit(32);
@@ -115,6 +115,7 @@ namespace OrclFileExplorer
             Controls.Add(ThemeButtons[0]);
             Controls.Add(ThemeButtons[1]);
             Controls.Add(ThemeButtons[2]);
+            Controls.Add(ThemeButtons[3]);
             Controls.Add(gap);
             Controls.Add(min);
             Controls.Add(max);
@@ -124,6 +125,7 @@ namespace OrclFileExplorer
                 bool m = form.WindowState == FormWindowState.Maximized;
                 max.Glyph = m ? "" : "";
             };
+            foreach (Control c in Controls) { GlyphButton b = c as GlyphButton; if (b != null) b.OnTitle = true; }
             form.Activated += delegate { Invalidate(); };
             form.Deactivate += delegate { Invalidate(); };
         }
@@ -255,14 +257,21 @@ namespace OrclFileExplorer
         protected override void OnPaint(PaintEventArgs e)
         {
             Graphics g = e.Graphics;
-            g.Clear(Theme.Bar);
+            g.Clear(Theme.Title);
             int s = Native.Px(16), x = Native.Px(12);
-            if (iconHot) using (SolidBrush b = new SolidBrush(Theme.Hover)) g.FillRectangle(b, IconRect);
+            if (iconHot) using (SolidBrush b = new SolidBrush(Theme.TitleHover)) g.FillRectangle(b, IconRect);
             if (icon != null) g.DrawIcon(icon, new Rectangle(x, (Height - s) / 2, s, s));
             bool activeWindow = Form.ActiveForm == form;
             TextRenderer.DrawText(g, form.Text, Font, new Rectangle(x + s + Native.Px(10), 0, Width / 2, Height),
-                activeWindow ? Theme.Text : Theme.TextDim, TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPrefix | TextFormatFlags.EndEllipsis);
-            using (Pen p = new Pen(Theme.Border)) g.DrawLine(p, 0, Height - 1, Width, Height - 1);
+                activeWindow ? Theme.TitleText : Theme.TitleTextDim, TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPrefix | TextFormatFlags.EndEllipsis);
+            DrawBottomLine(g, Width, Height);
+        }
+
+        // The line under the title bar (in Paper, a thicker orange one).
+        static void DrawBottomLine(Graphics g, int w, int h)
+        {
+            int t = Theme.Paper ? Native.Px(2) : 1;
+            using (SolidBrush b = new SolidBrush(Theme.TitleLine)) g.FillRectangle(b, 0, h - t, w, t);
         }
 
         // A thin vertical rule that separates the theme switch from the window buttons.
@@ -276,10 +285,10 @@ namespace OrclFileExplorer
 
             protected override void OnPaint(PaintEventArgs e)
             {
-                e.Graphics.Clear(Theme.Bar);
+                e.Graphics.Clear(Theme.Title);
                 int x = Width / 2;
-                using (Pen p = new Pen(Theme.Border)) e.Graphics.DrawLine(p, x, 0, x, Height);
-                using (Pen p = new Pen(Theme.Border)) e.Graphics.DrawLine(p, 0, Height - 1, Width, Height - 1);
+                using (Pen p = new Pen(Theme.Paper ? Theme.TitleHover : Theme.Border)) e.Graphics.DrawLine(p, x, 0, x, Height);
+                DrawBottomLine(e.Graphics, Width, Height);
             }
 
             protected override void WndProc(ref Message m)
