@@ -169,6 +169,15 @@ namespace OrclFileExplorer
         [PreserveSig] int SelectItem(IntPtr pidlItem, uint uFlags);
     }
 
+    // On the ExplorerBrowser, before Initialize: FVO_VISTALAYOUT (1) makes its views the older list control
+    // (SysListView32), whose font and colours a program can set.
+    [ComImport, Guid("3cc974d2-b302-4d36-ad3e-06d93f695d3f"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+    public interface IFolderViewOptions
+    {
+        [PreserveSig] int SetFolderViewOptions(uint mask, uint flags);
+        [PreserveSig] int GetFolderViewOptions(out uint flags);
+    }
+
     [ComImport, Guid("e693cf68-d967-4112-8763-99172aee5e5a"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
     public interface IVisualProperties
     {

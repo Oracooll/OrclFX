@@ -1,8 +1,9 @@
 // OrclFX: bold text (the B button in the title bar; settings key "bold"): every text the app shows is drawn in bold,
 // easier to read for weaker eyes: the window's own text (tabs, address bar, title, status bar, menus, tooltips, the
-// Space Viewer, Find), the tree, the Shortcuts list and the preview's text. The Explorer file lists keep Windows'
-// font: Windows 11 doesn't let a program change it (IVisualProperties.SetFont answers E_NOTIMPL). Like touch mode,
-// it is read before the window is built and switching it rebuilds the window (tabs and layout kept).
+// Space Viewer, Find), the tree, the Shortcuts list, the preview's text and the file lists: Windows 11's own list
+// ignores a program's font (IVisualProperties.SetFont answers E_NOTIMPL), so in bold mode the views are the older
+// list control (BrowserTab.OldList), which takes WM_SETFONT. Like touch mode, it is read before the window is built
+// and switching it rebuilds the window (tabs and layout kept).
 using System;
 using System.Drawing;
 using System.Windows.Forms;

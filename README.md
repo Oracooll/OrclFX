@@ -82,9 +82,9 @@ a single `orclfx.exe`, no installer package and no admin rights needed.
 - Light, dark, match-Windows or **Paper** theme from the title bar. Paper is warm beige with a brown title bar
   and brown accents; the active pane's file list is white and the others' are beige.
 - **Bold text** (the B button in the title bar, or ☰ › Bold text): all of the app's own text in bold, easier to
-  read: tabs, address bar, tree, Shortcuts, status bar, menus, tooltips, Find, the preview's text and the Space
-  Viewer. Switching rebuilds the window, keeping your tabs. The file lists keep Windows' font (Windows doesn't let a
-  program change it; Settings › Accessibility › Text size makes it bigger).
+  read: the file names, tabs, address bar, tree, Shortcuts, status bar, menus, tooltips, Find, the preview's text and
+  the Space Viewer. Switching rebuilds the window, keeping your tabs. For bold file names the file lists use Windows'
+  older list style (as in Windows 7), the only one that takes a font from a program: its rows are more compact.
 - ☰ › View options: show hidden files (Ctrl+H), file name extensions (Ctrl+E), auto-fit the Name column, natural number sorting,
   and folder sizes. Folder sizes are calculated in the background at low priority, skip network
   drives, never download OneDrive files, and turn themselves off if a scan gets out of hand.
@@ -192,7 +192,7 @@ deleted. When OneDrive keeps two versions of the list (two computers changed it 
   Windows applies some light/dark choices only when an app starts.
 - Only one window runs at a time; launching the app again brings the open window to the front.
 - See [CHANGELOG.md](CHANGELOG.md) for the version history, and [IDEAS.md](IDEAS.md) for suggestions kept for later. Versions are `major.minor.build` with a
-  three-digit build (1.1.055).
+  three-digit build (1.1.056).
 
 ## License
 

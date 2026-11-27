@@ -3,6 +3,13 @@
 Versions are `major.minor.build` with a three-digit build number. Every release bumps the build;
 the minor number changes only for larger milestones.
 
+## 1.1.056
+- **Bold text** now makes the file names bold too: while it's on, the file lists use Windows' older list style (as in
+  Windows 7), the only one that takes a font from a program (Windows 11's own list ignores it). Its rows are more
+  compact, and selection and hover look as in Windows 7.
+- With bold text and the **Paper** theme together, the active pane's list is truly white and the inactive ones truly
+  beige (the older list takes colours too), with no tint laid over them, so their text isn't faded.
+
 ## 1.1.055
 - **Bold text** for easier reading: a B button next to the theme buttons (also ☰ › Bold text) turns all of the app's
   own text bold: tabs, the address bar, the window title, the tree, the Shortcuts list, the status bar, menus,

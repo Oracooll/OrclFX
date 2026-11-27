@@ -146,9 +146,11 @@ namespace OrclFileExplorer
             BackColor = on ? Theme.Accent : Theme.Window;
             addrBorder.BackColor = on ? Theme.Accent : Theme.Border;
             addr.ForeColor = on ? Theme.Text : Theme.TextDim;
-            bool shaded = Theme.Paper && !on;
+            // (With the older list control, bold text, the list's own background changes instead.)
+            bool shaded = Theme.Paper && !on && !BrowserTab.OldList;
             if (shade.Visible != shaded) shade.Visible = shaded;
             if (shaded) shade.BringToFront();
+            if (ActiveTab != null) ActiveTab.StyleOldList();
             crumbs.Invalidate();
             strip.Invalidate();
         }
@@ -222,6 +224,7 @@ namespace OrclFileExplorer
             if (shade.Visible) shade.BringToFront();
             t.EnsureCreated();
             t.Resize();
+            t.StyleOldList();
             ShowAddress(t);
             Main.UpdateStatus();
             if (IsActivePane) Main.ActiveFolderChanged();

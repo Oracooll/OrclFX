@@ -1742,7 +1742,8 @@ namespace OrclFileExplorer
             if (code == HC_ACTION && (msg == 0x201 || msg == Native.WM_LBUTTONDBLCLK))
             {
                 MOUSEHOOKSTRUCT hs = (MOUSEHOOKSTRUCT)Marshal.PtrToStructure(lParam, typeof(MOUSEHOOKSTRUCT));
-                if (Native.ClassName(hs.hwnd) == "DirectUIHWND") lastViewMouseDown = Environment.TickCount; // a column may be resized
+                string vc = Native.ClassName(hs.hwnd);
+                if (vc == "DirectUIHWND" || vc == "SysListView32" || vc == "SysHeader32") lastViewMouseDown = Environment.TickCount; // a column may be resized (the older list's headers are a window of their own)
                 // The hook runs before our message filter makes the clicked pane active,
                 // so this tells whether the pane was already active when the click arrived.
                 Pane clicked = PaneOf(hs.hwnd);
