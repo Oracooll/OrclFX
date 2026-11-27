@@ -3,6 +3,11 @@
 Versions are `major.minor.build` with a three-digit build number. Every release bumps the build;
 the minor number changes only for larger milestones.
 
+## 1.1.057
+- Bold text with the Paper theme: inactive panes are beige all over again, the sorted column included (1.1.056 set
+  the older list's own colours, which left the sorted column white). They get the same beige tint as without bold
+  text.
+
 ## 1.1.056
 - **Bold text** now makes the file names bold too: while it's on, the file lists use Windows' older list style (as in
   Windows 7), the only one that takes a font from a program (Windows 11's own list ignores it). Its rows are more

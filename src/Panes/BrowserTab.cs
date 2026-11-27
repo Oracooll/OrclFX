@@ -1093,11 +1093,11 @@ namespace OrclFileExplorer
         int IExplorerBrowserEvents.OnViewCreated(object psv) { return 0; }
 
         // Bold text: the views are the older list control (FVO_VISTALAYOUT, the Windows Vista list), since the
-        // Windows 11 list ignores the font a program gives it; the older one takes WM_SETFONT and its colours can be
-        // set too (the Paper theme's white active list and beige inactive ones, with no tint laid over them).
+        // Windows 11 list ignores the font a program gives it; the older one takes WM_SETFONT. (Its colours are left
+        // alone: set, the sorted column keeps its own; Paper's inactive panes get the same tint as the newer list.)
         public static bool OldList { get { return BoldText.On; } }
 
-        // Bold names, and in Paper the background: white while the pane is active, beige otherwise.
+        // Bold names.
         public void StyleOldList()
         {
             if (!OldList || !Alive) return;
@@ -1105,15 +1105,6 @@ namespace OrclFileExplorer
             IntPtr lv = dv == IntPtr.Zero ? IntPtr.Zero : Native.FindChild(dv, "SysListView32");
             if (lv == IntPtr.Zero) return;
             BoldText.Window(lv);
-            if (Theme.Paper)
-            {
-                const int LVM_SETBKCOLOR = 0x1001, LVM_SETTEXTCOLOR = 0x1024, LVM_SETTEXTBKCOLOR = 0x1026;
-                uint back = Native.ColorRef(Pane.IsActivePane ? System.Drawing.Color.White : Theme.Window);
-                Native.SendMessage(lv, LVM_SETBKCOLOR, IntPtr.Zero, (IntPtr)back);
-                Native.SendMessage(lv, LVM_SETTEXTBKCOLOR, IntPtr.Zero, (IntPtr)back);
-                Native.SendMessage(lv, LVM_SETTEXTCOLOR, IntPtr.Zero, (IntPtr)Native.ColorRef(Theme.Text));
-            }
-            Native.RedrawWindow(lv, IntPtr.Zero, IntPtr.Zero, 0x1 | 0x4 | 0x80 | 0x100); // INVALIDATE | ERASE | ALLCHILDREN | UPDATENOW
         }
 
         int IExplorerBrowserEvents.OnNavigationComplete(IntPtr pidl)
