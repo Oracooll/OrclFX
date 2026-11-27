@@ -11,9 +11,8 @@ namespace OrclFileExplorer
 {
     class PaperShade : Control
     {
-        // A tan laid over white at this strength gives the Paper beige (#eee9df); dark writing stays readable.
-        public const byte Alpha = 64;
-        public static readonly Color Tint = Color.FromArgb(187, 167, 127);
+        // Theme.Shade laid over the list at this strength shows as the theme's background; the writing stays readable.
+        public const byte Alpha = Palettes.ShadeAlpha;
 
         [DllImport("user32.dll")] static extern bool SetLayeredWindowAttributes(IntPtr h, uint key, byte alpha, uint flags);
 
@@ -44,7 +43,7 @@ namespace OrclFileExplorer
 
         protected override void OnPaint(PaintEventArgs e)
         {
-            using (SolidBrush b = new SolidBrush(Tint)) e.Graphics.FillRectangle(b, ClientRectangle);
+            using (SolidBrush b = new SolidBrush(Theme.Shade)) e.Graphics.FillRectangle(b, ClientRectangle);
         }
 
         protected override void WndProc(ref Message m)

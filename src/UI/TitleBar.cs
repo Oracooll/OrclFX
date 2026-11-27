@@ -18,7 +18,9 @@ namespace OrclFileExplorer
     class TitleBar : Control
     {
         readonly Form form;
-        public readonly GlyphButton[] ThemeButtons = new GlyphButton[Theme.Modes];
+        // Themes: automatic, the light one, the dark one, Paper; then the Themes window.
+        public readonly GlyphButton[] ThemeButtons = new GlyphButton[4];
+        public readonly GlyphButton ThemesButton;
         // Tree, 1 pane, 2 panes, 3 panes, 4 panes, Preview, Shortcuts
         public readonly GlyphButton[] LayoutButtons = new GlyphButton[7];
         // Details, List, Tiles, Content, Medium icons, Large icons (for the active pane)
@@ -43,8 +45,8 @@ namespace OrclFileExplorer
             Height = TouchMode.Hit(34);
 
             string[] glyphs = { "", "", "", "" }; // the last: Paper (a page)
-            string[] tips = { "Theme: match Windows", "Theme: light", "Theme: dark", "Theme: Paper (warm beige with a brown title bar)" };
-            for (int i = 0; i < Theme.Modes; i++)
+            string[] tips = { "Theme: automatic", "Theme: light", "Theme: dark", "Theme: Paper (warm beige with a brown title bar)" };
+            for (int i = 0; i < ThemeButtons.Length; i++)
             {
                 ThemeButtons[i] = new GlyphButton(glyphs[i], tips[i], DockStyle.Right);
                 ThemeButtons[i].Width = TouchMode.Hit(32);
@@ -118,10 +120,13 @@ namespace OrclFileExplorer
             Controls.Add(ThemeButtons[1]);
             Controls.Add(ThemeButtons[2]);
             Controls.Add(ThemeButtons[3]);
+            ThemesButton = new GlyphButton("\uE790", "Themes and text: all the themes, your own, text size and contrast", DockStyle.Right);
+            ThemesButton.Width = TouchMode.Hit(32);
+            Controls.Add(ThemesButton);
             BoldButton = new GlyphButton("B", "Bold text: all of the app's text in bold, easier to read (the window is rebuilt)", DockStyle.Right);
             BoldButton.Width = TouchMode.Hit(32);
             BoldButton.Painter = DrawBold;
-            BoldButton.Checked = BoldText.On;
+            BoldButton.Checked = TextStyle.Weight > 0;
             Controls.Add(BoldButton);
             Controls.Add(gap);
             Controls.Add(min);
@@ -152,14 +157,14 @@ namespace OrclFileExplorer
             foreach (Control c in Controls) all += c.Width;
             foreach (GlyphButton b in ViewButtons) views += b.Width;
             foreach (GlyphButton b in ThemeButtons) themes += b.Width;
-            themes += BoldButton.Width;
+            themes += BoldButton.Width + ThemesButton.Width;
             int room = Width - IconRect.Right - Native.Px(40);
             bool showViews = all <= room, showThemes = all - views <= room;
             SuspendLayout();
             foreach (GlyphButton b in ViewButtons) b.Visible = showViews;
             viewsGap.Visible = showViews;
             foreach (GlyphButton b in ThemeButtons) b.Visible = showThemes;
-            BoldButton.Visible = showThemes;
+            BoldButton.Visible = ThemesButton.Visible = showThemes;
             themesGap.Visible = showThemes;
             ResumeLayout();
         }
@@ -265,7 +270,7 @@ namespace OrclFileExplorer
         static Font boldGlyph;
         static void DrawBold(Graphics g, Rectangle r, Color c)
         {
-            if (boldGlyph == null) boldGlyph = new Font("Segoe UI", TouchMode.On ? 13f : 11f, FontStyle.Bold);
+            if (boldGlyph == null) boldGlyph = new Font("Segoe UI", TextStyle.IconSize(TouchMode.On ? 13f : 11f), FontStyle.Bold);
             Rectangle box = new Rectangle(r.X - Native.Px(6), r.Y - Native.Px(6), r.Width + Native.Px(12), r.Height + Native.Px(12));
             TextRenderer.DrawText(g, "B", boldGlyph, box, c, TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPadding);
         }
@@ -288,7 +293,7 @@ namespace OrclFileExplorer
         // The line under the title bar (in Paper, a thicker orange one).
         static void DrawBottomLine(Graphics g, int w, int h)
         {
-            int t = Theme.Paper ? Native.Px(2) : 1;
+            int t = Theme.ColouredTitle ? Native.Px(2) : 1;
             using (SolidBrush b = new SolidBrush(Theme.TitleLine)) g.FillRectangle(b, 0, h - t, w, t);
         }
 
@@ -305,7 +310,7 @@ namespace OrclFileExplorer
             {
                 e.Graphics.Clear(Theme.Title);
                 int x = Width / 2;
-                using (Pen p = new Pen(Theme.Paper ? Theme.TitleHover : Theme.Border)) e.Graphics.DrawLine(p, x, 0, x, Height);
+                using (Pen p = new Pen(Theme.ColouredTitle ? Theme.TitleHover : Theme.Border)) e.Graphics.DrawLine(p, x, 0, x, Height);
                 DrawBottomLine(e.Graphics, Width, Height);
             }
 

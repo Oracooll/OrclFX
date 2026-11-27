@@ -90,7 +90,7 @@ namespace OrclFileExplorer
             textBox.BorderStyle = BorderStyle.None;
             textBox.HideSelection = false;
             textBox.MaxLength = 0;
-            textBox.Font = new Font("Consolas", 9.75f, BoldText.Style);
+            textBox.Font = TextStyle.Ui(new Font("Consolas", 9.75f));
             textBox.HandleCreated += delegate { ThemeText(); };
             textBox.KeyDown += delegate(object s, KeyEventArgs e)
             {

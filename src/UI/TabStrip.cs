@@ -22,7 +22,7 @@ namespace OrclFileExplorer
         Rectangle plusRect;
         int hover = -1, drag = -1, tipIndex = -2;
         bool hoverPlus;
-        readonly ToolTip tip = BoldText.NewTips();
+        readonly ToolTip tip = TextStyle.NewTips();
         Font bold;
 
         public TabStrip(Pane p)

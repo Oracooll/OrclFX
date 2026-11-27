@@ -33,7 +33,7 @@ namespace OrclFileExplorer
         {
             Main = main;
             Dock = DockStyle.Fill;
-            Padding = new Padding(Native.Px(2));
+            Padding = new Padding(FrameWidth);
             strip = new TabStrip(this);
             content.Dock = DockStyle.Fill;
             content.Controls.Add(shade);
@@ -138,15 +138,23 @@ namespace OrclFileExplorer
             back.Invalidate(); fwd.Invalidate(); up.Invalidate(); newFolderBtn.Invalidate(); newFileBtn.Invalidate(); refreshBtn.Invalidate(); menuBtn.Invalidate();
         }
 
+        // The active pane's frame (Themes › Text and contrast › Focus visibility: 2, 4 or 6 pixels).
+        public static int Frame;
+        public static readonly int[] FrameWidths = { 2, 4, 6 };
+        public static readonly string[] FrameNames = { "Normal", "Strong", "Strongest" };
+        static int FrameWidth { get { return Native.Px(FrameWidths[Frame]); } }
+        public void ApplyFrame() { if (Padding.Left != FrameWidth) Padding = new Padding(FrameWidth); }
+
         public void ApplyActiveLook()
         {
             // The active pane gets an accent frame, an accent address box and full-strength text;
             // the inactive one is unframed with dimmed address text.
-            bool on = IsActivePane;
+            // (In a tinted theme, while the Shortcuts pane was clicked last, every file pane looks inactive.)
+            bool on = IsActivePane && !(Theme.Tinted && Main.ShortcutsActive);
             BackColor = on ? Theme.Accent : Theme.Window;
             addrBorder.BackColor = on ? Theme.Accent : Theme.Border;
             addr.ForeColor = on ? Theme.Text : Theme.TextDim;
-            bool shaded = Theme.Paper && !on;
+            bool shaded = Theme.Tinted && !on;
             if (shade.Visible != shaded) shade.Visible = shaded;
             if (shaded) shade.BringToFront();
             crumbs.Invalidate();
@@ -425,17 +433,24 @@ namespace OrclFileExplorer
             view.DropDown.Renderer = m.Renderer;
             m.Items.Add(view);
             ToolStripMenuItem theme = new ToolStripMenuItem("Theme");
-            string[] names = { "Match Windows", "Light", "Dark", "Paper" };
-            for (int i = 0; i < names.Length; i++)
+            AddItem(theme.DropDownItems, "Themes and text…", null, delegate { Main.ShowThemes(null); });
+            theme.DropDownItems.Add(new ToolStripSeparator());
+            ToolStripMenuItem automatic = AddItem(theme.DropDownItems, Theme.AutoKind == ThemeChoice.ByHour ? "Automatic (by the hour)" : "Automatic (as Windows)", null,
+                delegate { Main.ChooseTheme(delegate { Theme.Auto = Theme.AutoKind; }); });
+            automatic.Checked = Theme.Auto != ThemeChoice.ByHand;
+            // The built-in light themes, the dark ones, then yours, each group after a line.
+            List<Palette> all = Theme.All();
+            for (int i = 0; i < all.Count; i++)
             {
-                int mode = i;
-                ToolStripMenuItem it = AddItem(theme.DropDownItems, names[i], null, delegate { Main.SetThemeMode(mode); });
-                it.Checked = Theme.Mode == i;
+                Palette chosen = all[i];
+                if (i > 0 && (all[i - 1].Dark != chosen.Dark || all[i - 1].Mine != chosen.Mine)) theme.DropDownItems.Add(new ToolStripSeparator());
+                ToolStripMenuItem it = AddItem(theme.DropDownItems, chosen.Name, null, delegate { Main.ChooseTheme(delegate { Theme.Auto = ThemeChoice.ByHand; Theme.Manual = chosen.Id; }); });
+                it.Checked = Theme.Auto == ThemeChoice.ByHand && chosen.SameAs(Theme.Current);
             }
             theme.DropDown.Renderer = m.Renderer;
             m.Items.Add(theme);
-            ToolStripMenuItem bold = AddItem(m.Items, "Bold text", null, delegate { Main.SetBoldText(!BoldText.On); });
-            bold.Checked = BoldText.On;
+            ToolStripMenuItem bold = AddItem(m.Items, "Bold text", null, delegate { Main.ToggleBold(); });
+            bold.Checked = Main.TextWeightWanted > 0;
             m.Items.Add(new ToolStripSeparator());
 
             if (!Installer.IsRunningInstalledCopy())

@@ -79,12 +79,26 @@ a single `orclfx.exe`, no installer package and no admin rights needed.
 - All eight view modes have a button in the title bar (Details, List, Tiles, Content, Small, Medium, Large and
   Extra large icons), in the order Ctrl+mouse wheel goes through them; also in ☰ › View mode. Right-click a view button to make it the default for every folder you open (a green
   tick marks it); right-click it again to go back to each folder's own remembered view.
-- Light, dark, match-Windows or **Paper** theme from the title bar. Paper is warm beige with a brown title bar
-  and brown accents; the active pane's file list is white and the others' are beige.
-- **Bold text** (the B button in the title bar, or ☰ › Bold text): all of the app's own text in bold, easier to
-  read: the file names, tabs, address bar, tree, Shortcuts, status bar, menus, tooltips, Find, the preview's text and
-  the Space Viewer. Switching rebuilds the window, keeping your tabs. For bold file names the file lists use Windows'
-  older list style (as in Windows 7), the only one that takes a font from a program: its rows are more compact.
+- **Themes** (the palette button in the title bar, or ☰ › Theme › Themes and text…): a window with a picture of
+  OrclFX in the theme you choose and two pages.
+  - *Themes*: twelve themes, six light (Light, Paper, Mint, Terracotta, Lavender, High contrast) and six dark (Dark,
+    Graphite, Midnight, Forest, Plum, High contrast dark). Choose one by hand, or let the light and the dark one
+    switch as Windows is set or by the hour (light from 7:00 until 18:00, say). Your own themes: right-click a theme
+    to copy it, or *New theme…*; you pick the background, writing, accent, title bar and the line under it, and the
+    rest is worked out. They're kept in your OneDrive (like the layouts), so all your computers have them, and can be
+    exported and imported as `.orcltheme` files.
+  - *Text and contrast*: text size (up to 150 %; the whole window grows with it, so nothing is cut off), font weight
+    (normal, semibold, bold), focus visibility (a thicker frame round the active pane), border contrast, touch mode,
+    and the presets Standard, Low vision and Tablet. Text size, weight and touch mode rebuild the window (your tabs
+    stay) when you close the Themes window; the rest changes at once.
+  - The title bar has quick buttons for the themes too: automatic, your light one, your dark one, Paper.
+- The Explorer file lists are drawn by Windows, which doesn't let a program colour them. In a coloured theme
+  (Paper, Mint ...) the active pane's list is white (or Windows' dark grey) and the others get a see-through tint of
+  the theme's colour; clicking the Shortcuts pane makes its list white and tints all the file panes. A changed text
+  size or weight reaches the file lists in the light themes: they then use Windows' older list style (as in Windows
+  7), the only one that takes a font from a program, with more compact rows. Dark themes keep Windows' own list and
+  font (the older list can't be made fully dark).
+- **Bold text** (the B button in the title bar, or ☰ › Bold text) switches bold on and off in one click.
 - ☰ › View options: show hidden files (Ctrl+H), file name extensions (Ctrl+E), auto-fit the Name column, natural number sorting,
   and folder sizes. Folder sizes are calculated in the background at low priority, skip network
   drives, never download OneDrive files, and turn themselves off if a scan gets out of hand.
@@ -175,6 +189,7 @@ the tests on every push.
 | Tabs, layout and settings (this computer only) | `%APPDATA%\OrclFX\state.txt` (with a `.bak` copy) |
 | Shortcuts list (shared by your computers) | `Documents\OrclFX\shortcuts.txt` in your OneDrive (see below) |
 | Saved layouts (shared by your computers) | `layouts.txt` in the same folder |
+| Your own themes (shared by your computers) | `themes.txt` in the same folder |
 | Error log | `%APPDATA%\OrclFX\errors.log` |
 
 The shared folder is `Documents\OrclFX` when Documents is backed up to OneDrive, or
@@ -192,7 +207,7 @@ deleted. When OneDrive keeps two versions of the list (two computers changed it 
   Windows applies some light/dark choices only when an app starts.
 - Only one window runs at a time; launching the app again brings the open window to the front.
 - See [CHANGELOG.md](CHANGELOG.md) for the version history, and [IDEAS.md](IDEAS.md) for suggestions kept for later. Versions are `major.minor.build` with a
-  three-digit build (1.1.057).
+  three-digit build (1.1.058).
 
 ## License
 

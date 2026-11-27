@@ -3,6 +3,35 @@
 Versions are `major.minor.build` with a three-digit build number. Every release bumps the build;
 the minor number changes only for larger milestones.
 
+## 1.1.058
+- **Themes window** (the new palette button in the title bar, or ☰ › Theme › Themes and text…), with a picture of
+  OrclFX in the theme chosen at the top:
+  - **Twelve themes**: Light, Paper, Mint, Terracotta, Lavender and High contrast; Dark, Graphite, Midnight, Forest,
+    Plum and High contrast dark. Light and Dark look as before, with Windows' accent colour.
+  - **Automatic**: a light and a dark theme of your choice, switched as Windows is set (as "match Windows" did) or
+    **by the hour** (light from 7:00 until 18:00, for example). A switch between light and dark rebuilds the window,
+    so by the hour it waits until no box is open and the window hasn't been used for half a minute.
+  - **Your own themes**: right-click a theme to copy it, or *New theme…*: name, light or dark, and five colours
+    (background, writing, accent, title bar, the line under it); the rest is worked out, with a warning when the
+    writing is hard to read. Edit, copy, delete, **export and import** (`.orcltheme` files). They're kept in
+    `themes.txt` next to the shortcuts and layouts in OneDrive, so all your computers have them.
+  - The title bar's theme buttons: automatic, your light theme, your dark theme, Paper, then the Themes window.
+- **Text and contrast** (the Themes window's second page):
+  - **Text size** 100 / 115 / 130 / 150 %: the whole window grows with the text (buttons, bars, dialogs, the Space
+    Viewer), so nothing is cut off.
+  - **Font weight**: normal, semibold or bold (the B button still switches bold on and off).
+  - **Focus visibility**: the active pane's frame 2, 4 or 6 pixels thick.
+  - **Border contrast**: soft, normal or strong lines between things.
+  - **Touch mode**, and the presets **Standard**, **Low vision** (130 %, bold, strongest frame, strong borders) and
+    **Tablet**.
+  - A changed size or weight reaches the file lists in the light themes (in Windows' older list style, as bold text
+    did). Dark themes keep Windows' own file list and font: the older list stays partly white in a dark theme.
+- Every coloured theme works as Paper did: inactive panes tinted in the theme's colour, the active one white (or
+  Windows' dark grey), the title bar and window frame in the theme's colour.
+- **Shortcuts pane in the coloured themes**: clicking it makes its list white and tints all the file panes as
+  inactive; clicking a file pane (or typing in it) switches back. Commands such as Ctrl+T still go to the last file
+  pane used.
+
 ## 1.1.057
 - Bold text with the Paper theme: inactive panes are beige all over again, the sorted column included (1.1.056 set
   the older list's own colours, which left the sorted column white). They get the same beige tint as without bold

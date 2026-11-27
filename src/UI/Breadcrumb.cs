@@ -20,7 +20,7 @@ namespace OrclFileExplorer
         Rectangle moreRect;
         int hoverText = -1, hoverArrow = -1;
         bool hoverMore;
-        readonly ToolTip tip = BoldText.NewTips();
+        readonly ToolTip tip = TextStyle.NewTips();
         int openedAt = Environment.TickCount - 100000; // when a click last opened a folder
 
         public Breadcrumb(Pane p)

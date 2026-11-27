@@ -63,26 +63,26 @@ namespace OrclFileExplorer
         {
             Text = Program.AppName + " " + Installer.Version;
             // Touch mode decides the sizes of what is built below.
-            try { earlyLines = SettingsFile.ReadLines(StateFile); earlyUnreadable = SettingsFile.Unreadable; TouchMode.ReadEarly(earlyLines); BoldText.ReadEarly(earlyLines); } catch { }
+            try { earlyLines = SettingsFile.ReadLines(StateFile); earlyUnreadable = SettingsFile.Unreadable; TouchMode.ReadEarly(earlyLines); TextStyle.ReadEarly(earlyLines); } catch { }
             // Room for the tree, one pane and the preview; a saved narrower size is widened to this.
             MinimumSize = new Size(Math.Min(TouchMode.Hit(900), Screen.PrimaryScreen.WorkingArea.Width), Native.Px(400)); // wide enough for the title bar's buttons and icon
-            Font = new Font("Segoe UI", 9f, BoldText.Style);
+            Font = TextStyle.MainFont();
             Icon = AppIcon();
             titleBar = new TitleBar(this);
             titleBar.SetIcon(Icon);
             titleBar.FindButton.Click += delegate { ShowFind(); };
-            titleBar.TouchButton.Click += delegate { SetTouchMode(!TouchMode.On); };
-            titleBar.BoldButton.Click += delegate { SetBoldText(!BoldText.On); };
+            titleBar.TouchButton.Click += delegate { SetTouchMode(!TouchWanted); };
+            titleBar.BoldButton.Click += delegate { ToggleBold(); };
             titleBar.IconClick += delegate
             {
                 Rectangle r = titleBar.IconRect;
                 ActivePane.ShowMainMenu(titleBar, new Point(r.Left, r.Bottom + Native.Px(2)), ToolStripDropDownDirection.BelowRight);
             };
-            for (int i = 0; i < Theme.Modes; i++)
-            {
-                int mode = i;
-                titleBar.ThemeButtons[i].Click += delegate { SetThemeMode(mode); };
-            }
+            titleBar.ThemeButtons[0].Click += delegate { ChooseTheme(delegate { Theme.Auto = Theme.AutoKind; }); };
+            titleBar.ThemeButtons[1].Click += delegate { ChooseTheme(delegate { Theme.Auto = ThemeChoice.ByHand; Theme.Manual = Theme.LightId; }); };
+            titleBar.ThemeButtons[2].Click += delegate { ChooseTheme(delegate { Theme.Auto = ThemeChoice.ByHand; Theme.Manual = Theme.DarkId; }); };
+            titleBar.ThemeButtons[3].Click += delegate { ChooseTheme(delegate { Theme.Auto = ThemeChoice.ByHand; Theme.Manual = "paper"; }); };
+            titleBar.ThemesButton.Click += delegate { ShowThemes(null); };
             StartPosition = FormStartPosition.CenterScreen;
             Size = new Size(Native.Px(1400), Native.Px(860));
 
@@ -143,8 +143,11 @@ namespace OrclFileExplorer
             Controls.Add(titleBar);
             ActivePane = Panes[0];
 
+            try { Theme.Mine = ThemeFile.Read(AppPaths.ThemesFile); } catch (Exception ex) { Program.LogError(ex); }
             LoadState();
             Theme.Update();
+            builtDark = Theme.Dark;
+            foreach (Pane p in Panes) p.ApplyFrame(); // (the panes were made before the settings were read)
             ApplyTheme();
 
             saveTimer.Interval = 1500;
@@ -213,15 +216,36 @@ namespace OrclFileExplorer
             Ready = true;
             ListenForShow();
             Activated += delegate { Shortcuts.CheckAvailability(); };
-            // Test hook: DUALPANE_TEST_THEME=<0|1|2> switches theme 3 seconds after start (used to test live switching).
-            int testTheme;
-            if (int.TryParse(Environment.GetEnvironmentVariable("DUALPANE_TEST_THEME"), out testTheme))
+            // Test hook: DUALPANE_TEST_THEME=<0-3, or a theme's id such as midnight> switches theme 3 seconds after start
+            // (0-3 as the settings file's old "theme=": match Windows, light, dark, Paper).
+            string testTheme = Environment.GetEnvironmentVariable("DUALPANE_TEST_THEME");
+            if (testTheme != null)
             {
                 Timer tt = new Timer();
                 tt.Interval = 3000;
-                tt.Tick += delegate { tt.Stop(); Program.Trace("test theme -> " + testTheme); SetThemeMode(testTheme); };
+                tt.Tick += delegate
+                {
+                    tt.Stop();
+                    Program.Trace("test theme -> " + testTheme);
+                    int legacy;
+                    if (int.TryParse(testTheme, out legacy)) ChooseTheme(delegate { ThemeChoice.FromLegacy(legacy, out Theme.Auto, out Theme.Manual); });
+                    else ChooseTheme(delegate { Theme.Auto = ThemeChoice.ByHand; Theme.Manual = testTheme; });
+                };
                 tt.Start();
             }
+            // Test hook: DUALPANE_TEST_THEMES=themes|text opens the Themes window on that page 3 seconds after start.
+            string testThemes = Environment.GetEnvironmentVariable("DUALPANE_TEST_THEMES");
+            if (testThemes != null)
+            {
+                Timer tw = new Timer();
+                tw.Interval = 3000;
+                tw.Tick += delegate { tw.Stop(); ShowThemes(testThemes); };
+                tw.Start();
+            }
+            // By the hour: the theme is looked at every half minute.
+            themeTimer.Interval = 30000;
+            themeTimer.Tick += delegate { CheckThemeHour(); };
+            themeTimer.Start();
             // Test hook: DUALPANE_TEST_FIND=<text> (or +<text> for names and contents) runs Find 3 seconds after
             // start, logs the results 10 seconds later, then presses Up and logs where the tab went.
             string testFind = Environment.GetEnvironmentVariable("DUALPANE_TEST_FIND");
@@ -692,7 +716,7 @@ namespace OrclFileExplorer
             }
             base.WndProc(ref m);
             const int WM_SETTINGCHANGE = 0x1A;
-            if (m.Msg == WM_SETTINGCHANGE && m.LParam != IntPtr.Zero && Theme.Mode == 0 &&
+            if (m.Msg == WM_SETTINGCHANGE && m.LParam != IntPtr.Zero && (Theme.Auto == ThemeChoice.AsWindows || Theme.Current != null && Theme.Current.WindowsAccent) &&
                 Marshal.PtrToStringUni(m.LParam) == "ImmersiveColorSet")
             {
                 bool wasDark = Theme.Dark;
@@ -754,8 +778,21 @@ namespace OrclFileExplorer
             foreach (Pane p in Panes) p.ApplyActiveLook();
         }
 
+        // The Shortcuts pane was clicked last (until a file pane is clicked or gets the keyboard). In the Paper
+        // theme it then looks active: its list white, every file pane tinted as inactive.
+        public bool ShortcutsActive { get; private set; }
+
+        public void SetShortcutsActive(bool on)
+        {
+            if (ShortcutsActive == on) return;
+            ShortcutsActive = on;
+            foreach (Pane x in Panes) x.ApplyActiveLook();
+            Shortcuts.ApplyActiveLook();
+        }
+
         public void SetActivePane(Pane p)
         {
+            SetShortcutsActive(false);
             if (ActivePane == p) return;
             ActivePane = p;
             if (PaneCount <= 1 && Ready)
@@ -1035,67 +1072,140 @@ namespace OrclFileExplorer
 
         // ---- theme
 
-        // Touch mode: the window is rebuilt with the new sizes (tabs and layout kept).
-        // (TouchMode.On itself stays as this window was built; touchWanted is what the rebuilt one gets.)
+        // Touch mode, text size and weight: the window is rebuilt with the new sizes and fonts (tabs and layout kept).
+        // (TouchMode.On and TextStyle stay as this window was built; the *Wanted values are what the rebuilt one gets.)
         bool? touchWanted;
+        int? sizeWanted, weightWanted;
 
-        public void SetTouchMode(bool on)
+        // (Asked from what's wanted, not what the window has: a rebuild may be waiting for a copy to finish.)
+        public void SetTouchMode(bool on) { RequestRebuild(TextSizeWanted, TextWeightWanted, on, "touch mode"); }
+        public void ToggleBold() { RequestRebuild(TextSizeWanted, TextWeightWanted > 0 ? TextStyle.Normal : TextStyle.Bold, TouchWanted, "bold text"); }
+
+        // Whether this window was built light or dark (Theme.Dark already says what's asked for while a switch waits).
+        bool builtDark;
+
+        public bool TouchWanted { get { return touchWanted ?? TouchMode.On; } }
+        public int TextSizeWanted { get { return sizeWanted ?? TextStyle.Size; } }
+        public int TextWeightWanted { get { return weightWanted ?? TextStyle.Weight; } }
+
+        public void RequestRebuild(int size, int weight, bool touch, string why)
         {
             if (restarting) return;
-            titleBar.TouchButton.Checked = on;
-            if (on == TouchMode.On)
+            titleBar.TouchButton.Checked = touch;
+            titleBar.BoldButton.Checked = weight > 0;
+            if (size == TextStyle.Size && weight == TextStyle.Weight && touch == TouchMode.On)
             {
-                // Pressed again while the switch waits for a copy to finish: nothing to switch any more.
-                touchWanted = null;
-                if (restartWhenIdle && restartWhy == "touch mode") { restartWhenIdle = false; Notice("Touch mode stays " + (on ? "on." : "off.")); }
+                // Changed back while the switch waits for a copy to finish: nothing to switch any more.
+                touchWanted = null; sizeWanted = weightWanted = null;
+                if (restartWhenIdle && Rebuilds(restartWhy))
+                {
+                    // A switch between light and dark still waits: that one stays.
+                    if (Theme.Dark != builtDark) restartWhy = "theme";
+                    else { restartWhenIdle = false; Notice("Nothing to switch any more."); }
+                }
                 StateChanged();
                 return;
             }
-            touchWanted = on;
-            Program.Trace("touch mode " + (on ? "on" : "off") + " asked");
-            RestartForTheme("touch mode");
+            touchWanted = touch; sizeWanted = size; weightWanted = weight;
+            Program.Trace("rebuild asked (" + why + "): text size " + size + ", weight " + weight + ", touch " + touch);
+            RestartForTheme(why);
             if (!restarting && !restartWhenIdle)
             {
                 // Couldn't rebuild the window: nothing switched.
-                touchWanted = null;
+                touchWanted = null; sizeWanted = weightWanted = null;
                 titleBar.TouchButton.Checked = TouchMode.On;
+                titleBar.BoldButton.Checked = TextStyle.Weight > 0;
                 StateChanged();
             }
         }
 
-        // Bold text: the window is rebuilt with bold fonts (tabs and layout kept), as for touch mode.
-        bool? boldWanted;
-
-        public void SetBoldText(bool on)
-        {
-            if (restarting) return;
-            titleBar.BoldButton.Checked = on;
-            if (on == BoldText.On)
-            {
-                boldWanted = null;
-                if (restartWhenIdle && restartWhy == "bold text") { restartWhenIdle = false; Notice("Bold text stays " + (on ? "on." : "off.")); }
-                StateChanged();
-                return;
-            }
-            boldWanted = on;
-            Program.Trace("bold text " + (on ? "on" : "off") + " asked");
-            RestartForTheme("bold text");
-            if (!restarting && !restartWhenIdle)
-            {
-                boldWanted = null;
-                titleBar.BoldButton.Checked = BoldText.On;
-                StateChanged();
-            }
-        }
-
-        public void SetThemeMode(int mode)
+        // A theme setting changed (by change): shown at once or, when it switches between light and dark, by
+        // rebuilding the window (Windows takes some light/dark choices only when an app starts).
+        public void ChooseTheme(Action change)
         {
             bool wasDark = Theme.Dark;
-            Theme.Mode = mode;
+            change();
             Theme.Update();
             ApplyTheme();
             StateChanged();
             if (wasDark != Theme.Dark) RestartForTheme();
+        }
+
+        // Shows the theme now asked for when it can be shown without rebuilding the window (the same lightness);
+        // true when it was (or nothing changed). The Themes window uses it as you choose.
+        public bool ShowThemeLive()
+        {
+            Palette want = Theme.Wanted();
+            if (want.Dark != Theme.Dark) return false;
+            Theme.Update();
+            ApplyTheme();
+            StateChanged();
+            return true;
+        }
+
+        // By the hour: when the hour comes, the theme changes. A change between light and dark rebuilds the window, so
+        // it waits until no box is open and the window hasn't been used for half a minute (a name being typed ...).
+        readonly Timer themeTimer = new Timer();
+
+        void CheckThemeHour()
+        {
+            if (Theme.Auto != ThemeChoice.ByHour || restarting || !Ready) return;
+            Palette want = Theme.Wanted();
+            if (want.SameAs(Theme.Current)) return;
+            if (want.Dark == Theme.Dark) { ShowThemeLive(); return; }
+            if (unchecked(Environment.TickCount - LastInputTick) < 30000 || !NoBoxOpen()) return;
+            Program.Trace("by the hour: " + want.Name);
+            ChooseTheme(delegate { });
+        }
+
+        // The title bar's theme buttons: which is on, and the theme each one picks.
+        void UpdateThemeButtons()
+        {
+            Palette light = Theme.Find(Theme.LightId) ?? Theme.Find("light"), dark = Theme.Find(Theme.DarkId) ?? Theme.Find("dark");
+            bool byHand = Theme.Auto == ThemeChoice.ByHand;
+            titleBar.ThemeButtons[0].Checked = !byHand;
+            titleBar.ThemeButtons[1].Checked = byHand && Theme.Manual == light.Id;
+            titleBar.ThemeButtons[2].Checked = byHand && Theme.Manual == dark.Id;
+            titleBar.ThemeButtons[3].Checked = byHand && Theme.Manual == "paper";
+            titleBar.ThemeButtons[0].SetTip(Theme.AutoKind == ThemeChoice.ByHour
+                ? "Theme: automatic by the hour (" + light.Name + " from " + Theme.LightFrom + ":00, " + dark.Name + " from " + Theme.LightTo + ":00)"
+                : "Theme: automatic, as Windows is set (" + light.Name + " or " + dark.Name + ")");
+            titleBar.ThemeButtons[1].SetTip("Theme: " + light.Name + " (your light theme)");
+            titleBar.ThemeButtons[2].SetTip("Theme: " + dark.Name + " (your dark theme)");
+        }
+
+        // The Themes window (page: "themes", "text" or null for the last one). Choices that need the window rebuilt
+        // (light to dark, text size and weight, touch mode) are made when it closes.
+        public void ShowThemes(string page)
+        {
+            try { Theme.Mine = ThemeFile.Read(AppPaths.ThemesFile); } catch (Exception ex) { Program.LogError(ex); } // changed on another computer
+            int size, weight;
+            bool touch;
+            using (ThemesWindow w = new ThemesWindow(this, page))
+            {
+                w.ShowDialog(this);
+                size = w.TextSize; weight = w.TextWeight; touch = w.Touch;
+            }
+            UpdateThemeButtons();
+            bool flips = Theme.Wanted().Dark != Theme.Dark;
+            bool rebuild = size != TextSizeWanted || weight != TextWeightWanted || touch != TouchWanted;
+            if (flips)
+            {
+                // The new theme's colours now, then the rebuild below (or the theme's own one).
+                Theme.Update();
+                ApplyTheme();
+                StateChanged();
+            }
+            if (rebuild) RequestRebuild(size, weight, touch, "text size");
+            if (Theme.Dark != builtDark && !restarting && !restartWhenIdle) RestartForTheme();
+        }
+
+        // Focus visibility: the active pane's frame.
+        public void SetFocusFrame(int n)
+        {
+            Pane.Frame = Math.Max(0, Math.Min(Pane.FrameWidths.Length - 1, n));
+            foreach (Pane p in Panes) p.ApplyFrame();
+            StateChanged();
         }
 
         bool restarting;
@@ -1171,7 +1281,7 @@ namespace OrclFileExplorer
             {
                 restartWhenIdle = true;
                 restartWhy = why;
-                Notice((Rebuilds(why) ? Capital(why) : "The " + why) + " switches when the current copy or move has finished.");
+                Notice(What(why) + " will change when the current copy or move has finished.");
                 WhenIdle();
                 return;
             }
@@ -1180,7 +1290,7 @@ namespace OrclFileExplorer
             string problem = SaveAll();
             if (problem != null)
             {
-                if (Rebuilds(why)) { Notice(problem + " " + Capital(why) + " wasn't switched."); return; }
+                if (Rebuilds(why)) { Notice(problem + " " + What(why) + " didn't change."); return; }
                 Notice(problem + " The " + why + " will fully apply after the next restart.");
                 RecreateViews();
                 return;
@@ -1196,14 +1306,24 @@ namespace OrclFileExplorer
             {
                 restarting = false;
                 Program.LogError(ex);
-                if (Rebuilds(why)) Notice("\u26A0 Couldn't rebuild the window: " + ex.Message + " " + Capital(why) + " wasn't switched.");
+                if (Rebuilds(why)) Notice("\u26A0 Couldn't rebuild the window: " + ex.Message + " " + What(why) + " didn't change.");
                 else RecreateViews();
             }
         }
 
-        // Touch mode and bold text are only switched by rebuilding the window (no live switch to fall back on).
-        static bool Rebuilds(string why) { return why == "touch mode" || why == "bold text"; }
-        static string Capital(string s) { return char.ToUpper(s[0]) + s.Substring(1); }
+        // Touch mode and the text are only switched by rebuilding the window (no live switch to fall back on, as the
+        // theme has).
+        static bool Rebuilds(string why) { return why != "theme"; }
+        static string What(string why)
+        {
+            switch (why)
+            {
+                case "touch mode": return "Touch mode";
+                case "bold text": return "Bold text";
+                case "text size": return "The text size and weight";
+                default: return "The theme";
+            }
+        }
 
         public void ApplyTheme()
         {
@@ -1219,7 +1339,7 @@ namespace OrclFileExplorer
             Shortcuts.ApplyTheme();
             tree.ApplyTheme();
             preview.ApplyTheme();
-            for (int i = 0; i < Theme.Modes; i++) titleBar.ThemeButtons[i].Checked = Theme.Mode == i;
+            UpdateThemeButtons();
             titleBar.Invalidate(true);
             status.BackColor = Theme.Bar;
             statusLeft.ForeColor = statusRight.ForeColor = Theme.TextDim;
@@ -1233,8 +1353,9 @@ namespace OrclFileExplorer
             if (!IsHandleCreated) return;
             int dark = Theme.Dark ? 1 : 0;
             try { Native.DwmSetWindowAttribute(Handle, 20, ref dark, 4); } catch { }
-            // The window's thin frame: brown in Paper, Windows' own otherwise (DWMWA_BORDER_COLOR, Windows 11).
-            int border = Theme.Paper ? (int)Native.ColorRef(Theme.Title) : unchecked((int)0xFFFFFFFF);
+            // The window's thin frame: in the title bar's colour when it has one (Paper's brown ...), else Windows' own
+            // (DWMWA_BORDER_COLOR, Windows 11).
+            int border = Theme.ColouredTitle ? (int)Native.ColorRef(Theme.Title) : unchecked((int)0xFFFFFFFF);
             try { Native.DwmSetWindowAttribute(Handle, 34, ref border, 4); } catch { }
         }
 
@@ -1622,6 +1743,7 @@ namespace OrclFileExplorer
             if (msg == 0x201 || msg == 0x204 || msg == 0x207)
             {
                 foreach (Pane p in Panes) if (Native.Contains(p.Handle, m.HWnd)) { SetActivePane(p); break; }
+                if (Shortcuts.IsHandleCreated && Native.Contains(Shortcuts.Handle, m.HWnd)) SetShortcutsActive(true);
                 return false;
             }
             if (msg < 0x100 || msg > 0x109) return false;
@@ -1918,7 +2040,17 @@ namespace OrclFileExplorer
                                 int bar = v.IndexOf('|');
                                 if (bar > 0) legacyShortcuts.Add(new KeyValuePair<string, string>(v.Substring(0, bar), v.Substring(bar + 1)));
                                 break;
-                            case "theme": if (int.TryParse(v, out n) && n >= 0 && n < Theme.Modes) Theme.Mode = n; break;
+                            // (Up to 1.1.057 "theme" was all there was; newer files have it too, for an older version, and
+                            // the theme* keys after it.)
+                            case "theme": if (int.TryParse(v, out n) && n >= 0 && n <= 3) ThemeChoice.FromLegacy(n, out Theme.Auto, out Theme.Manual); break;
+                            case "themeauto": if (int.TryParse(v, out n) && n >= 0 && n <= 2) Theme.Auto = n; break;
+                            case "themeautokind": if (int.TryParse(v, out n) && n >= 1 && n <= 2) Theme.AutoKind = n; break;
+                            case "themepick": if (v.Length > 0) Theme.Manual = v; break;
+                            case "themelight": if (v.Length > 0) Theme.LightId = v; break;
+                            case "themedark": if (v.Length > 0) Theme.DarkId = v; break;
+                            case "themehours": int hf, ht; if (ThemeChoice.TryParseHours(v, out hf, out ht)) { Theme.LightFrom = hf; Theme.LightTo = ht; } break;
+                            case "borders": if (int.TryParse(v, out n) && n >= 0 && n <= 2) Theme.Borders = n; break;
+                            case "focusframe": if (int.TryParse(v, out n) && n >= 0 && n < Pane.FrameWidths.Length) Pane.Frame = n; break;
                             case "svthumbs": QuickLook.ShowThumbs = v != "0"; break;
                             case "svfsclicks": case "svenlarge": case "svexitmiddle": case "svconfirmexit": case "svhidecursor": case "svwheel":
                             case "svdrag": case "svsmooth": case "svzoomstep": case "svgpu": case "svbackground": case "svwrap": case "svclicksteps":
@@ -2044,14 +2176,24 @@ namespace OrclFileExplorer
                 sb.AppendLine("shortcutswidth=" + Shortcuts.WidthSetting);
                 sb.AppendLine("shortcutsort=" + Shortcuts.SortMode);
                 sb.AppendLine("shortcutsview=" + Shortcuts.ViewSetting);
-                sb.AppendLine("theme=" + Theme.Mode);
+                sb.AppendLine("theme=" + ThemeChoice.ToLegacy(Theme.Auto, Theme.Current));
+                sb.AppendLine("themeauto=" + Theme.Auto);
+                sb.AppendLine("themeautokind=" + Theme.AutoKind);
+                sb.AppendLine("themepick=" + Theme.Manual);
+                sb.AppendLine("themelight=" + Theme.LightId);
+                sb.AppendLine("themedark=" + Theme.DarkId);
+                sb.AppendLine("themehours=" + Theme.LightFrom + "-" + Theme.LightTo);
+                sb.AppendLine("borders=" + Theme.Borders);
+                sb.AppendLine("focusframe=" + Pane.Frame);
                 sb.AppendLine("svthumbs=" + (QuickLook.ShowThumbs ? "1" : "0"));
                 sb.AppendLine("svviewer=" + (QuickLook.ShowViewer ? "1" : "0"));
                 sb.AppendLine("svinfo=" + (QuickLook.ShowInfo ? "1" : "0"));
                 sb.AppendLine("svthumbsize=" + QuickLook.ThumbSize);
                 sb.AppendLine("svthumbwidth=" + QuickLook.ThumbWidth);
                 sb.AppendLine("touch=" + ((touchWanted ?? TouchMode.On) ? "1" : "0"));
-                sb.AppendLine("bold=" + ((boldWanted ?? BoldText.On) ? "1" : "0"));
+                sb.AppendLine("bold=" + (TextWeightWanted == TextStyle.Bold ? "1" : "0")); // for 1.1.055-1.1.057
+                sb.AppendLine("textsize=" + TextSizeWanted);
+                sb.AppendLine("textweight=" + TextWeightWanted);
                 ViewerSettings.Write(sb);
                 sb.AppendLine("defaultview=" + (defaultView < 0 ? "-1" : ButtonViewModes[defaultView, 0] + "/" + ButtonViewModes[defaultView, 1]));
                 sb.AppendLine("activepane=" + Array.IndexOf(Panes, ActivePane));

@@ -21,7 +21,7 @@ namespace OrclFileExplorer
         readonly string label;
         bool hover, down, isChecked;
         public Color? HoverBack, HoverFore;
-        public bool OnTitle; // in the title bar: drawn in its colours (brown with light writing in the Paper theme)
+        public bool OnTitle; // in the title bar: drawn in its colours (Paper's brown with light writing, Mint's green ...)
         public Action<Graphics, Rectangle, Color> Painter;
 
         public string Glyph
@@ -29,7 +29,7 @@ namespace OrclFileExplorer
             get { return glyph; }
             set { glyph = value; Invalidate(); }
         }
-        static readonly ToolTip tips = BoldText.NewTips();
+        static readonly ToolTip tips = TextStyle.NewTips();
 
         public GlyphButton(string glyph, string tip, DockStyle dock, string label = null)
         {
@@ -38,9 +38,11 @@ namespace OrclFileExplorer
             SetStyle(ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer | ControlStyles.ResizeRedraw, true);
             SetStyle(ControlStyles.Selectable, false);
             TabStop = false; Dock = dock;
-            Width = TouchMode.Hit(32) + (label == null ? 0 : TextRenderer.MeasureText(label, BoldText.Ui(SystemFonts.MessageBoxFont)).Width + Native.Px(4));
+            Width = TouchMode.Hit(32) + (label == null ? 0 : TextRenderer.MeasureText(label, TextStyle.Ui(SystemFonts.MessageBoxFont)).Width + Native.Px(4));
             tips.SetToolTip(this, tip);
         }
+
+        public void SetTip(string tip) { if (tips.GetToolTip(this) != tip) tips.SetToolTip(this, tip); }
 
         public bool Checked
         {
@@ -73,7 +75,7 @@ namespace OrclFileExplorer
         protected override void OnPaint(PaintEventArgs e)
         {
             Graphics g = e.Graphics;
-            g.Clear(OnTitle && Theme.Paper ? Theme.Title : Parent != null ? Parent.BackColor : Theme.Window);
+            g.Clear(OnTitle && Theme.ColouredTitle ? Theme.Title : Parent != null ? Parent.BackColor : Theme.Window);
             Color text = OnTitle ? Theme.TitleText : Theme.Text, dim = OnTitle ? Theme.TitleTextDim : Theme.TextDim;
             Rectangle r = new Rectangle(Native.Px(2), Native.Px(2), Width - Native.Px(4), Height - Native.Px(4));
             if (hover && HoverBack.HasValue)

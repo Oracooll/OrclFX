@@ -27,6 +27,7 @@ namespace OrclFileExplorer
         public static readonly string ShortcutsFile = Environment.GetEnvironmentVariable("DUALPANE_SHORTCUTS") ?? Path.Combine(SharedFolder, "shortcuts.txt");
         // Saved layouts, next to the shortcuts list (so test runs with their own list also get their own layouts).
         public static readonly string LayoutsFile = Path.Combine(Path.GetDirectoryName(ShortcutsFile), "layouts.txt");
+        public static readonly string ThemesFile = Path.Combine(Path.GetDirectoryName(ShortcutsFile), "themes.txt");
 
         static List<string> OneDriveRoots()
         {

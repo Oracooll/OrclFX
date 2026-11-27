@@ -1092,10 +1092,12 @@ namespace OrclFileExplorer
 
         int IExplorerBrowserEvents.OnViewCreated(object psv) { return 0; }
 
-        // Bold text: the views are the older list control (FVO_VISTALAYOUT, the Windows Vista list), since the
-        // Windows 11 list ignores the font a program gives it; the older one takes WM_SETFONT. (Its colours are left
-        // alone: set, the sorted column keeps its own; Paper's inactive panes get the same tint as the newer list.)
-        public static bool OldList { get { return BoldText.On; } }
+        // A changed text size or weight: the views are the older list control (FVO_VISTALAYOUT, the Windows Vista list),
+        // since the Windows 11 list ignores the font a program gives it; the older one takes WM_SETFONT. Its colours are
+        // left alone (set, its sorted column keeps a light shade of its own; tinted themes lay the same tint over an
+        // inactive one as over the newer list). Light themes only: the older list doesn't follow Windows' dark mode,
+        // and its sorted column stays white whatever is done, so dark themes keep Windows' own dark list and font.
+        public static bool OldList { get { return TextStyle.Custom && !Theme.Dark; } }
 
         // Bold names.
         public void StyleOldList()
@@ -1104,7 +1106,7 @@ namespace OrclFileExplorer
             IntPtr dv = ViewWindow();
             IntPtr lv = dv == IntPtr.Zero ? IntPtr.Zero : Native.FindChild(dv, "SysListView32");
             if (lv == IntPtr.Zero) return;
-            BoldText.Window(lv);
+            TextStyle.Window(lv);
         }
 
         int IExplorerBrowserEvents.OnNavigationComplete(IntPtr pidl)

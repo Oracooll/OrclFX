@@ -74,7 +74,7 @@ namespace OrclFileExplorer
         public string NoticeText { get { return notice.Visible ? notice.Text : null; } }
 
         const string LongHeader = "Shortcuts  ·  drop folders here to add them, double-click to open (Ctrl+double-click or middle-click: new tab), F2 renames the folder, right-click for more";
-        readonly ToolTip hintTip = BoldText.NewTips();
+        readonly ToolTip hintTip = TextStyle.NewTips();
         bool sideways;
 
         // The pane's own view (settings key "shortcutsview"), independent of the file panes' views: -1 = automatic
@@ -489,7 +489,7 @@ namespace OrclFileExplorer
         {
             using (Pen p = new Pen(c))
             using (SolidBrush b = new SolidBrush(c))
-            using (Font f = new Font("Segoe UI", 6.5f, FontStyle.Bold))
+            using (Font f = new Font("Segoe UI", 6.5f * TextStyle.Zoom, FontStyle.Bold))
             {
                 int ax = r.Right - Native.Px(4); // arrow column on the right
                 if (mode == 0)
@@ -622,13 +622,21 @@ namespace OrclFileExplorer
             header.BackColor = headerBar.BackColor = Theme.Bar;
             header.ForeColor = Theme.TextDim;
             foreach (GlyphButton b in sortButtons) b.Invalidate();
-            list.BackColor = Theme.Window;
+            ApplyActiveLook();
             list.ForeColor = Theme.Text;
             notice.BackColor = Theme.Bar;
             notice.ForeColor = Theme.Dark ? Color.FromArgb(255, 170, 90) : Color.FromArgb(176, 80, 0);
             if (list.IsHandleCreated) Native.SetWindowTheme(list.Handle, Theme.Dark ? "DarkMode_Explorer" : "Explorer", null);
             try { ShowAvailability(); } catch { }
             list.Invalidate();
+        }
+
+        // In a tinted theme (Paper, Mint ...), the list looks like the active file pane's (white, or Windows' dark
+        // grey) while the Shortcuts pane is the one clicked last; otherwise it's in the theme's background.
+        public void ApplyActiveLook()
+        {
+            Color back = Theme.Tinted && main.ShortcutsActive ? Theme.ListBack : Theme.Window;
+            if (list.BackColor != back) list.BackColor = back;
         }
 
         // ---- shared list file (OneDrive)

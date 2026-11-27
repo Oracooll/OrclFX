@@ -338,7 +338,7 @@ namespace OrclFileExplorer
         public static int Px(int v)
         {
             if (scale == 0) using (Graphics g = Graphics.FromHwnd(IntPtr.Zero)) scale = g.DpiX / 96f;
-            return (int)Math.Round(v * scale);
+            return (int)Math.Round(v * scale * TextStyle.Zoom); // a bigger text size enlarges the whole window with it
         }
 
         public static IntPtr ParsePath(string path)
